@@ -15,7 +15,15 @@ export class RemoteServiceClient {
     public method = "POST";
 
     public async calleRemoteMethod(methodName: string, args: any[]) {
-        const requestUrl = this.url?`${this.url}/${methodName}`:methodName;
+
+        let requestUrl: string;
+        if(this.url) {
+            requestUrl = new URL(methodName, this.url + (this.url.endsWith("/")?"":"/")).toString();
+        }
+        else {
+            requestUrl=methodName;
+        }
+
 
         try {
             const result = await axios(requestUrl, {
