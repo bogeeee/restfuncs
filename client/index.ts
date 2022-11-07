@@ -3,9 +3,9 @@ import axios, {Method} from "axios";
 
 /**
  * A method that's called here get's send as a REST call to the server.
- * @see createClientProxy
+ * @see createRESTFuncsClient
  */
-export class ClientProxy {
+export class RESTFuncsClient {
     readonly [index: string]: any;
 
     /**
@@ -47,12 +47,12 @@ export class ClientProxy {
      *
      * @param props see the public fields (of this class)
      */
-    constructor(props: Partial<ClientProxy>) {
+    constructor(props: Partial<RESTFuncsClient>) {
         _.extend(this, props); // just copy all given props to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
         return new Proxy(this, {
-            get(target: ClientProxy, p: string | symbol, receiver: any): any {
+            get(target: RESTFuncsClient, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -74,8 +74,8 @@ export class ClientProxy {
 /**
  * Convenience. see readme.md
  */
-export function createClientProxy<Service>(url: string): Service {
+export function createRESTFuncsClient<Service>(url: string): Service {
     // @ts-ignore
-    return new ClientProxy({url: url});
+    return new RESTFuncsClient({url: url});
 }
 

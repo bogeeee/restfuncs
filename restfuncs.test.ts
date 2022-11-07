@@ -1,17 +1,17 @@
-import {createServiceHandler} from "@restfuncs/server";
+import {createRESTFuncsHandler} from "@restfuncs/server";
 import express from "express";
-import {createClientProxy} from "@restfuncs/client";
+import {createRESTFuncsClient} from "@restfuncs/client";
 
 let serverPort = 10000; // this is increased
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, createServiceHandler(serverAPI));
+    app.use(path, createRESTFuncsHandler(serverAPI));
     serverPort++; // Bugfix: axios client throws a "socket hung up" when reusing the same port
     const server = app.listen(serverPort);
     // @ts-ignore
-    const client = createClientProxy<Api>(`http://localhost:${serverPort}${path}`);
+    const client = createRESTFuncsClient<Api>(`http://localhost:${serverPort}${path}`);
     await clientTests(client);
     // shut down server
     server.closeAllConnections();
