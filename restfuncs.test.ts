@@ -42,7 +42,6 @@ test('Simple api call', async () => {
             expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
         }
     );
-
 });
 
 test('test with diffrent api paths', async () => {
@@ -63,13 +62,17 @@ test('test with diffrent api paths', async () => {
     }
 });
 
-const variousDiffrentTypes = ["", null, undefined, true, false, "null", "undefined", "0", "true", "false", 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}];
+const variousDiffrentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"];
 
 test('Return types', async () => {
     for(let returnValue of variousDiffrentTypes) {
         await runClientServerTests({
                 myMethod() {
                     return returnValue;
+                },
+
+                myAsyncMethod() {
+                    return new Promise((resolve) => resolve(returnValue)); // Make sure this uses promises
                 }
             },
             async (apiProxy) => {
@@ -77,6 +80,24 @@ test('Return types', async () => {
                     returnValue = null;
                 }
                 expect(await apiProxy.myMethod()).toStrictEqual(returnValue);
+                expect(await apiProxy.myAsyncMethod()).toStrictEqual(returnValue);
+            }
+        );
+    }
+});
+
+
+test('Parameter types', async () => {
+    for(let param of variousDiffrentTypes) {
+        await runClientServerTests({
+                myMethod(a,b,c) {
+                    expect(a).toStrictEqual(param !== undefined?param:null);
+                    expect(b).toBeFalsy();
+                    expect(c).toStrictEqual(param !== undefined?param:null);
+                },
+            },
+            async (apiProxy) => {
+                await apiProxy.myMethod(param, undefined, param);
             }
         );
     }
