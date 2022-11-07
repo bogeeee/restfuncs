@@ -1,0 +1,25 @@
+{
+  "name": "@restfuncs/server",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "dev_watch": "nodemon -e ts --exec npm run dev_compileAndRunOnce",
+    "dev_compileAndRunOnce": "clear && tsc --incremental && ts-node index",
+    "test": "ts-node test.ts"
+  },
+  "dependencies": {
+    "express": "^4.17.13",
+    "underscore": "^1.13.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "@types/underscore": "^1.11.4",
+    "ts-node": "^10.6.0",
+    "typescript": "^4.8.4",
+    "nodemon": "^2.0.15"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}

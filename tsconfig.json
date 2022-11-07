@@ -1,0 +1,20 @@
+// A tsconfig file must be present, or tsc complains
+{
+  "exclude": [
+    "examples"
+  ],
+  "references": [
+    {
+      "path": "server"
+    },
+    {
+      "path": "client"
+    }
+  ],
+  "compilerOptions": {
+    "esModuleInterop": true, // somehow this must be specified at root level
+    "sourceMap": true,
+    "module": "CommonJS", // For Jest. Otherwise it can't dynamicly load modules
+    "moduleResolution": "node"
+  }
+}

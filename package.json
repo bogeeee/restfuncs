@@ -1,0 +1,21 @@
+{
+  "name": "@restfuncs",
+  "version": "1.0.0",
+  "description": "Test that covers client and server code at the same time",
+  "type": "module",
+  "scripts": {
+    "watch_and_run_tests": "nodemon -e ts --exec npm run compile_and_run_tests",
+    "compile_and_run_tests": "clear && tsc --build && jest",
+    "clean": "tsc --build --clean",
+    "build": "tsc --build --force"
+  },
+  "workspaces": ["server", "client", "examples/vite/server", "examples/vite/client"],
+  "devDependencies": {
+    "ts-jest": "^29.0.3",
+    "@types/jest": "^29.2.2",
+    "typescript": "^4.8.4"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
