@@ -18,8 +18,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     await new Promise((resolve) => server.close(resolve));
 }
 
-test('Test remote service', async () => {
-    // Simply call a Void method:
+test('Simply call a Void method', async () => {
     await runClientServerTests({
             myVoidMethod() {
             }
@@ -28,8 +27,9 @@ test('Test remote service', async () => {
             expect(await apiProxy.myVoidMethod()).toBeFalsy();
         }
     );
+});
 
-    // Simple api call:
+test('Simple api call', async () => {
     await runClientServerTests({
             myMethod(arg1, arg2) {
                 expect(arg1).toBe("hello1");
@@ -43,7 +43,9 @@ test('Test remote service', async () => {
         }
     );
 
-    // test with diffrent api paths:
+});
+
+test('test with diffrent api paths', async () => {
     for(let path of ["/", "/api/","/sub/api"]) {
         await runClientServerTests({
                 myMethod(arg1, arg2) {
