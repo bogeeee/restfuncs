@@ -24,7 +24,7 @@ test('Simply call a Void method', async () => {
             }
         },
         async (apiProxy) => {
-            expect(await apiProxy.myVoidMethod()).toBeFalsy();
+            expect(await apiProxy.myVoidMethod()).toBeNull();
         }
     );
 });
@@ -46,7 +46,7 @@ test('Simple api call', async () => {
 });
 
 test('test with diffrent api paths', async () => {
-    for(let path of ["/", "/api/","/sub/api"]) {
+    for(let path of ["","/", "/api/","/sub/api"]) {
         await runClientServerTests({
                 myMethod(arg1, arg2) {
                     expect(arg1).toBe("hello1");
@@ -59,6 +59,25 @@ test('test with diffrent api paths', async () => {
                 expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
             }
             ,path
+        );
+    }
+});
+
+const variousDiffrentTypes = ["", null, undefined, true, false, "null", "undefined", "0", "true", "false", 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}];
+
+test('Return types', async () => {
+    for(let returnValue of variousDiffrentTypes) {
+        await runClientServerTests({
+                myMethod() {
+                    return returnValue;
+                }
+            },
+            async (apiProxy) => {
+                if(returnValue === undefined) {
+                    returnValue = null;
+                }
+                expect(await apiProxy.myMethod()).toStrictEqual(returnValue);
+            }
         );
     }
 });

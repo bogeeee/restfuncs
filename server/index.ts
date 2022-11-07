@@ -31,8 +31,10 @@ export function createRemoteServiceRouter(remoteService: Object): Router {
 
             const args = req.body;
 
-            const result = await method.apply(remoteService, args); // Call method
+            let result = await method.apply(remoteService, args); // Call method
 
+            // Send result:
+            result = result!==undefined?result:null; // Json does not support undefined
             resp.json(result);
         }
         catch (e) {
