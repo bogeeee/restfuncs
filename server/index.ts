@@ -6,7 +6,11 @@ function isError(e: any) {
     return e !== null && typeof e === "object" && !e.hasOwnProperty("name") && e.name === "Error" && e.message;
 }
 
-export function createRemoteServiceRouter(remoteService: Object): Router {
+/**
+ * Creates a handler/router to use with express.
+ * @param remoteService An object who's methods can be called remotely / are exposed as a rest service.
+ */
+export function createServiceHandler(remoteService: Object): Router {
     const router = express.Router();
 
     router.use(express.json({limit: Number.MAX_VALUE, strict: true, inflate: false})) // parse application/json. TODO: When used with authentication, parse after auth to make it safer

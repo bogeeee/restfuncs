@@ -1,17 +1,17 @@
-import {createRemoteServiceRouter} from "@restfuncs/server";
+import {createServiceHandler} from "@restfuncs/server";
 import express from "express";
-import {RemoteServiceClient} from "@restfuncs/client";
+import {createClientProxy} from "@restfuncs/client";
 
 let serverPort = 10000; // this is increased
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, createRemoteServiceRouter(serverAPI));
+    app.use(path, createServiceHandler(serverAPI));
     serverPort++; // Bugfix: axios client throws a "socket hung up" when reusing the same port
     const server = app.listen(serverPort);
     // @ts-ignore
-    const client: Api = new RemoteServiceClient({url: `http://localhost:${serverPort}${path}`});
+    const client = createClientProxy<Api>(`http://localhost:${serverPort}${path}`);
     await clientTests(client);
     // shut down server
     server.closeAllConnections();
@@ -38,13 +38,12 @@ test('Simple api call', async () => {
             }
         },
         async (apiProxy) => {
-            const i = 0;
             expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
         }
     );
 });
 
-test('test with diffrent api paths', async () => {
+test('test with different api paths', async () => {
     for(let path of ["","/", "/api/","/sub/api"]) {
         await runClientServerTests({
                 myMethod(arg1, arg2) {
@@ -54,7 +53,6 @@ test('test with diffrent api paths', async () => {
                 }
             },
             async (apiProxy) => {
-                const i = 0;
                 expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
             }
             ,path
@@ -62,10 +60,10 @@ test('test with diffrent api paths', async () => {
     }
 });
 
-const variousDiffrentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"];
+const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"];
 
 test('Return types', async () => {
-    for(let returnValue of variousDiffrentTypes) {
+    for(let returnValue of variousDifferentTypes) {
         await runClientServerTests({
                 myMethod() {
                     return returnValue;
@@ -88,7 +86,7 @@ test('Return types', async () => {
 
 
 test('Parameter types', async () => {
-    for(let param of variousDiffrentTypes) {
+    for(let param of variousDifferentTypes) {
         await runClientServerTests({
                 myMethod(a,b,c) {
                     expect(a).toStrictEqual(param !== undefined?param:null);

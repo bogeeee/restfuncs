@@ -1,11 +1,11 @@
 import _ from "underscore"
 import axios, {Method} from "axios";
 
-class RESTFuncsClient {
-    readonly [index: string]: (...args: any) => any
-}
-
-export class RemoteServiceClient {
+/**
+ * A method that's called here get's send as a REST call to the server.
+ * @see createClientProxy
+ */
+export class ClientProxy {
     readonly [index: string]: any;
 
     /**
@@ -47,12 +47,12 @@ export class RemoteServiceClient {
      *
      * @param props see the public fields (of this class)
      */
-    constructor(props: Partial<RemoteServiceClient>) {
+    constructor(props: Partial<ClientProxy>) {
         _.extend(this, props); // just copy all given props to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
         return new Proxy(this, {
-            get(target: RemoteServiceClient, p: string | symbol, receiver: any): any {
+            get(target: ClientProxy, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -69,5 +69,13 @@ export class RemoteServiceClient {
             }
         });
     }
+}
+
+/**
+ * Convenience. see readme.md
+ */
+export function createClientProxy<Service>(url: string): Service {
+    // @ts-ignore
+    return new ClientProxy({url: url});
 }
 
