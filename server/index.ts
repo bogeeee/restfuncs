@@ -41,7 +41,9 @@ export function createRemoteServiceRouter(remoteService: Object): Router {
                 // @ts-ignore
                 resp.json({message: e.message, stack: e.stack})
             }
-            resp.json(e);
+            else {
+                resp.json(e);
+            }
         }
     });
 
