@@ -1,6 +1,6 @@
 {
   "name": "@restfuncs",
-  "version": "1.0.0",
+  "version": "0.8.0",
   "description": "Test that covers client and server code at the same time",
   "type": "module",
   "scripts": {

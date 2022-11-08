@@ -1,8 +1,14 @@
 {
   "name": "@restfuncs/server",
-  "version": "1.0.0",
+  "version": "0.8.0",
   "description": "",
   "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "default": "./index.js"
+    }
+  },
   "scripts": {
     "dev_watch": "nodemon -e ts --exec npm run dev_compileAndRunOnce",
     "dev_compileAndRunOnce": "clear && tsc --incremental && ts-node index",
