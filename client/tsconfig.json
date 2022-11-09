@@ -2,7 +2,7 @@
   "compilerOptions": {
     "composite": true,
     "target": "es5",
-    "module": "ES6",
+    "module": "CommonJS",
     "lib": [
       "dom",
       "dom.iterable",
