@@ -8,9 +8,9 @@ function isError(e: any) {
 
 /**
  * Creates a handler/router to use with express.
- * @param remoteService An object who's methods can be called remotely / are exposed as a rest service.
+ * @param funcs An object who's methods can be called remotely / are exposed as a rest service.
  */
-export function createRESTFuncsHandler(remoteService: Object): Router {
+export function createRESTFuncsHandler(funcs: Object): Router {
     const router = express.Router();
 
     router.use(express.json({limit: Number.MAX_VALUE, strict: true, inflate: false})) // parse application/json. TODO: When used with authentication, parse after auth to make it safer
@@ -24,18 +24,18 @@ export function createRESTFuncsHandler(remoteService: Object): Router {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
             // @ts-ignore
-            if(remoteService[methodName] === undefined) {
+            if(funcs[methodName] === undefined) {
                 throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
             }
             // @ts-ignore
-            const method = remoteService[methodName];
+            const method = funcs[methodName];
             if(typeof method != "function") {
                 throw new Error(`${methodName} is not a function`);
             }
 
             const args = req.body;
 
-            let result = await method.apply(remoteService, args); // Call method
+            let result = await method.apply(funcs, args); // Call method
 
             // Send result:
             result = result!==undefined?result:null; // Json does not support undefined

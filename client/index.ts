@@ -74,7 +74,7 @@ export class RESTFuncsClient {
 /**
  * Convenience. see readme.md
  */
-export function createRESTFuncsClient<Service>(url: string): Service {
+export function createRESTFuncsClient<Funcs>(url: string): Funcs {
     // @ts-ignore
     return new RESTFuncsClient({url: url});
 }
