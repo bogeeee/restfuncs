@@ -1,5 +1,5 @@
-export class MyRemoteService {
-    async myAwesomeMethod(name: string) {
+export class GreeterFuncs {
+    async greet(name: string) {
         return `Hello ${name}, greetings from somewhere over the internet !`;
     }
 }
