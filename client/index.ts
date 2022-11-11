@@ -1,5 +1,4 @@
 import _ from "underscore"
-import axios, {Method} from "axios";
 
 /**
  * A method that's called here get's send as a REST call to the server.
@@ -25,22 +24,43 @@ export class RESTFuncsClient {
         }
 
 
-        try {
-            const result = await axios(requestUrl, {
-                method: this.method,
-                headers: {},
-                data: args,
 
+        // Do http request:
+        let response;
+        try {
+            response = await fetch(requestUrl, {
+                method: this.method,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(args),
+                redirect: "follow",
+                credentials: "include"
             });
-            return result.data;
         }
-        catch (e: any) {
-            if(e?.response?.data) {
-                const serverError = e.response.data;
-                throw new Error(`Server error: ${serverError.message || serverError}` + (serverError.stack?`\nServer stack:${serverError.stack}`:''));
+        catch(e) {
+            // @ts-ignore
+            if(e?.cause) {
+                // TODO: throw a better message than just "fetch failed"
             }
             throw e;
         }
+
+        // Error handling:
+        if(response.status !== 200) {
+            const responseText = await response.text();
+            try {
+                const responseJSON = JSON.parse(responseText);
+                throw new Error(`Server error: ${responseJSON.message || responseJSON}` + (responseJSON.stack?`\nServer stack:${responseJSON.stack}`:''));
+            }
+            catch (e) { // Error parsing as json ?
+                throw new Error(`Server error: ${responseText}`);
+            }
+        }
+
+        // Parse result:
+        return JSON.parse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
+
     }
 
     /**
