@@ -35,6 +35,10 @@ export function createRESTFuncsHandler(funcs: Object): Router {
 
             const args = req.body;
 
+            // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
+            resp.header("Expires","-1");
+            resp.header("Pragma", "no-cache");
+
             let result = await method.apply(funcs, args); // Call method
 
             // Send result:
