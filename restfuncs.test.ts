@@ -18,6 +18,22 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     await new Promise((resolve) => server.close(resolve));
 }
 
+async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {
+    let caught = null;
+    try {
+        const result = await f();
+    }
+    catch (e) {
+        caught = e;
+    }
+
+    expect( () => {
+        if(caught) {
+            throw caught;
+        }
+    }).toThrow(expected);
+}
+
 test('Simply call a Void method', async () => {
     await runClientServerTests({
             myVoidMethod() {
@@ -58,6 +74,33 @@ test('test with different api paths', async () => {
             ,path
         );
     }
+});
+
+test('Exceptions', async () => {
+    await runClientServerTests({
+            throwAnError() {
+                throw new Error("Expected test error");
+            },
+            usualFunc() {
+
+            }
+
+        }
+        ,async (apiProxy) => {
+            const client = createRESTFuncsClient(`http://localhost:${serverPort + 1}/api`); // Connect to server port that does not yet exist
+
+
+            await expectAsyncFunctionToThrow(async () => {
+                // @ts-ignore
+                const result = await client.usualFunc();
+                console.log(result);
+            });
+
+            await expectAsyncFunctionToThrow(async () => {
+                await apiProxy.throwAnError();
+            },"Expected test error");
+
+    });
 });
 
 const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"];
