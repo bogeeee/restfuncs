@@ -1,4 +1,4 @@
-import {createRESTFuncsHandler} from "@restfuncs/server";
+import {createRESTFuncsHandler, RESTFuncs} from "@restfuncs/server";
 import express from "express";
 import {createRESTFuncsClient} from "@restfuncs/client";
 
@@ -142,4 +142,30 @@ test('Parameter types', async () => {
             }
         );
     }
+});
+
+test('.req, .resp and Resources leaks', async () => {
+    const serverAPI = new class extends RESTFuncs {
+        async myMethod() {
+            // test ac
+            expect(this.req.path).toContain("/myMethod");
+            this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+        }
+
+        async leakerMethod() {
+            // leak access to this.req:
+            setTimeout( () => {
+                expect(() => console.log(this.req)).toThrow("Cannot access .req");
+            }, 1);
+        }
+    };
+
+
+    await runClientServerTests(serverAPI,
+        async (apiProxy) => {
+            await apiProxy.myMethod();
+            await apiProxy.leakerMethod();
+        }
+    );
+
 });
