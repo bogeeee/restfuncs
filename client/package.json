@@ -5,6 +5,7 @@
   "scripts": {},
   "license": "MIT",
   "main": "index.js",
+  "types": "index.d.ts",
   "exports": {
     ".": {
       "default": "./index.js"
