@@ -4,10 +4,10 @@
   "description": "Test that covers client and server code at the same time",
   "type": "module",
   "scripts": {
-    "watch_and_run_tests": "nodemon -e ts --exec npm run compile_and_run_tests",
+    "dev": "nodemon -e ts --exec npm run compile_and_run_tests",
     "compile_and_run_tests": "clear && tsc --build && jest",
-    "clean": "tsc --build --clean",
-    "build": "tsc --build --force",
+    "clean": "tsc --build --clean && cd client && npm run clean",
+    "build": "tsc --build --force && cd client && npm run build",
     "prepublish": "npm run clean && npm run build"
   },
   "workspaces": ["server", "client", "examples/vite/server", "examples/vite/client"],

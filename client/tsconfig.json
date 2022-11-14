@@ -20,4 +20,5 @@
     "isolatedModules": true,
     "sourceMap": true
   },
+  "exclude": ["dist"]
 }

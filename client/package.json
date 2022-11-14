@@ -2,15 +2,20 @@
   "name": "@restfuncs/client",
   "version": "0.8.0",
   "description": "Call server functions (via REST/http) as if they were local. See also @restfuncs/server",
-  "scripts": {},
   "license": "MIT",
   "main": "index.js",
-  "types": "index.d.ts",
   "exports": {
     ".": {
+      "browser": "./dist/browser/index.js",
       "default": "./index.js"
     }
   },
+
+  "scripts": {
+    "clean": "tsc --build --clean && rm -rf dist",
+    "build": "tsc && tsc -module ES6 --outDir dist/browser"
+  },
+
   "dependencies": {
     "underscore": "^1.13.3"
   },
