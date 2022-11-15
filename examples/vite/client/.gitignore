@@ -1,4 +1,5 @@
 /node_modules/
+/dist/
 /**/*.js
 /**/*.map
 /tsconfig.tsbuildinfo
