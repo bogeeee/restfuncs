@@ -1,8 +1,10 @@
-With `@restfuncs/server` you can **rest**ify(someObject) to make its member **func**tions callable via REST API. 
-On the client, use the `@restfuncs/client` to simply call them as if they were local. With full type support.
+## Restfuncs
+
+With `@restfuncs/server` you can **rest**ify(someObject) to make its member **func**tions callable via http REST API.   
+With `@restfuncs/client` you can simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
 
 
-## Most simple example (standalone)
+## Most simple example (standalone http server)
 
 _server.js_
 
@@ -10,7 +12,7 @@ _server.js_
 
     restify({
         greet(name) {
-            return `hello ${name} from the server`
+            return `Hello ${name} from the server`
         }
     }, 3000) // port
 
@@ -23,14 +25,16 @@ _client.js_
     console.log(await remote.greet("Bob"));
 
 
-## Proper example with express webserver and type support
+## Proper example with express and type support
 
 _server/GreeterService.ts_
+
+    import {RESTService} from "@restfuncs/server";
 
     export class GreeterService extends RESTService {
 
         async greet(name: string) {
-            return `hello ${name} from the server`
+            return `Hello ${name} from the server`
         }
 
         // ... more functions go here
@@ -48,31 +52,31 @@ _server/index.ts_
 
 _client/index.ts (included from index.html)_
 
-    import {restClient} from "@restfuncs/client
-    import {GreeterService} from "../path/to/server/code/GreeterService.js"; // Import to have types
+    import {restClient} from "@restfuncs/client"
+    import {GreeterService} from "../path/to/server/or/packagename/GreeterService.js"; // Import to have types
     
     const greeterService = restClient<GreeterService>("/greeterAPI")
     console.log(await greeterService.greet("Bob"));
 
 
 
-Here you'll find this as a full working example. _It uses vite, which is a very minimalistic/ (zero conf) web packer but with full support for React/JSX, Typescript, hot module reloading. Hope you'll like it as a starter stack for your webapp._
+Here you'll find this as a full working example. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
 ## Advanced
 
 ### Mangle with raw request and response
 
-[this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res) are available in your methods during call to read / modify http headers etc.
+[this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res) are available in your methods during call to read / modify http headers etc. You can even [this.resp.send](https://expressjs.com/en/4x/api.html#res.send) a non-json response.
 
 ### Intercept calls
 
-Override the following method in your service _(=just add the function)_
+Override the following method in your service _(=just add the function to it)_
 
     async doCall(functionName, args) {
         return this[functionName](...args); // Call the function
     }
 
-There you can mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / try-catch-finally / surround with whatever control structure you like, or even [this.resp.send](https://expressjs.com/en/4x/api.html#res.send) a non-json response. No more explanation needed. All hacking should be your's.
+There you can (also) mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / try-catch-finally / surround with whatever control structure you like.
 
 ### Also on the client side ?
 
@@ -85,14 +89,12 @@ Same same. Just add the mentioned method to the proxy (= i.e. `remote` / `greete
 This is still a proof-of-concept, as you see from the version number. 
 **Types are not checked** at runtime on the server **yet**, so this is a **security risk** when you don't check them yourself.
 
-### Things to come (please donate, so i won't be stuck away with some boring contract work* ;) )
+### Things to come
 
 - Runtime type checking / protection as mentioned above
 - XSRF prevention (not investigated in this yet)
 - Conform to OPENAPI/Swagger standards and automatically generate swagger docs
-- Auto upgrade connection to websockets for faster calls
-- Websockify: Provide a simple way to call functions on the clinet (the other way around)   
+- Auto upgrade connection to websockets for faster calls or allow to send calls in batches
+- Websockify: Provide a simple way to call functions on the client (the other way around)   
 - Support for file uploads
 - JsonP (maybe)
-
-_* Also if you want to hire me as a freelancer (in the EU), please contact me._

@@ -3,12 +3,7 @@
 <body>
     <div id="view">loading...</div>
 
-    <script type="module" >
-
-        import {createRESTFuncsClient} from "@restfuncs/client";
-
-        document.getElementById("view").textContent = await createRESTFuncsClient("http://localhost:3000/api").greet("Bob");
-    </script>
+    <script type="module" src="./index.ts"></script>
 </body>
 
 </html>
