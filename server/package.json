@@ -6,13 +6,13 @@
   "types": "index.d.ts",
   "exports": {
     ".": {
+      "browser": "./dist/browser/index.js",
       "default": "./index.js"
     }
   },
   "scripts": {
-    "dev_watch": "nodemon -e ts --exec npm run dev_compileAndRunOnce",
-    "dev_compileAndRunOnce": "clear && tsc --incremental && ts-node index",
-    "test": "ts-node test.ts"
+    "clean": "tsc --build --clean && rm -rf dist",
+    "build": "tsc && tsc -module ES6 --outDir dist/browser"
   },
   "dependencies": {
     "express": "^4.17.13",
