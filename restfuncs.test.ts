@@ -1,17 +1,17 @@
-import {createRESTFuncsHandler, RESTFuncs} from "@restfuncs/server";
+import {restify, RESTService} from "@restfuncs/server";
 import express from "express";
-import {createRESTFuncsClient} from "@restfuncs/client";
+import {restClient} from "@restfuncs/client";
 
 let serverPort = 10000; // this is increased
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, createRESTFuncsHandler(serverAPI));
+    app.use(path, restify(serverAPI));
     serverPort++; // Bugfix: axios client throws a "socket hung up" when reusing the same port
     const server = app.listen(serverPort);
     // @ts-ignore
-    const client = createRESTFuncsClient<Api>(`http://localhost:${serverPort}${path}`);
+    const client = restClient<Api>(`http://localhost:${serverPort}${path}`);
     await clientTests(client);
     // shut down server
     server.closeAllConnections();
@@ -59,6 +59,37 @@ test('Simple api call', async () => {
     );
 });
 
+test('Most simple example (standalone http server)', async () => {
+    restify({
+        greet(name) {
+            return `hello ${name} from the server`
+        }
+    }, 9000) // port
+
+    const remote = restClient("http://localhost:9000")
+    // @ts-ignore
+    expect(await remote.greet("Bob")).toBe("hello Bob from the server");
+})
+
+test('Proper example with express and type support', async () => {
+    class GreeterService extends RESTService {
+
+        async greet(name: string) {
+            return `hello ${name} from the server`
+        }
+
+        // ... more functions go here
+    }
+
+
+    const app = express();
+    app.use("/greeterAPI", restify( new GreeterService() ));
+    app.listen(9001);
+
+    const greeterService = restClient<GreeterService>("http://localhost:9001/greeterAPI")
+    expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+})
+
 test('test with different api paths', async () => {
     for(let path of ["","/", "/api/","/sub/api"]) {
         await runClientServerTests({
@@ -87,7 +118,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = createRESTFuncsClient(`http://localhost:${serverPort + 1}/api`); // Connect to server port that does not yet exist
+            const client = restClient(`http://localhost:${serverPort + 1}/api`); // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
@@ -145,7 +176,7 @@ test('Parameter types', async () => {
 });
 
 test('.req, .resp and Resources leaks', async () => {
-    const serverAPI = new class extends RESTFuncs {
+    const serverAPI = new class extends RESTService {
         async myMethod() {
             // test ac
             expect(this.req.path).toContain("/myMethod");

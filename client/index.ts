@@ -2,7 +2,7 @@ import _ from "underscore"
 
 /**
  * A method that's called here get's send as a REST call to the server.
- * @see createRESTFuncsClient
+ * @see restClient
  */
 export class RESTFuncsClient {
     readonly [index: string]: any;
@@ -94,7 +94,7 @@ export class RESTFuncsClient {
 /**
  * Convenience. see readme.md
  */
-export function createRESTFuncsClient<Funcs>(url: string): Funcs {
+export function restClient<Service>(url: string): Service {
     // @ts-ignore
     return new RESTFuncsClient({url: url});
 }
