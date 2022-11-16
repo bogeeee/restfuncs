@@ -14,7 +14,7 @@ restify({
     greet(name) {
         return `Hello ${name} from the server`
     }
-}, 3000) // port
+}, 3000) // specifying a port runs a standalone server
 ```
 <br/>
 
@@ -68,7 +68,7 @@ console.log(await greeterService.greet("Bob"))
 ```
 
 
-Here you'll find this as a full working example. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
+Here you'll find this as a full working example project. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
 ## Advanced
 
