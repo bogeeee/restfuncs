@@ -7,57 +7,65 @@ With `@restfuncs/client` you can simply call them in a **R**emote **P**rocedure 
 ## Most simple example (standalone http server)
 
 _server.js_
+```javascript
+import {restify} from "@restfuncs/server"
 
-    import {restify} from "@restfuncs/server"
-
-    restify({
-        greet(name) {
-            return `Hello ${name} from the server`
-        }
-    }, 3000) // port
-
+restify({
+    greet(name) {
+        return `Hello ${name} from the server`
+    }
+}, 3000) // port
+```
+<br/>
 
 _client.js_
 
-    import {restClient} from "@restfuncs/client
-    
-    const remote = restClient("http://localhost:3000")
-    console.log(await remote.greet("Bob"));
+```javascript
+import {restClient} from "@restfuncs/client"
 
+const remote = restClient("http://localhost:3000")
+console.log(await remote.greet("Bob"))
+```
 
 ## Proper example with express and type support
 
-_server/GreeterService.ts_
+_GreeterService.ts_
+```typescript
+import {RESTService} from "@restfuncs/server"
 
-    import {RESTService} from "@restfuncs/server";
+export class GreeterService extends RESTService { // Define the service
 
-    export class GreeterService extends RESTService {
-
-        async greet(name: string) {
-            return `Hello ${name} from the server`
-        }
-
-        // ... more functions go here
+    async greet(name: string) {
+        return `Hello ${name} from the server`
     }
 
-_server/index.ts_
+    // ... more functions go here
+}
+```
 
-    import express from "express";
-    import {restify} from "@restfuncs/server"
-    import {GreeterService} from "./GreeterService.js";
+<br/>
 
-    const app = express();
-    app.use("/greeterAPI", restify( new GreeterService() ));
-    app.listen(3000);
+_server.ts_
+```typescript
+import express from "express"
+import {restify} from "@restfuncs/server"
+import {GreeterService} from "./GreeterService.js"
 
-_client/index.ts (included from index.html)_
+const app = express()
+app.use("/greeterAPI", restify( new GreeterService() ))
+app.listen(3000)
+```
 
-    import {restClient} from "@restfuncs/client"
-    import {GreeterService} from "../path/to/server/or/packagename/GreeterService.js"; // Import to have types
-    
-    const greeterService = restClient<GreeterService>("/greeterAPI")
-    console.log(await greeterService.greet("Bob"));
+<br/>
 
+_client.ts_
+```typescript
+import {restClient} from "@restfuncs/client"
+import {GreeterService} from "../path/to/server/or/packagename/GreeterService.js" // Import the service to have type support
+
+const greeterService = restClient<GreeterService>("/greeterAPI")
+console.log(await greeterService.greet("Bob"))
+```
 
 
 Here you'll find this as a full working example. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
@@ -71,11 +79,11 @@ Here you'll find this as a full working example. _It uses vite, which is a very 
 ### Intercept calls
 
 Override the following method in your service _(=just add the function to it)_
-
-    async doCall(functionName, args) {
-        return this[functionName](...args); // Call the function
-    }
-
+```typescript
+async doCall(functionName, args) {
+    return this[functionName](...args) // Call the function
+}
+```
 There you can (also) mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / try-catch-finally / surround with whatever control structure you like.
 
 ### Also on the client side ?
