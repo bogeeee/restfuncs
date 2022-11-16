@@ -70,6 +70,10 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
             // @ts-ignore
+            if(new RESTService()[methodName] !== undefined) {
+                throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
+            }
+            // @ts-ignore
             if(service[methodName] === undefined) {
                 throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
             }

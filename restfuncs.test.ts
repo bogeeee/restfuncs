@@ -176,27 +176,38 @@ test('Parameter types', async () => {
 });
 
 test('.req, .resp and Resources leaks', async () => {
-    const serverAPI = new class extends RESTService {
-        async myMethod() {
-            // test ac
-            expect(this.req.path).toContain("/myMethod");
-            this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
-        }
+    await new Promise<void>(async (resolve) => {
+        const serverAPI = new class extends RESTService {
+            async myMethod() {
+                // test ac
+                expect(this.req.path).toContain("/myMethod");
+                this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+            }
 
-        async leakerMethod() {
-            // leak access to this.req:
-            setTimeout( () => {
-                expect(() => console.log(this.req)).toThrow("Cannot access .req");
-            }, 1);
-        }
-    };
+            async leakerMethod() {
+                // leak access to this.req:
+                setTimeout( () => {
+                    expect(() => console.log(this.req)).toThrow("Cannot access .req");
+                    resolve();
+                });
+            }
+        };
 
 
-    await runClientServerTests(serverAPI,
-        async (apiProxy) => {
-            await apiProxy.myMethod();
-            await apiProxy.leakerMethod();
-        }
-    );
+        await runClientServerTests(serverAPI,
+            async (apiProxy) => {
+                await apiProxy.myMethod();
+                await apiProxy.leakerMethod();
+            }
+        );
+    });
+});
 
+test('Reserved names', async () => {
+    await runClientServerTests(new class extends RESTService{
+
+    },async apiProxy => {
+        // @ts-ignore
+        await expectAsyncFunctionToThrow(async () => {await apiProxy.req()}, "You are trying to call a remote method that is a reserved name");
+    });
 });
