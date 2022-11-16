@@ -10,7 +10,7 @@
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build",
     "prepublish": "npm run clean && npm run build"
   },
-  "workspaces": ["server", "client", "examples/vite_separated/server", "examples/vite_separated/client"],
+  "workspaces": ["server", "client", "examples/vite", "examples/vite_separated/server", "examples/vite_separated/client"],
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",

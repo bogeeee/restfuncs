@@ -12,7 +12,7 @@ app.use("/greeterAPI", restify( new GreeterService() ));
 
 // Client web:
 if(process.env.NODE_ENV === 'production') {
-    app.use(express.static('../client/dist')); // Serve pre-built web (cd ../client && npm run build)
+    app.use(express.static('dist/web')); // Serve pre-built web (npm run build)
 }
 else {
     // Serve client web through vite dev server:
@@ -20,9 +20,7 @@ else {
         server: {
             middlewareMode: 'html'
         },
-        root: "../client",
         base: "/",
-
     });
     app.use(viteDevServer.middlewares);
 }
