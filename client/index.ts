@@ -17,7 +17,7 @@ export class RESTFuncsClient {
 
         let requestUrl: string;
         if(this.url) {
-            requestUrl = new URL(methodName, this.url + (this.url.endsWith("/")?"":"/")).toString();
+            requestUrl = `${this.url}${this.url.endsWith("/")?"":"/"}${methodName}`;
         }
         else {
             requestUrl=methodName;
