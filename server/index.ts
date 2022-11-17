@@ -27,6 +27,11 @@ export function restify(service: object | RESTService, port: number, options?: R
  */
 export function restify(service: object | RESTService, options?: RestifyOptions): Router;
 export function restify(service: object | RESTService, arg1: any, arg2?: any): any {
+
+    // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
+    // @ts-ignore
+    service.req = null; service.resp = null; service.session = null;
+
     if(typeof(arg1) == "number") { // standalone ?
         const port = arg1;
         const options:RestifyOptions = arg2 || {};
@@ -70,7 +75,7 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
             // @ts-ignore
-            if(new RESTService()[methodName] !== undefined) {
+            if(new (class extends RESTService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
                 throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
             }
             // @ts-ignore

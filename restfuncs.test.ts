@@ -207,7 +207,15 @@ test('Reserved names', async () => {
     await runClientServerTests(new class extends RESTService{
 
     },async apiProxy => {
-        // @ts-ignore
-        await expectAsyncFunctionToThrow(async () => {await apiProxy.req()}, "You are trying to call a remote method that is a reserved name");
+        for(const forbiddenName of ["req", "resp", "session"]) {
+            // @ts-ignore
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.calleRemoteMethod(forbiddenName)}, "You are trying to call a remote method that is a reserved name");
+        }
+
+        // Check that these can't be used if not defined:
+        for(const forbiddenName of ["get", "set"]) {
+            // @ts-ignore
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.calleRemoteMethod(forbiddenName)}, "You are trying to call a remote method that does not exist");
+        }
     });
 });
