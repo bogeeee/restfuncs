@@ -1,5 +1,5 @@
 import express, {Request, Response, Router} from "express";
-import {enhanceViaProxyDuringCall, isError} from "./Util";
+import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
 
 
@@ -101,9 +101,8 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
         }
         catch (e) {
             resp.status(500);
-            if(isError(e)) {
-                // @ts-ignore
-                resp.json({message: e.message, stack: e.stack})
+            if(e instanceof Error) {
+                resp.json(cloneError(e));
             }
             else {
                 resp.json(e);

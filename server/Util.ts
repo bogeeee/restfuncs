@@ -1,6 +1,3 @@
-export function isError(e: any) {
-    return e !== null && typeof e === "object" && !e.hasOwnProperty("name") && e.name === "Error" && e.message;
-}
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -42,5 +39,22 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
         await callTheFunc(funcsProxy);
     } finally {
         callHasEnded = true;
+    }
+}
+
+/**
+ * Clones an error with hopefully all properties. You can't list / clone them normally.
+ * Using https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#instance_properties to guess the properties
+ * @param e
+ */
+export function cloneError(e: any): object {
+    return {
+        message: e.message,
+        name: e.name,
+        cause: e.cause instanceof Error?cloneError(e.cause):e.cause,
+        fileName: e. fileName,
+        lineNumber: e.lineNumber,
+        columnNumber: e.columnNumber,
+        stack: e.stack,
     }
 }

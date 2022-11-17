@@ -49,13 +49,28 @@ export class RESTFuncsClient {
         // Error handling:
         if(response.status !== 200) {
             const responseText = await response.text();
+
+            let responseJSON;
             try {
-                const responseJSON = JSON.parse(responseText);
-                throw new Error(`Server error: ${responseJSON.message || responseJSON}` + (responseJSON.stack?`\nServer stack:${responseJSON.stack}`:''));
+                responseJSON = JSON.parse(responseText);
             }
             catch (e) { // Error parsing as json ?
                 throw new Error(`Server error: ${responseText}`);
             }
+
+            const formatError = (e: any): string => {
+                if(typeof(e) == "object") {
+                    return (e.name ? (e.name + ": ") : "") + (e.message || e) +
+                        (e.stack ? `\nServer stack: ${e.stack}` : '') +
+                        (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
+                        (e.cause ? `\nCause: ${formatError(e.cause)}` : '')
+                }
+                else {
+                    return e;
+                }
+            }
+
+            throw new Error(`Server error: ${formatError(responseJSON)}`);
         }
 
         // Parse result:
