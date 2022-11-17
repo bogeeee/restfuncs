@@ -219,3 +219,54 @@ test('Reserved names', async () => {
         }
     });
 });
+
+test("Access 'this' on server service", async () => {
+    await runClientServerTests(new class extends RESTService{
+        a = "test";
+        myServiceFields= {
+            val: null
+        }
+
+        storeValue(value) {
+            this.myServiceFields.val = value;
+        }
+
+        getValue() {
+            return this.myServiceFields.val;
+        }
+    },async apiProxy => {
+        await apiProxy.storeValue(123);
+        expect(await apiProxy.getValue()).toBe(123);
+    });
+});
+
+test('Sessions', async () => {
+    class Service extends RESTService{
+        session: {
+            val?: string;
+        } = null
+
+        storeValueInSession(value) {
+            this.session.val = value;
+        }
+
+        getValueFromSession() {
+            return this.session.val;
+        }
+    }
+
+    // Use with standalone server cause there should be a session handler installed:
+    const server = restify(new Service(),0);
+
+    // @ts-ignore
+    const port = server.address().port;
+    const apiProxy = restClient<Service>(`http://localhost:${port}`)
+
+    await apiProxy.storeValueInSession(123);
+    expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
+
+    // shut down server:
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+
+});

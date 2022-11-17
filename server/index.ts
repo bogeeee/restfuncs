@@ -1,6 +1,8 @@
 import express, {Request, Response, Router} from "express";
+import session from "express-session";
 import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
+import crypto from "node:crypto";
 
 
 export type RestifyOptions = {
@@ -41,6 +43,16 @@ export function restify(service: object | RESTService, arg1: any, arg2?: any): a
         }
 
         const app = express();
+
+        // Install session handler:
+        app.use(session({
+            secret: crypto.randomBytes(32).toString("hex"),
+            cookie: {sameSite: true},
+            saveUninitialized: false,
+            unset: "destroy",
+            store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
+        }));
+
         app.use(createRESTFuncsRouter(service, options));
         return app.listen(port);
     }
@@ -95,8 +107,9 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
             resp.header("Pragma", "no-cache");
 
             let result;
-            await enhanceViaProxyDuringCall(service, {req, resp}, async (funcs) => { // make .req and .resp safely available during call
-                result = await method.apply(funcs, args); // Call method
+            // @ts-ignore
+            await enhanceViaProxyDuringCall(service, {req, resp, session: req.session}, async (service) => { // make .req and .resp safely available during call
+                result = await method.apply(service, args); // Call method
             }, methodName);
 
 
@@ -123,12 +136,29 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
  */
 export class RESTService implements Record<string, any> {
     /**
-     * The currently running (express) request
+     * The currently running (express) request.
+     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * @protected
      */
-    protected readonly req!: Request;
+    // @ts-ignore
+    protected readonly req!: Request = null;
 
     /**
-     * You can modify any header fields as you like
+     * Response for the currently running (express) request. You can modify any header fields as you like
+     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * @protected
      */
-    protected readonly resp!: Response;
+    // @ts-ignore
+    protected readonly resp!: Response = null;
+
+
+    /**
+     * The browser session (for the currently running request). Empty object if no session cookie was retrieved or this is the first request.
+     * You can add user defined content to it.
+     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * @protected
+     */
+    // @ts-ignore
+    protected session:{}|null = {};
+
 }
