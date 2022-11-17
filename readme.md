@@ -1,6 +1,8 @@
-## Restfuncs
+# RestFuncs
 
-With `@restfuncs/server` you can **rest**ify(someObject) to make its member **func**tions callable via http REST API.   
+Tired of handcrafting every server API method + fetch/ ajax request (+ error handling) over and over ?
+
+With `@restfuncs/server` you can just **rest**ify(someObject) to make its member **func**tions available via http REST API.   
 With `@restfuncs/client` you can simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
 
 
@@ -33,13 +35,13 @@ _GreeterService.ts_
 ```typescript
 import {RESTService} from "@restfuncs/server"
 
-export class GreeterService extends RESTService { // Define the service
+export class GreeterService extends RESTService { // Define the service as a class...
 
     async greet(name: string) {
         return `Hello ${name} from the server`
     }
 
-    // ... more functions go here
+    // <- more functions go here
 }
 ```
 
@@ -61,7 +63,7 @@ app.listen(3000)
 _client.ts_
 ```typescript
 import {restClient} from "@restfuncs/client"
-import {GreeterService} from "../path/to/server/or/packagename/GreeterService.js" // Import the service to have type support
+import {GreeterService} from "../path/to/server/or/its/packagename/GreeterService.js" // ...and import the class to have full type support on the client :)
 
 const greeterService = restClient<GreeterService>("/greeterAPI")
 console.log(await greeterService.greet("Bob"))
@@ -84,11 +86,12 @@ async doCall(functionName, args) {
     return this[functionName](...args) // Call the function
 }
 ```
-There you can (also) mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / try-catch-finally / surround with whatever control structure you like.
+There you can i.e: (Also) mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / check for auth / filter results / ...
 
 ### Also on the client side ?
 
-Same same. Just add the mentioned method to the proxy (= i.e. `remote` / `greeterService`) . [this.req](https://developer.mozilla.org/en-US/docs/Web/API/Request) / [this.resp](https://developer.mozilla.org/en-US/docs/Web/API/response) will be the types from the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
+TODO. 
+Just add the mentioned method to the proxy (= i.e. `remote` / `greeterService`) . [req](https://developer.mozilla.org/en-US/docs/Web/API/Request) / [resp](https://developer.mozilla.org/en-US/docs/Web/API/response) will be the types from the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
 
 ## That's it !
 
