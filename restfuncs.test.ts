@@ -242,9 +242,26 @@ test("Access 'this' on server service", async () => {
 
 test('Sessions', async () => {
     class Service extends RESTService{
-        session: {
-            val?: string;
-        } = null
+        session = {
+            counter: 0,
+            val: null,
+            someObject: {x:0}
+        }
+
+        checkInitialSessionValues() {
+            expect(this.session.counter).toBe(0);
+            expect(this.session.val).toBe(null);
+            expect(this.session.someObject).toStrictEqual({x:0});
+            // @ts-ignore
+            expect(this.session.undefinedProp).toBe(undefined);
+
+            // Test the proxy's setter / getter:
+            this.session.counter++;
+            expect(this.session.counter).toBe(1);
+            expect( () => this.session.counter = undefined).toThrow();
+            this.session.counter = null;
+            expect(this.session.counter).toBe(null);
+        }
 
         storeValueInSession(value) {
             this.session.val = value;
@@ -261,6 +278,8 @@ test('Sessions', async () => {
     // @ts-ignore
     const port = server.address().port;
     const apiProxy = restClient<Service>(`http://localhost:${port}`)
+
+    await apiProxy.checkInitialSessionValues();
 
     await apiProxy.storeValueInSession(123);
     expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
