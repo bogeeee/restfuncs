@@ -112,6 +112,19 @@ test('Exceptions', async () => {
             throwAnError() {
                 throw new Error("Expected test error");
             },
+
+            async asyncThrowAnError() {
+                throw new Error("Expected test error");
+            },
+
+            throwsString() {
+                throw "Expected test error";
+            },
+
+            async asyncThrowsString() {
+                throw "Expected test error";
+            },
+
             usualFunc() {
 
             }
@@ -129,6 +142,18 @@ test('Exceptions', async () => {
 
             await expectAsyncFunctionToThrow(async () => {
                 await apiProxy.throwAnError();
+            },"Expected test error");
+
+            await expectAsyncFunctionToThrow(async () => {
+                await apiProxy.throwsString();
+            },"Expected test error");
+
+            await expectAsyncFunctionToThrow(async () => {
+                await apiProxy.asyncThrowAnError();
+            },"Expected test error");
+
+            await expectAsyncFunctionToThrow(async () => {
+                await apiProxy.asyncThrowsString();
             },"Expected test error");
 
     });
@@ -176,30 +201,33 @@ test('Parameter types', async () => {
 });
 
 test('.req, .resp and Resources leaks', async () => {
-    await new Promise<void>(async (resolve) => {
-        const serverAPI = new class extends RESTService {
-            async myMethod() {
-                // test ac
-                expect(this.req.path).toContain("/myMethod");
-                this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
-            }
+        await new Promise<void>(async (resolve, reject) => {
+            try {
+                const serverAPI = new class extends RESTService {
+                    async myMethod() {
+                        // test ac
+                        expect(this.req.path).toContain("/myMethod");
+                        this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+                    }
 
-            async leakerMethod() {
-                // leak access to this.req:
-                setTimeout( () => {
-                    expect(() => console.log(this.req)).toThrow("Cannot access .req");
-                    resolve();
-                });
+                    async leakerMethod() {
+                        // leak access to this.req:
+                        setTimeout(() => {
+                            expect(() => console.log(this.req)).toThrow("Cannot access .req");
+                            resolve();
+                        });
+                    }
+                };
+                await runClientServerTests(serverAPI,
+                    async (apiProxy) => {
+                        await apiProxy.myMethod();
+                        await apiProxy.leakerMethod();
+                    }
+                );
             }
-        };
-
-
-        await runClientServerTests(serverAPI,
-            async (apiProxy) => {
-                await apiProxy.myMethod();
-                await apiProxy.leakerMethod();
+            catch (e) {
+                reject(e);
             }
-        );
     });
 });
 
