@@ -117,13 +117,14 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
 function createRESTFuncsRouter(service: object | RESTService, options: RestifyOptions): Router {
+    const restService = service as RESTService; // To get rid of all the type errors we assume to have a RESTService
 
     // @ts-ignore
-    const sessionPrototype = service.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
+    const sessionPrototype = restService.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
 
     // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
     // @ts-ignore
-    service.req = null; service.resp = null; service.session = null;
+    restService.req = null; restService.resp = null; restService.session = null;
 
     const router = express.Router();
 
@@ -137,16 +138,13 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
             if(!methodName) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
-            // @ts-ignore
             if(new (class extends RESTService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
                 throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
             }
-            // @ts-ignore
-            if(service[methodName] === undefined) {
+            if(restService[methodName] === undefined) {
                 throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
             }
-            // @ts-ignore
-            const method = service[methodName];
+            const method = restService[methodName];
             if(typeof method != "function") {
                 throw new Error(`${methodName} is not a function`);
             }
@@ -166,7 +164,7 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
 
             let result;
             // @ts-ignore
-            await enhanceViaProxyDuringCall(service, {req, resp, session}, async (service) => { // make .req and .resp safely available during call
+            await enhanceViaProxyDuringCall(restService, {req, resp, session}, async (service) => { // make .req and .resp safely available during call
                 result = await method.apply(service, args); // Call method
             }, methodName);
 
@@ -190,9 +188,11 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
 }
 
 /**
- * Service base class. Extend this and use {@see createRESTFuncsRouter} to install it in express.
+ * Service base class. Extend it and use {@see restify} on it.
  */
-export class RESTService implements Record<string, any> {
+export class RESTService {
+    [index: string]: any
+
     /**
      * The currently running (express) request.
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
