@@ -1,8 +1,10 @@
 import {RESTService} from "@restfuncs/server";
 
-export class GreeterService extends RESTService {
+export class CounterService extends RESTService {
 
-    session: {counter?: number} = null;
+    session = {
+        counter: 0
+    }
 
     async greet(name: string) {
         if(!this.session.counter) {
@@ -11,6 +13,14 @@ export class GreeterService extends RESTService {
 
         this.session.counter++;
         return `Hello ${name} from the server. Counter: ${this.session.counter}`
+    }
+
+    count() {
+        this.session.counter++;
+    }
+
+    async getCounter() {
+        return this.session.counter;
     }
 
     // ... more functions go here

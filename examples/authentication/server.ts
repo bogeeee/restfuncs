@@ -3,7 +3,7 @@ import session from "express-session";
 import crypto from "node:crypto";
 import vite from "vite"
 import {restify} from "@restfuncs/server"
-import {GreeterService} from "./GreeterService.js"
+import {CounterService} from "./CounterService.js"
 
 
 const port = 3000
@@ -20,7 +20,7 @@ app.use(session({
 }));
 
 // Remote service(s):
-app.use("/greeterAPI", restify( new GreeterService() ))
+app.use("/counterAPI", restify( new CounterService() ))
 
 // Client web:
 if(process.env.NODE_ENV === 'production') {
