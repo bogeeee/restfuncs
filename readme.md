@@ -1,9 +1,9 @@
 # RestFuncs
 
-Tired of handcrafting every server API method + fetch/ ajax request (+ error handling) over and over ?
+Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over ?
 
-With `@restfuncs/server` you can just **rest**ify(someObject) to make its member **func**tions available via http REST API.   
-With `@restfuncs/client` you can simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
+With `@restfuncs/server` you can just **rest**ify(yourServiceObject) to make its member **func**tions available via a http REST API.   
+With `@restfuncs/client` you can then simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
 
 
 ## Most simple example (standalone http server)
@@ -78,6 +78,35 @@ Here you'll find this as a full working example project. _It uses vite, which is
 
 [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res) are available in your methods during call to read / modify http headers etc. You can even [this.resp.send](https://expressjs.com/en/4x/api.html#res.send) a non-json response.
 
+### Store values in the http- (browser) session...
+...under the `this.session` object.
+```typescript
+restify({
+    session: {visitCounter: 0}, // this becomes the default for every new session (shallowly cloned).
+    countVisits() {
+        this.session.visitCounter++
+    }
+})
+```
+For this to work, you must install a session/cookie middleware in express. I.e.:
+```typescript
+import session from "express-session"
+import crypto from "node:crypto"
+
+// ...
+
+// Install session handler:
+app.use(session({
+    secret: crypto.randomBytes(32).toString("hex"),
+    cookie: {sameSite: true},
+    saveUninitialized: false, // Only send a cookie when really needed
+    unset: "destroy",
+    store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
+}));
+```
+
+_The standalone server has it already done for you._
+
 ### Intercept calls
 
 Override the following method in your service _(=just add the function to it)_ and do what ever you want in there.
@@ -93,6 +122,9 @@ async doCall(functionName:string, args: any[]) {
 TODO. 
 Just add the mentioned method to the proxy (= i.e. `remote` / `greeterService`) . [req](https://developer.mozilla.org/en-US/docs/Web/API/Request) / [resp](https://developer.mozilla.org/en-US/docs/Web/API/response) will be the types from the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
 
+## API
+For the full API see the code's JSDoc which every modern IDE should provide you on intellisense. Why should one repeat that here?
+
 ## That's it !
 
 ###Further notes
@@ -106,6 +138,6 @@ This is still a proof-of-concept, as you see from the version number.
 - XSRF prevention (not investigated in this yet)
 - Conform to OPENAPI/Swagger standards and automatically generate swagger docs
 - Auto upgrade connection to websockets for faster calls or allow to send calls in batches
-- Websockify: Provide a simple way to call functions on the client (the other way around)   
+- Websockify: Provide a simple way to call functions on the client. I.e. just pass them as callbacks.
 - Support for file uploads
 - JsonP (maybe)

@@ -30,9 +30,9 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
                     "app.use(session({\n" +
                     "    secret: crypto.randomBytes(32).toString(\"hex\"),\n" +
                     "    cookie: {sameSite: true},\n" +
-                    "    saveUninitialized: false,\n" +
+                    "    saveUninitialized: false, // Only send a cookie when really needed\n" +
                     "    unset: \"destroy\",\n" +
-                    "    store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session\n" +
+                    "    store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session\n" +
                     "}));\n" +
                     "***************\n");
             }

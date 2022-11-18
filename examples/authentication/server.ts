@@ -14,9 +14,9 @@ const app = express()
 app.use(session({
     secret: crypto.randomBytes(32).toString("hex"),
     cookie: {sameSite: true},
-    saveUninitialized: false,
+    saveUninitialized: false, // Only send a cookie when really needed
     unset: "destroy",
-    store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
+    store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
 }));
 
 // Remote service(s):
