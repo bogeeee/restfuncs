@@ -80,13 +80,13 @@ Here you'll find this as a full working example project. _It uses vite, which is
 
 ### Intercept calls
 
-Override the following method in your service _(=just add the function to it)_
-```typescript
-async doCall(functionName, args) {
-    return this[functionName](...args) // Call the function
+Override the following method in your service _(=just add the function to it)_ and do what ever you want in there.
+You have access to [this.req](https://expressjs.com/en/4x/api.html#req), [this.resp](https://expressjs.com/en/4x/api.html#res) and this.session as usual.
+```
+async doCall(functionName:string, args: any[]) {
+    return  await this[functionName](...args) // Call the original function
 }
 ```
-There you can i.e: (Also) mangle with [this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res)  / check for auth / filter results / ...
 
 ### Also on the client side ?
 

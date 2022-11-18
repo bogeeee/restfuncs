@@ -53,7 +53,7 @@ export function restify(service: object | RESTService, arg1: any, arg2?: any): a
             store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
         }));
 
-        app.use(createRESTFuncsRouter(service, options));
+        app.use(createRESTFuncsRouter(<RESTService>service, options));
         return app.listen(port);
     }
     else { // Express router
@@ -63,7 +63,7 @@ export function restify(service: object | RESTService, arg1: any, arg2?: any): a
             throw new Error("Invalid argument");
         }
 
-        return createRESTFuncsRouter(service, options);
+        return createRESTFuncsRouter(<RESTService>service, options);
     }
 }
 
@@ -116,9 +116,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
-function createRESTFuncsRouter(service: object | RESTService, options: RestifyOptions): Router {
-    const restService = service as RESTService; // To get rid of all the type errors we assume to have a RESTService
-
+function createRESTFuncsRouter(restService: RESTService, options: RestifyOptions): Router {
     // @ts-ignore
     const sessionPrototype = restService.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
 
@@ -164,8 +162,15 @@ function createRESTFuncsRouter(service: object | RESTService, options: RestifyOp
 
             let result;
             // @ts-ignore
-            await enhanceViaProxyDuringCall(restService, {req, resp, session}, async (service) => { // make .req and .resp safely available during call
-                result = await method.apply(service, args); // Call method
+            await enhanceViaProxyDuringCall(restService, {req, resp, session}, async (restService) => { // make .req and .resp safely available during call
+                // @ts-ignore
+                if(restService.doCall) { // function defined (when a plain object was passed, it may be undefined= ?
+                    // @ts-ignore
+                    result = await restService.doCall(methodName, args); // Call method with user's doCall interceptor
+                }
+                else {
+                    result = await method.apply(restService, args); // Call method
+                }
             }, methodName);
 
 
@@ -221,5 +226,20 @@ export class RESTService {
      */
     // @ts-ignore
     protected session:{}|null = {};
+
+    /**
+     * Allows you to intercept calls. Override and implement it with the default body:
+     * <pre><code>
+     *      return  await this[functionName](...args) // Call the original function
+     * </code></pre>
+     *
+     * You have access to this.req, this.resp and this.session as usual.
+     *
+     * @param functionName name of the function to be called
+     * @param args args of the function to be called
+     */
+    protected async doCall(functionName:string, args: any[]) {
+        return  await this[functionName](...args) // Call the original function
+    }
 
 }
