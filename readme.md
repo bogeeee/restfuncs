@@ -107,21 +107,27 @@ app.use(session({
 
 _The standalone server has it already done for you._
 
-### Intercept calls
+### Intercept calls (server side)
 
-Override the following method in your service _(=just add the function to it)_ and do what ever you want in there.
-You have access to [this.req](https://expressjs.com/en/4x/api.html#req), [this.resp](https://expressjs.com/en/4x/api.html#res) and this.session as usual.
+Override the following method in your service _(=just add the function to it)_ and do what ever you want in there (i.e. handle errors, check for auth, filter args, filter result).
+You have access to [this.req](https://expressjs.com/en/4x/api.html#req), [this.resp](https://expressjs.com/en/4x/api.html#res) and `this.session` as usual.
 ```
-async doCall(functionName:string, args: any[]) {
-    return  await this[functionName](...args) // Call the original function
+protected async doCall(funcName:string, args: any[]) {
+    return  await this[funcName](...args) // Call the original function
 }
 ```
 
-### Also on the client side ?
-
-TODO. 
-Just add the mentioned method to the proxy (= i.e. `remote` / `greeterService`) . [req](https://developer.mozilla.org/en-US/docs/Web/API/Request) / [resp](https://developer.mozilla.org/en-US/docs/Web/API/response) will be the types from the [Fetch API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API):
-
+### Intercept calls (client side)
+Pass this wrapper function via options and (like above) do what ever you want in there:
+```typescript
+const remote = restClient("http://localhost:3000", {
+    async wrapSendToServer(funcName: string, sendPrep: SendPreparation, sendToServer: (callPrep: SendPreparation) => Promise<{ result: any, resp: Response }>) {
+        //sendPrep.xxx = yyy // use intellisense / JSDOC to modify headers / arguments / http settings / ...
+        const {result, resp} = await sendToServer(sendPrep); // Do the actual send
+        return result;
+    }
+});
+```
 ## API
 For the full API see the code's JSDoc which every modern IDE should provide you on intellisense. Why should one repeat that here?
 
@@ -140,4 +146,5 @@ This is still a proof-of-concept, as you see from the version number.
 - Auto upgrade connection to websockets for faster calls or allow to send calls in batches
 - Websockify: Provide a simple way to call functions on the client. I.e. just pass them as callbacks.
 - Support for file uploads
+- Easy basicauth handler for the standalone server  
 - JsonP (maybe)

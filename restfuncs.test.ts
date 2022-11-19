@@ -1,6 +1,6 @@
 import {restify, RESTService} from "@restfuncs/server";
 import express from "express";
-import {restClient} from "@restfuncs/client";
+import {restClient, SendPreparation} from "@restfuncs/client";
 
 let serverPort = 10000; // this is increased
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
@@ -237,13 +237,13 @@ test('Reserved names', async () => {
     },async apiProxy => {
         for(const forbiddenName of ["req", "resp", "session"]) {
             // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.calleRemoteMethod(forbiddenName)}, "You are trying to call a remote method that is a reserved name");
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, "You are trying to call a remote method that is a reserved name");
         }
 
         // Check that these can't be used if not defined:
         for(const forbiddenName of ["get", "set"]) {
             // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.calleRemoteMethod(forbiddenName)}, "You are trying to call a remote method that does not exist");
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, "You are trying to call a remote method that does not exist");
         }
     });
 });
@@ -311,6 +311,34 @@ test('Sessions', async () => {
 
     await apiProxy.storeValueInSession(123);
     expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
+
+    // shut down server:
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+
+});
+
+test('Intercept calls', async () => {
+    class Service extends RESTService{
+        getSomething(something: any) {
+            return something;
+        }
+    }
+
+    // Use with standalone server cause there should be a session handler installed:
+    const server = restify(new Service(),0);
+
+    // @ts-ignore
+    const port = server.address().port;
+    const apiProxy = restClient<Service>(`http://localhost:${port}`, {
+        async wrapSendToServer(funcName: string, callPrep: SendPreparation, sendToServer: (callPrep: SendPreparation) => Promise<{result: any, resp: Response}>) {
+            callPrep.funcArgs[0] = "b"; // Mangle
+            const {result, resp} = await sendToServer(callPrep); // Do the actual send
+            return result;
+        }
+    })
+
+    expect(await apiProxy.getSomething("a")).toBe("b");
 
     // shut down server:
     server.closeAllConnections();
