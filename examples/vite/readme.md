@@ -1,5 +1,5 @@
-Simple hello world example with express server and vite as packager.
-Client(=web frontend)- and server code are together in one package/folder for simplicity.
+Simple hello world example with express server and vite as packager.  
+Client (=web frontend) and server- code are together in one package/folder for simplicity.
 
 
 ###Run it

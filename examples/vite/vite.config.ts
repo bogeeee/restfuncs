@@ -1,7 +1,7 @@
 /** @type {import('vite').UserConfig} */
 export default {
     build: {
-        target: 'esnext',
-        outDir: "dist/web"
+        target: 'es2015',
+        outDir: "dist/web",
     }
 }
