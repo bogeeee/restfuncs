@@ -230,16 +230,16 @@ export class RESTService {
     /**
      * Allows you to intercept calls. Override and implement it with the default body:
      * <pre><code>
-     *      return  await this[functionName](...args) // Call the original function
+     *      return  await this[funcName](...args) // Call the original function
      * </code></pre>
      *
      * You have access to this.req, this.resp and this.session as usual.
      *
-     * @param functionName name of the function to be called
+     * @param funcName name of the function to be called
      * @param args args of the function to be called
      */
-    protected async doCall(functionName:string, args: any[]) {
-        return  await this[functionName](...args) // Call the original function
+    protected async doCall(funcName:string, args: any[]) {
+        return  await this[funcName](...args) // Call the original function
     }
 
 }
