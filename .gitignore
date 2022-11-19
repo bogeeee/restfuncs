@@ -3,3 +3,4 @@
 /**/*.js
 /**/*.map
 /tsconfig.tsbuildinfo
+/examples/vite_tldr/node_modules

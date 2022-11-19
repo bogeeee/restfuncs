@@ -70,7 +70,7 @@ console.log(await greeterService.greet("Bob"))
 ```
 
 
-Here you'll find this as a full working example project. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
+[Here](examples/vite), (or [here tl;dr](examples/vite_tldr)) you'll find this as a full working example project. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
 ## Advanced
 
