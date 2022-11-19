@@ -1,5 +1,5 @@
 export default {
     build: {
-        target: 'esnext'
+        target: 'es2015'
     }
 }

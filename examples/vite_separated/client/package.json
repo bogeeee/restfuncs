@@ -1,5 +1,5 @@
 {
-  "name": "restfuncsexampleclient",
+  "name": "restfuncs-example-client",
   "version": "0.8.0",
   "dependencies": {
     "@restfuncs/client": "^0.8.0",
