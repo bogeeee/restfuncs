@@ -3,4 +3,4 @@
 /**/*.js
 /**/*.map
 /tsconfig.tsbuildinfo
-/examples/vite_tldr/node_modules
+/examples/express-and-vite-tldr/node_modules

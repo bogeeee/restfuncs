@@ -5,7 +5,7 @@ Client (=web frontend) and server- code are together in one package/folder for s
 ###Run it
 ```bash
 git clone TODO
-cd restfuncs/examples/vite
+cd restfuncs/examples/express-and-vite
 npm install
 npm run build
 npm run start

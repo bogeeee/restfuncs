@@ -68,9 +68,14 @@ import {GreeterService} from "../path/to/server/or/its/packagename/GreeterServic
 const greeterService = restClient<GreeterService>("/greeterAPI")
 console.log(await greeterService.greet("Bob"))
 ```
+## Example projects
 
+- [Hello world web app - tl;dr minimalist](examples/express-and-vite-tldr)
+- [Hello world web app - proper](examples/express-and-vite)
+- [Hello world web app with server and client in separate dirs / packages](examples/express-and-vite),
+- [Web app with authentication](examples/express-and-vite)
 
-[Here](examples/vite), (or [here tl;dr](examples/vite_tldr)) you'll find this as a full working example project. _It uses vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
+_They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
 ## Advanced
 

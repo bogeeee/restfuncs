@@ -4,7 +4,7 @@ Client(=web) and server are in separate packages / folders. The starter script e
 ###Run it
 ```bash
 git clone TODO
-cd restfuncs/examples/vite_separated/server
+cd restfuncs/examples/express-and-vite-separate/server
 npm install
 npm run build
 npm run start
