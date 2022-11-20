@@ -29,10 +29,36 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
 }
 
 /**
+ * Proxy that translates all this.myMethod(..args) into this.doCall("myMethod", args) where "myMethod" is some non-existing property
+ */
+class BaseProxy {
+    constructor() {
+        const proxy = new Proxy(this, {
+            get(target: any, p: string | symbol, receiver: any): any {
+
+                // Reject symbols (don't know what it means but we only want strings as property names):
+                if(typeof p != "string") {
+                    throw new Error(`Unhandled : ${String(p)}` );
+                }
+
+                // Handle normal (existing-) property access:
+                if(target[p] !== undefined) {
+                    return target[p];
+                }
+
+                // Handle the rest: p is the name of the remote method
+                return function(...args: any) { return target.doCall(p, args)}
+            }
+        });
+        return proxy;
+    }
+}
+
+/**
  * A method that's called here get's send as a REST call to the server.
  * @see restClient
  */
-export class RestClient {
+export class RestClient extends BaseProxy{
     readonly [index: string]: any;
 
     /**
@@ -129,30 +155,13 @@ export class RestClient {
      * @param options see the public fields (of this class)
      */
     constructor(url: string, options: Partial<RestClient> = {}) {
+        super()
         this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
-
-        // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
-        return new Proxy(this, {
-            get(target: RestClient, p: string | symbol, receiver: any): any {
-
-                // Reject symbols (don't know what it means but we only want strings as property names):
-                if(typeof p != "string") {
-                    throw new Error(`Unhandled : ${String(p)}` );
-                }
-
-                // Handle normal property access:
-                if(target[p] !== undefined) {
-                    return target[p];
-                }
-
-                // Handle the rest: p is the name of the remote method
-                return function(...args: any) { return target.doCall(p, args)}
-            }
-        });
     }
-
 }
+
+
 
 
 /**
@@ -160,6 +169,6 @@ export class RestClient {
  * @param url
  * @param options {@see RestClient}
  */
-export function restClient<Service>(url: string, options: Partial<RestClient> = {}): Service {
-    return <Service> <any> new RestClient(url, options);
+export function restClient<RestService>(url: string, options: Partial<RestClient> = {}): RestService {
+    return <RestService> <any> new RestClient(url, options);
 }
