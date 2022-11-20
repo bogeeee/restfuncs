@@ -121,15 +121,17 @@ protected async doCall(funcName:string, args: any[]) {
 ```
 
 ### Intercept calls (client side)
-Pass a wrapper function via options and (like above) do what ever you want in there:
+Extend the RESTClient class:
 ```typescript
-const remote = restClient("http://localhost:3000", {
-    async wrapSendToServer(funcName: string, sendPrep: SendPreparation, sendToServer: (callPrep: SendPreparation) => Promise<{ result: any, resp: Response }>) {
-        //sendPrep.xxx = yyy // use intellisense / JSDOC to modify headers / arguments / http settings / ...
-        const {result, resp} = await sendToServer(sendPrep); // Do the actual send
-        return result;
+class MyRESTClient extends RESTClient {
+    async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
+        const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req)
+        return r
     }
-});
+}
+
+
+const remote = <GreeterService> <any> new MyRESTClient(`http://localhost:3000`)
 ```
 ## API
 For the full API see the code's JSDoc which every modern IDE should provide you on intellisense. Why should one repeat that here?

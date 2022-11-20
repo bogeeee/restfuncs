@@ -35,7 +35,11 @@ export class RESTClient {
     public method = "POST";
 
     /**
-     * Outermost method. You can override it in a subclass or you may better use {@see wrapSendToServer} where you have more info available
+     * Outermost caller method.
+     *
+     * Override this to intercept calls and handle errors, check for auth, filter args / results, ... whatever you like
+     *
+     * @see doHttpCall For accessing http specific options, override doHttpCall instead
      * @param funcName
      * @param args
      */
@@ -49,51 +53,54 @@ export class RESTClient {
             requestUrl=funcName;
         }
 
-
-
         // Prepare request:
-        const sendPrep: SendPreparation = {
-            url: requestUrl,
-            funcArgs: args,
-            req: {
-                method: this.method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                redirect: "follow",
-                credentials: "include"
-            }
+        const req: RequestInit = {
+            method: this.method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            redirect: "follow",
+            credentials: "include"
         }
 
+        const r = await this.doHttpCall(funcName, args, requestUrl, req);
+        return r.result;
+    }
 
 
-        return await this.wrapSendToServer(funcName, sendPrep, async (sendPrep) => { // Allow user to intercept (wrap around) here
-
-            sendPrep.req.body = JSON.stringify(args);
+    /**
+     * Override this to intercept calls and have access or modify http specific info.
+     * Or also handle errors, check for auth, filter args / results, ... whatever you like
+     *
+     * @param funcName
+     * @param args Args of the function. They get serialized to json in the request body
+     * @param url
+     * @param req The request, already prepared to be sent (without the body yet). You can still modify it. See https://developer.mozilla.org/en-US/docs/Web/API/Request
+     */
+    public async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
+            req.body = JSON.stringify(args);
 
             // Exec fetch:
-            const response = <Response> await fixed_fetch(sendPrep.url, sendPrep.req);
+            const response = <Response>await fixed_fetch(url, req);
 
             // Error handling:
-            if(response.status !== 200) {
+            if (response.status !== 200) {
                 const responseText = await response.text();
 
                 let responseJSON;
                 try {
                     responseJSON = JSON.parse(responseText);
-                }
-                catch (e) { // Error parsing as json ?
+                } catch (e) { // Error parsing as json ?
                     throw new Error(`Server error: ${responseText}`);
                 }
 
                 const formatError = (e: any): string => {
-                    if(typeof(e) == "object") {
+                    if (typeof (e) == "object") {
                         return (e.name ? (e.name + ": ") : "") + (e.message || e) +
                             (e.stack ? `\nServer stack: ${e.stack}` : '') +
                             (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
                             (e.cause ? `\nCause: ${formatError(e.cause)}` : '')
-                    }
-                    else {
+                    } else {
                         return e;
                     }
                 }
@@ -104,14 +111,14 @@ export class RESTClient {
             // Parse result:
             const result = JSON.parse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
             return {result, resp: response};
-        });
-    }
+        }
 
     /**
      *
      * @param options see the public fields (of this class)
      */
-    constructor(options: Partial<RESTClient>) {
+    constructor(url: string, options: Partial<RESTClient> = {}) {
+        this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
@@ -134,39 +141,6 @@ export class RESTClient {
         });
     }
 
-    /**
-     * Allows you to intercept calls and i.e. handle errors, check for auth, modify headers, filter args / results, ... whatever you like
-     * See source code (or readme.md) for base implementation
-     *
-     * Called from inside doCall
-     *
-     * @param funcName name of the js function to be called
-     * @param sendPrep All info that's yet collected/prepared like http headers etc. You can modify it.
-     * @param sendToServer // Does the actual call
-     * @return the actual end result of the call that is returned to the user code
-     */
-    public async wrapSendToServer(funcName: string, sendPrep: SendPreparation, sendToServer: (callPrep: SendPreparation) => Promise<{result: any, resp: Response}>): Promise<any> {
-        const {result, resp} = await sendToServer(sendPrep); // Do the actual send
-        return result;
-    }
-}
-
-/**
- * Everythings that's collected / prepared before the "call" is send to the server
- * For use with {@see RESTClient#wrapSendToServer}.
- */
-export type SendPreparation = {
-    url: string,
-
-    /**
-     * The func arguments, like they are finally received on the (remote-) service.
-     */
-    funcArgs: any[],
-
-    /**
-     * See https://developer.mozilla.org/en-US/docs/Web/API/Request
-     */
-    req: RequestInit,
 }
 
 
@@ -176,7 +150,6 @@ export type SendPreparation = {
  * @param options {@see RESTClient}
  */
 export function restClient<Service>(url: string, options: Partial<RESTClient> = {}): Service {
-    // @ts-ignore
-    return new RESTClient({url: url, ...options});
+    return <Service> <any> new RESTClient(url, options);
 }
 
