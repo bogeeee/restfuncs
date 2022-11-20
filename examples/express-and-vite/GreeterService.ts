@@ -1,6 +1,6 @@
-import {RESTService} from "@restfuncs/server";
+import {RestService} from "@restfuncs/server";
 
-export class GreeterService extends RESTService {
+export class GreeterService extends RestService {
 
     async greet(name: string) {
         return `Hello ${name} from the server`

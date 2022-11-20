@@ -21,7 +21,7 @@ export type RestifyOptions = {
  * @param options
  * @return
  */
-export function restify(service: object | RESTService, port: number, options?: RestifyOptions) : http.Server;
+export function restify(service: object | RestService, port: number, options?: RestifyOptions) : http.Server;
 /**
  * Creates an express router/middleware that makes service's member functions callable via REST.
  * Usage:
@@ -31,8 +31,8 @@ export function restify(service: object | RESTService, port: number, options?: R
  * @param service
  * @return
  */
-export function restify(service: object | RESTService, options?: RestifyOptions): Router;
-export function restify(service: object | RESTService, arg1: any, arg2?: any): any {
+export function restify(service: object | RestService, options?: RestifyOptions): Router;
+export function restify(service: object | RestService, arg1: any, arg2?: any): any {
 
     if(typeof(arg1) == "number") { // standalone ?
         const port = arg1;
@@ -53,7 +53,7 @@ export function restify(service: object | RESTService, arg1: any, arg2?: any): a
             store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
         }));
 
-        app.use(createRESTFuncsRouter(<RESTService>service, options));
+        app.use(createRESTFuncsRouter(<RestService>service, options));
         return app.listen(port);
     }
     else { // Express router
@@ -63,7 +63,7 @@ export function restify(service: object | RESTService, arg1: any, arg2?: any): a
             throw new Error("Invalid argument");
         }
 
-        return createRESTFuncsRouter(<RESTService>service, options);
+        return createRESTFuncsRouter(<RestService>service, options);
     }
 }
 
@@ -116,7 +116,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
-function createRESTFuncsRouter(restService: RESTService, options: RestifyOptions): Router {
+function createRESTFuncsRouter(restService: RestService, options: RestifyOptions): Router {
     // @ts-ignore
     const sessionPrototype = restService.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
 
@@ -136,7 +136,7 @@ function createRESTFuncsRouter(restService: RESTService, options: RestifyOptions
             if(!methodName) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
-            if(new (class extends RESTService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
+            if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
                 throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
             }
             if(restService[methodName] === undefined) {
@@ -195,7 +195,7 @@ function createRESTFuncsRouter(restService: RESTService, options: RestifyOptions
 /**
  * Service base class. Extend it and use {@see restify} on it.
  */
-export class RESTService {
+export class RestService {
     [index: string]: any
 
     /**

@@ -1,4 +1,4 @@
-import {restify, RESTService} from "@restfuncs/server";
+import {restify, RestService} from "@restfuncs/server";
 import express from "express";
 import {RestClient, restClient} from "@restfuncs/client";
 
@@ -70,7 +70,7 @@ test('Most simple example (standalone http server)', async () => {
 })
 
 test('Proper example with express and type support', async () => {
-    class GreeterService extends RESTService {
+    class GreeterService extends RestService {
 
         async greet(name: string) {
             return `hello ${name} from the server`
@@ -201,7 +201,7 @@ test('Parameter types', async () => {
 test('.req, .resp and Resources leaks', async () => {
         await new Promise<void>(async (resolve, reject) => {
             try {
-                const serverAPI = new class extends RESTService {
+                const serverAPI = new class extends RestService {
                     async myMethod() {
                         // test ac
                         expect(this.req.path).toContain("/myMethod");
@@ -230,7 +230,7 @@ test('.req, .resp and Resources leaks', async () => {
 });
 
 test('Reserved names', async () => {
-    await runClientServerTests(new class extends RESTService{
+    await runClientServerTests(new class extends RestService{
 
     },async apiProxy => {
         for(const forbiddenName of ["req", "resp", "session"]) {
@@ -247,7 +247,7 @@ test('Reserved names', async () => {
 });
 
 test("Access 'this' on server service", async () => {
-    await runClientServerTests(new class extends RESTService{
+    await runClientServerTests(new class extends RestService{
         a = "test";
         myServiceFields= {
             val: null
@@ -267,7 +267,7 @@ test("Access 'this' on server service", async () => {
 });
 
 test('Sessions', async () => {
-    class Service extends RESTService{
+    class Service extends RestService{
         session = {
             counter: 0,
             val: null,
@@ -317,7 +317,7 @@ test('Sessions', async () => {
 });
 
 test('Intercept calls', async () => {
-    class Service extends RESTService{
+    class Service extends RestService{
         getSomething(something: any) {
             return something;
         }

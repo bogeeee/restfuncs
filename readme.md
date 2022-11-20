@@ -31,9 +31,9 @@ console.log(await remote.greet("Bob"))
 
 _GreeterService.ts_
 ```typescript
-import {RESTService} from "@restfuncs/server"
+import {RestService} from "@restfuncs/server"
 
-export class GreeterService extends RESTService { // Define the service as a class...
+export class GreeterService extends RestService { // Define the service as a class...
 
     async greet(name: string) {
         return `Hello ${name} from the server`
