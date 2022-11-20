@@ -61,14 +61,12 @@ test('Simple api call', async () => {
 
 test('Most simple example (standalone http server)', async () => {
     restify({
-        greet(name) {
-            return `hello ${name} from the server`
-        }
+        greet: (name) =>  `Hello ${name} from the server`
     }, 9000) // port
 
     const remote = restClient("http://localhost:9000")
     // @ts-ignore
-    expect(await remote.greet("Bob")).toBe("hello Bob from the server");
+    expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
 })
 
 test('Proper example with express and type support', async () => {

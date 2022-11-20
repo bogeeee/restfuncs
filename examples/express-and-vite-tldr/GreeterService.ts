@@ -1,6 +1,6 @@
 export class GreeterService{
 
-    async greet(name: string) {
+    greet(name) {
         return `Hello ${name} from the server`
     }
 

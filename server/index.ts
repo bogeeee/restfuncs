@@ -199,7 +199,8 @@ export class RESTService {
     [index: string]: any
 
     /**
-     * The currently running (express) request.
+     * The currently running (express) request. See https://expressjs.com/en/4x/api.html#req
+     *
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
      */
@@ -207,7 +208,8 @@ export class RESTService {
     protected readonly req!: Request = null;
 
     /**
-     * Response for the currently running (express) request. You can modify any header fields as you like
+     * Response for the currently running (express) request. You can modify any header fields as you like. See https://expressjs.com/en/4x/api.html#res
+     *
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
      */

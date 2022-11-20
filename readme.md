@@ -13,9 +13,7 @@ _server.js_
 import {restify} from "@restfuncs/server"
 
 restify({
-    greet(name) {
-        return `Hello ${name} from the server`
-    }
+    greet: (name) =>  `Hello ${name} from the server`    
 }, 3000) // specifying a port runs a standalone server
 ```
 <br/>
@@ -81,16 +79,16 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 ### Mangle with raw request and response
 
-[this.req](https://expressjs.com/en/4x/api.html#req) and [this.resp](https://expressjs.com/en/4x/api.html#res) are available in your methods during call to read / modify http headers etc. You can even [this.resp.send](https://expressjs.com/en/4x/api.html#res.send) a non-json response.
+`this.req` and `this.resp` are available in your methods during call to read / modify http headers, etc...   
+_See [Request](https://expressjs.com/en/4x/api.html#req) and [Response](https://expressjs.com/en/4x/api.html#res) in the express API._
 
 ### Store values in the http- (browser) session...
 ...under the `this.session` object.
 ```typescript
 restify({
     session: {visitCounter: 0}, // this becomes the default for every new session (shallowly cloned).
-    countVisits() {
-        this.session.visitCounter++
-    }
+    
+    countVisits: () => this.session.visitCounter++
 })
 ```
 For this to work, you must install a session/cookie middleware in express. I.e.:
@@ -123,7 +121,7 @@ protected async doCall(funcName:string, args: any[]) {
 ```
 
 ### Intercept calls (client side)
-Pass this wrapper function via options and (like above) do what ever you want in there:
+Pass a wrapper function via options and (like above) do what ever you want in there:
 ```typescript
 const remote = restClient("http://localhost:3000", {
     async wrapSendToServer(funcName: string, sendPrep: SendPreparation, sendToServer: (callPrep: SendPreparation) => Promise<{ result: any, resp: Response }>) {
