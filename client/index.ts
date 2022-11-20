@@ -77,7 +77,7 @@ export class RestClient {
      * @param url
      * @param req The request, already prepared to be sent (without the body yet). You can still modify it. See https://developer.mozilla.org/en-US/docs/Web/API/Request
      */
-    public async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
+    protected async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
             req.body = JSON.stringify(args);
 
             // Exec fetch:
