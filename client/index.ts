@@ -21,7 +21,7 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
  * A method that's called here get's send as a REST call to the server.
  * @see restClient
  */
-export class RESTClient {
+export class RestClient {
     readonly [index: string]: any;
 
     /**
@@ -117,13 +117,13 @@ export class RESTClient {
      *
      * @param options see the public fields (of this class)
      */
-    constructor(url: string, options: Partial<RESTClient> = {}) {
+    constructor(url: string, options: Partial<RestClient> = {}) {
         this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
         return new Proxy(this, {
-            get(target: RESTClient, p: string | symbol, receiver: any): any {
+            get(target: RestClient, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -147,9 +147,8 @@ export class RESTClient {
 /**
  * Crates a rest client. For usage: See readme.md
  * @param url
- * @param options {@see RESTClient}
+ * @param options {@see RestClient}
  */
-export function restClient<Service>(url: string, options: Partial<RESTClient> = {}): Service {
-    return <Service> <any> new RESTClient(url, options);
+export function restClient<Service>(url: string, options: Partial<RestClient> = {}): Service {
+    return <Service> <any> new RestClient(url, options);
 }
-

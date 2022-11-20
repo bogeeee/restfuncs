@@ -121,9 +121,9 @@ protected async doCall(funcName:string, args: any[]) {
 ```
 
 ### Intercept calls (client side)
-Extend the RESTClient class:
+Extend the RETClient class:
 ```typescript
-class MyRESTClient extends RESTClient {
+class MyRestClient extends RestClient {
     async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
         const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req)
         return r
@@ -131,7 +131,7 @@ class MyRESTClient extends RESTClient {
 }
 
 
-const remote = <GreeterService> <any> new MyRESTClient(`http://localhost:3000`)
+const remote = <GreeterService> <any> new MyRestClient(`http://localhost:3000`)
 ```
 ## API
 For the full API see the code's JSDoc which every modern IDE should provide you on intellisense. Why should one repeat that here?
