@@ -1,6 +1,17 @@
 import _ from "underscore"
 
 /**
+ * Thrown when there was an Error/exception thrown on the server during method call.
+ */
+export class ServerError extends Error {
+    name= "ServerError"
+    /**
+     * The Error or exception string that was thrown on the server. We can't keep the orginal class hierarchy, so Errors will just become plain objects.
+     */
+    cause: any
+}
+
+/**
  * Fetch but with a better errormessage
  * @param request
  */
@@ -105,7 +116,7 @@ export class RestClient {
                     }
                 }
 
-                throw new Error(`Server error: ${formatError(responseJSON)}`);
+                throw new ServerError(formatError(responseJSON), {cause: responseJSON});
             }
 
             // Parse result:

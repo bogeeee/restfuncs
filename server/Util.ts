@@ -74,5 +74,6 @@ export function cloneError(e: any): object {
         lineNumber: e.lineNumber,
         columnNumber: e.columnNumber,
         stack: e.stack,
+        ...e // try everything else that's accessible as properties
     }
 }
