@@ -6,7 +6,7 @@ With `@restfuncs/server` you can just **rest**ify(yourServiceObject) to make its
 With `@restfuncs/client` you can then simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
 
 
-## Most simple example (standalone http server)
+## Usage 
 
 _server.js_
 ```javascript
@@ -27,7 +27,7 @@ const remote = restClient("http://localhost:3000")
 console.log(await remote.greet("Bob"))
 ```
 
-## Proper example with express and type support
+## Usage with express and type support
 
 _GreeterService.ts_
 ```typescript
@@ -47,9 +47,7 @@ export class GreeterService extends RestService { // Define the service as a cla
 
 _server.ts_
 ```typescript
-import express from "express"
-import {restify} from "@restfuncs/server"
-import {GreeterService} from "./GreeterService.js"
+...
 
 const app = express()
 app.use("/greeterAPI", restify( new GreeterService() ))
@@ -68,10 +66,10 @@ console.log(await greeterService.greet("Bob"))
 ```
 ## Example projects
 
-- [Hello world web app - tl;dr minimalist](examples/express-and-vite-tldr)
-- [Hello world web app - proper](examples/express-and-vite)
+- [Bare minimal hello world web app](examples/express-and-vite-tldr)
+- [Hello world web app (proper / use as starter stack)](examples/express-and-vite)
 - [Hello world web app with server and client in separate dirs / packages](examples/express-and-vite),
-- [Web app with authentication](examples/express-and-vite)
+- [Hello world Web app with authentication](examples/express-and-vite) (uses things from the Advanced chapter)
 
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
@@ -121,27 +119,30 @@ protected async doCall(funcName:string, args: any[]) {
 ```
 
 ### Intercept calls (client side)
-Extend the RETClient class:
+
+Similar as above. Add that function to the options, _or override it in a subclass of RestClient_.  
+
 ```typescript
-class MyRestClient extends RestClient {
-    async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
-        const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req)
-        return r
+const greeterService = restClient<GreeterService>("/greeterAPI", {
+    
+    async doCall(funcName:string, args: any[]) {
+        return await this[funcName](...args) // Call the original function
     }
-}
-
-
-const remote = <GreeterService> <any> new MyRestClient(`http://localhost:3000`)
+    
+})
 ```
+
+_If you want to mangle with request and response on the client, subclass it and override doHttpCall._ 
+
+
 ## API
-For the full API see the code's JSDoc which every modern IDE should provide you on intellisense. Why should one repeat that here?
+Most is already covered but for the full API details see the code's JSDoc.
+
+## Security
+
+**Types are not checked** at runtime on the server **yet**, so this is a **security risk** when you don't check them yourself.
 
 ## That's it !
-
-###Further notes
-
-This is still a proof-of-concept, as you see from the version number. 
-**Types are not checked** at runtime on the server **yet**, so this is a **security risk** when you don't check them yourself.
 
 ### Things to come
 

@@ -29,7 +29,11 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
 }
 
 /**
- * A method that's called here get's send as a REST call to the server.
+ * A method that's called here (on .proxy) get's send as a REST call to the server.
+ *
+ * Usage:
+ * const remote = new RestClient<MyService>(url).proxy
+ * await remote.myMethod()
  * @see restClient
  */
 export class RestClient<Service> {
@@ -195,7 +199,15 @@ export class RestClient<Service> {
 
 
 /**
- * Crates a rest client. For usage: See readme.md
+ * Crates a rest client.
+ *
+ * Usage:
+ * const remote = new restClient<MyService>(url)
+ * await remote.myMethod()
+ *
+ * For full usage guide, see readme.md
+ *
+ *
  * @param url
  * @param options {@see RestClient}
  */
