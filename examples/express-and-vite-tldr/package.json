@@ -6,8 +6,7 @@
   "dependencies": {
     "express": "^4.17.13",
     "vite": "^2.9.15",
-    "restfuncs-server": "^0.8.0",
-    "restfuncs-client": "^0.8.0"
+    "restfuncs": "^0.8.0"
   },
   "devDependencies": {
     "tsx": "^3.12.1"

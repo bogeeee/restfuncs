@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs} from "restfuncs-server"
+import {restfuncs} from "restfuncs"
 import {GreeterService} from "./GreeterService.js"
 
 const port = 3000

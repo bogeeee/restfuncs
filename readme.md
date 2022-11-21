@@ -9,7 +9,7 @@ Tired of handcrafting every server API method + fetch / ajax request + (forgotte
 
 **_server.js_**
 ```javascript
-import {restfuncs} from "restfuncs-server"
+import restfuncs from "restfuncs-server"
 
 restfuncs({
     greet: (name) =>  `Hello ${name} from the server`    
@@ -19,7 +19,7 @@ restfuncs({
 **_client.js_**
 
 ```javascript
-import {restfuncsClient} from "restfuncs-client"
+import restfuncsClient from "restfuncs-client"
 
 const remote = restfuncsClient("http://localhost:3000")
 console.log(await remote.greet("Bob"))
@@ -52,7 +52,7 @@ app.listen(3000)
 
 **_client.ts_**
 ```typescript
-import {restfuncsClient} from "restfuncs-client"
+import restfuncsClient from "restfuncs-client"
 import {GreeterService} from "../path/to/server/or/its/packagename/GreeterService.js" // ...and import the class to have full type support on the client :)
 
 const greeterService = restfuncsClient<GreeterService>("/greeterAPI")

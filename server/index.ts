@@ -68,6 +68,8 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
     }
 }
 
+export default restfuncs
+
 /**
  * Creates a proxy for the session object that sees the values from the prototype and only writes values to req.session on modification.
  * @param session the real / target session object

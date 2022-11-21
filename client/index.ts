@@ -222,3 +222,5 @@ export class RestfuncsClient<Service> {
 export function restfuncsClient<RestService>(url: string, options: Partial<RestfuncsClient<any>> = {}): RestService {
     return new RestfuncsClient<RestService>(url, options).proxy;
 }
+
+export default restfuncsClient
