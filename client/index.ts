@@ -83,7 +83,7 @@ export class RestClient<Service> {
      * @param funcName
      * @param args
      */
-    protected async doCall(funcName:string, args: any[]) {
+    public async doCall(funcName:string, args: any[]) {
         return await this[funcName](...args) // Call the original function
     }
 

@@ -316,7 +316,36 @@ test('Sessions', async () => {
 
 });
 
-test('Intercept calls', async () => {
+
+test('Intercept with doCall (client side)', async () => {
+    class Service extends RestService{
+        getSomething(something: any) {
+            return something;
+        }
+    }
+
+    // Use with standalone server cause there should be a session handler installed:
+    const server = restify(new Service(),0);
+
+    // @ts-ignore
+    const port = server.address().port;
+
+    const apiProxy = restClient<Service>(`http://localhost:${port}`, {
+        async doCall(funcName:string, args: any[]) {
+            args[0] = "b"
+            return await this[funcName](...args) // Call the original function
+        }
+    });
+
+    expect(await apiProxy.getSomething("a")).toBe("b");
+
+    // shut down server:
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+
+});
+
+test('Intercept with doHttpCall (client side)', async () => {
     class Service extends RestService{
         getSomething(something: any) {
             return something;
@@ -346,3 +375,4 @@ test('Intercept calls', async () => {
     await new Promise((resolve) => server.close(resolve));
 
 });
+
