@@ -6,13 +6,13 @@
   "types": "index.d.ts",
   "exports": {
     ".": {
-      "browser": "./dist/browser/index.js",
+      "browser": "./dist/mjs/index.js",
       "default": "./index.js"
     }
   },
   "scripts": {
     "clean": "tsc --build --clean && rm -rf dist",
-    "build": "tsc && tsc -module ES6 --outDir dist/browser"
+    "build": "tsc && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
     "express": "^4.17.13",
