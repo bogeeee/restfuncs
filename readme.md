@@ -1,4 +1,4 @@
-# RestFuncs
+# Restfuncs
 
 **Serve** a REST API for your **plain functions** and seamlessly **RPC-call** them from the client (browser).
 
@@ -19,9 +19,9 @@ restfuncs({
 **_client.js_**
 
 ```javascript
-import {restClient} from "restfuncs-client"
+import {restfuncsClient} from "restfuncs-client"
 
-const remote = restClient("http://localhost:3000")
+const remote = restfuncsClient("http://localhost:3000")
 console.log(await remote.greet("Bob"))
 ```
 
@@ -52,10 +52,10 @@ app.listen(3000)
 
 **_client.ts_**
 ```typescript
-import {restClient} from "restfuncs-client"
+import {restfuncsClient} from "restfuncs-client"
 import {GreeterService} from "../path/to/server/or/its/packagename/GreeterService.js" // ...and import the class to have full type support on the client :)
 
-const greeterService = restClient<GreeterService>("/greeterAPI")
+const greeterService = restfuncsClient<GreeterService>("/greeterAPI")
 console.log(await greeterService.greet("Bob"))
 ```
 ## Example projects
@@ -125,7 +125,7 @@ class MyService {
 Similar as above. Add that function to the options of-, or in a subclass of RestClient.  
 
 ```typescript
-const myService = restClient<MyService>("/myAPI", { // options
+const myService = restfuncsClient<MyService>("/myAPI", { // options
     
     async doCall(funcName:string, args: any[]) {
         return await this[funcName](...args) // Call the original function

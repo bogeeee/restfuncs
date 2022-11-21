@@ -1,6 +1,6 @@
 import {restfuncs, RestService} from "restfuncs-server";
 import express from "express";
-import {RestClient, restClient} from "restfuncs-client";
+import {RestClient, restfuncsClient} from "restfuncs-client";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -11,7 +11,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     // @ts-ignore
     const serverPort = server.address().port;
 
-    const client = restClient<Api>(`http://localhost:${serverPort}${path}`);
+    const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
     await clientTests(client);
     // shut down server
     server.closeAllConnections();
@@ -68,7 +68,7 @@ test('Most simple example (standalone http server)', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    const remote = restClient(`http://localhost:${port}`)
+    const remote = restfuncsClient(`http://localhost:${port}`)
     // @ts-ignore
     expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
 })
@@ -90,7 +90,7 @@ test('Proper example with express and type support', async () => {
     // @ts-ignore
     const serverPort = server.address().port;
 
-    const greeterService = restClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
+    const greeterService = restfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
     expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
 })
 
@@ -135,7 +135,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = restClient(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
+            const client = restfuncsClient(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
@@ -309,7 +309,7 @@ test('Sessions', async () => {
 
     // @ts-ignore
     const port = server.address().port;
-    const apiProxy = restClient<Service>(`http://localhost:${port}`)
+    const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`)
 
     await apiProxy.checkInitialSessionValues();
 
@@ -336,7 +336,7 @@ test('Intercept with doCall (client side)', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    const apiProxy = restClient<Service>(`http://localhost:${port}`, {
+    const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {
         async doCall(funcName:string, args: any[]) {
             args[0] = "b"
             return await this[funcName](...args) // Call the original function

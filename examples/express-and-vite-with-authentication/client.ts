@@ -1,4 +1,4 @@
-import {RestClient, restClient} from "restfuncs-client"
+import {RestClient, restfuncsClient} from "restfuncs-client"
 import {MainframeService} from "./MainframeService.js" // Import to have types
 
 /**

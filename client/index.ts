@@ -36,7 +36,7 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
  * Usage:
  * const remote = new RestClient<MyService>(url).proxy
  * await remote.myMethod()
- * @see restClient
+ * @see restfuncsClient
  */
 export class RestClient<Service> {
     readonly [index: string]: any;
@@ -210,7 +210,7 @@ export class RestClient<Service> {
  * Crates a rest client.
  *
  * Usage:
- * const remote = new restClient<MyService>(url)
+ * const remote = new restfuncsClient<MyService>(url)
  * await remote.myMethod()
  *
  * For full usage guide, see readme.md
@@ -219,6 +219,6 @@ export class RestClient<Service> {
  * @param url
  * @param options {@see RestClient}
  */
-export function restClient<RestService>(url: string, options: Partial<RestClient<any>> = {}): RestService {
+export function restfuncsClient<RestService>(url: string, options: Partial<RestClient<any>> = {}): RestService {
     return new RestClient<RestService>(url, options).proxy;
 }
