@@ -50,16 +50,49 @@ export class RestClient<Service> {
      */
     public proxy: Service
 
+    private async outer_doCall(funcName: string, args: any[]) {
+        // Create a simulated environment, to make user's doCall super convenient:
+        // Create the proxy that translates this.myMethod(..args) into this.inner_doCall("myMethod", args)
+        const userProxy = <Service> new Proxy(this, {
+            get(target: RestClient<any>, p: string | symbol, receiver: any): any {
+
+                // Reject symbols (don't know what it means but we only want strings as property names):
+                if(typeof p != "string") {
+                    throw new Error(`Unhandled : ${String(p)}` );
+                }
+
+                // Handle normal property access:
+                if(target[p] !== undefined) {
+                    return target[p];
+                }
+
+                // Handle the rest: p is the name of the remote method
+                return function(...args: any) { return target.inner_doCall(p, args)}
+            }
+        });
+
+        return await this.doCall.apply(userProxy, [funcName, args]);
+    }
+
     /**
-     * Outermost caller method.
+     * User's hook
      *
      * Override this to intercept calls and handle errors, check for auth, filter args / results, ... whatever you like
      *
-     * @see doHttpCall For accessing http specific options, override doHttpCall instead
+     * For accessing http specific options, override {@see doHttpCall} instead
      * @param funcName
      * @param args
      */
-    public async doCall(funcName: string, args: any[]) {
+    protected async doCall(funcName:string, args: any[]) {
+        return await this[funcName](...args) // Call the original function
+    }
+
+    /**
+     *
+     * @param funcName
+     * @param args
+     */
+    private async inner_doCall(funcName: string, args: any[]) {
 
         let requestUrl: string;
         if(this.url) {
@@ -86,7 +119,8 @@ export class RestClient<Service> {
 
     /**
      * Override this to intercept calls and have access or modify http specific info.
-     * Or also handle errors, check for auth, filter args / results, ... whatever you like
+     *
+     * TODO: make it possible to override it via the options
      *
      * @param funcName
      * @param args Args of the function. They get serialized to json in the request body
@@ -152,7 +186,7 @@ export class RestClient<Service> {
                 }
 
                 // Handle the rest: p is the name of the remote method
-                return function(...args: any) { return target.doCall(p, args)}
+                return function(...args: any) { return target.outer_doCall(p, args)}
             }
         });
     }
