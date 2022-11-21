@@ -85,7 +85,7 @@ export class RestfuncsClient<Service> {
      *
      * Override this to intercept calls and handle errors, check for auth, filter args / results, ... whatever you like
      *
-     * For accessing http specific options, override {@see doHttpCall} instead
+     * For accessing http specific options, override {@see doFetch} instead
      * @param funcName
      * @param args
      */
@@ -118,7 +118,7 @@ export class RestfuncsClient<Service> {
             credentials: "include"
         }
 
-        const r = await this.doHttpCall(funcName, args, requestUrl, req);
+        const r = await this.doFetch(funcName, args, requestUrl, req);
         return r.result;
     }
 
@@ -133,7 +133,7 @@ export class RestfuncsClient<Service> {
      * @param url
      * @param req The request, already prepared to be sent (without the body yet). You can still modify it. See https://developer.mozilla.org/en-US/docs/Web/API/Request
      */
-    protected async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
+    protected async doFetch(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
             req.body = JSON.stringify(args);
 
             // Exec fetch:

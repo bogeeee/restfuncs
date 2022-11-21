@@ -351,7 +351,7 @@ test('Intercept with doCall (client side)', async () => {
 
 });
 
-test('Intercept with doHttpCall (client side)', async () => {
+test('Intercept with doFetch (client side)', async () => {
     class Service extends RestService{
         getSomething(something: any) {
             return something;
@@ -365,9 +365,9 @@ test('Intercept with doHttpCall (client side)', async () => {
     const port = server.address().port;
 
     class MyRestfuncsClient extends RestfuncsClient<Service> {
-        async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
+        async doFetch(funcName: string, args: any[], url: string, req: RequestInit) {
             args[0] = "b"; // Mangle
-            const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req);
+            const r: {result: any, resp: Response} = await super.doFetch(funcName, args, url, req);
             return r
         }
     }

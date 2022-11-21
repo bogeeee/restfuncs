@@ -134,7 +134,7 @@ const myService = restfuncsClient<MyService>("/myAPI", { // options
 })
 ```
 
-_If you want to mangle with request and response on the client, subclass it and override doHttpCall._ 
+_If you want to mangle with request and response on the client, subclass it and override doFetch._ 
 
 
 ## API
