@@ -9,9 +9,9 @@ Tired of handcrafting every server API method + fetch / ajax request + (forgotte
 
 **_server.js_**
 ```javascript
-import {restify} from "restfuncs-server"
+import {restfuncs} from "restfuncs-server"
 
-restify({
+restfuncs({
     greet: (name) =>  `Hello ${name} from the server`    
 }, 3000) // specifying a port runs a standalone server
 ```
@@ -46,7 +46,7 @@ export class GreeterService extends RestService { // Define the service as a cla
 ...
 
 const app = express()
-app.use("/greeterAPI", restify( new GreeterService() ))
+app.use("/greeterAPI", restfuncs( new GreeterService() ))
 app.listen(3000)
 ```
 

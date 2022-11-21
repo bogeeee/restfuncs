@@ -1,4 +1,4 @@
-import {restify, RestService} from "restfuncs-server";
+import {restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestClient, restClient} from "restfuncs-client";
 
@@ -6,7 +6,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, restify(serverAPI));
+    app.use(path, restfuncs(serverAPI));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -60,7 +60,7 @@ test('Simple api call', async () => {
 });
 
 test('Most simple example (standalone http server)', async () => {
-    const server = restify({
+    const server = restfuncs({
         greet: (name) =>  `Hello ${name} from the server`
     }, 0);
 
@@ -85,7 +85,7 @@ test('Proper example with express and type support', async () => {
 
 
     const app = express();
-    app.use("/greeterAPI", restify( new GreeterService() ));
+    app.use("/greeterAPI", restfuncs( new GreeterService() ));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -305,7 +305,7 @@ test('Sessions', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restify(new Service(),0);
+    const server = restfuncs(new Service(),0);
 
     // @ts-ignore
     const port = server.address().port;
@@ -331,7 +331,7 @@ test('Intercept with doCall (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restify(new Service(),0);
+    const server = restfuncs(new Service(),0);
 
     // @ts-ignore
     const port = server.address().port;
@@ -359,7 +359,7 @@ test('Intercept with doHttpCall (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restify(new Service(),0);
+    const server = restfuncs(new Service(),0);
 
     // @ts-ignore
     const port = server.address().port;

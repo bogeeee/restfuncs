@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restify} from "restfuncs-server"
+import {restfuncs} from "restfuncs-server"
 import {GreeterService} from "./GreeterService.js"
 import session from "express-session";
 import crypto from "node:crypto";
@@ -20,7 +20,7 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/greeterAPI", restify( new GreeterService() ))
+    app.use("/greeterAPI", restfuncs( new GreeterService() ))
 
     // Client web:
     if(process.env.NODE_ENV === 'production') {

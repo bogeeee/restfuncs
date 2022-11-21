@@ -22,18 +22,18 @@ export type RestifyOptions = {
  * @param options
  * @return
  */
-export function restify(service: object | RestService, port: number, options?: RestifyOptions) : http.Server;
+export function restfuncs(service: object | RestService, port: number, options?: RestifyOptions) : http.Server;
 /**
  * Creates an express router/middleware that makes service's member functions callable via REST.
  * Usage:
- *     app.use("/myAPI", restify( myService, { ...options});
+ *     app.use("/myAPI", restfuncs( myService, { ...options});
  *
  * Side effects: The service.req/resp/session fields will be set to null
  * @param service
  * @return
  */
-export function restify(service: object | RestService, options?: RestifyOptions): Router;
-export function restify(service: object | RestService, arg1: any, arg2?: any): any {
+export function restfuncs(service: object | RestService, options?: RestifyOptions): Router;
+export function restfuncs(service: object | RestService, arg1: any, arg2?: any): any {
 
     if(typeof(arg1) == "number") { // standalone ?
         const port = arg1;
@@ -196,7 +196,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestifyOptions
 }
 
 /**
- * Service base class. Extend it and use {@see restify} on it.
+ * Service base class. Extend it and use {@see restfuncs} on it.
  */
 export class RestService {
     [index: string]: any
@@ -224,7 +224,7 @@ export class RestService {
      * The browser/client session (for the currently running request). You can add any user defined content to it.
      * What you set as initial value here will also be the initial value of EVERY new session. Note that this initial session is not deeply cloned.
      *
-     * When restify is used with express, you must install the session handler in express yourself (follow the no-sessionhandler errormessage for guidance).
+     * When restfuncs is used with express, you must install the session handler in express yourself (follow the no-sessionhandler errormessage for guidance).
      *
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
