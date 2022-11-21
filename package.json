@@ -6,11 +6,11 @@
   "scripts": {
     "dev": "nodemon -e ts --exec npm run compile_and_run_tests",
     "compile_and_run_tests": "clear && tsc --build && jest",
-    "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean",
-    "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build",
+    "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
+    "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "prepublish": "npm run clean && npm run build"
   },
-  "workspaces": ["server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
+  "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",
