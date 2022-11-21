@@ -7,7 +7,7 @@
     "dev": "nodemon -e ts --exec npm run compile_and_run_tests",
     "compile_and_run_tests": "clear && tsc --build && jest",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
-    "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
+    "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
     "prepublish": "npm run clean && npm run build"
   },
   "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
