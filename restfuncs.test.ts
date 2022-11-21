@@ -329,7 +329,7 @@ test('Intercept calls', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    class MyRestClient extends RestClient {
+    class MyRestClient extends RestClient<Service> {
         async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
             args[0] = "b"; // Mangle
             const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req);
@@ -337,7 +337,7 @@ test('Intercept calls', async () => {
         }
     }
 
-    const apiProxy = <Service> <any> new MyRestClient(`http://localhost:${port}`);
+    const apiProxy = new MyRestClient(`http://localhost:${port}`).proxy;
 
     expect(await apiProxy.getSomething("a")).toBe("b");
 

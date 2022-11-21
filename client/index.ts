@@ -32,7 +32,7 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
  * A method that's called here get's send as a REST call to the server.
  * @see restClient
  */
-export class RestClient {
+export class RestClient<Service> {
     readonly [index: string]: any;
 
     /**
@@ -44,6 +44,11 @@ export class RestClient {
      * HTTP Method for sending all requests
      */
     public method = "POST";
+
+    /**
+     * The proxy that is handed out, where the calls are made on
+     */
+    public proxy: Service
 
     /**
      * Outermost caller method.
@@ -128,13 +133,13 @@ export class RestClient {
      *
      * @param options see the public fields (of this class)
      */
-    constructor(url: string, options: Partial<RestClient> = {}) {
+    constructor(url: string, options: Partial<RestClient<any>> = {}) {
         this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
-        return new Proxy(this, {
-            get(target: RestClient, p: string | symbol, receiver: any): any {
+        this.proxy = <Service> new Proxy(this, {
+            get(target: RestClient<any>, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -160,6 +165,6 @@ export class RestClient {
  * @param url
  * @param options {@see RestClient}
  */
-export function restClient<Service>(url: string, options: Partial<RestClient> = {}): Service {
-    return <Service> <any> new RestClient(url, options);
+export function restClient<RestService>(url: string, options: Partial<RestClient<any>> = {}): RestService {
+    return new RestClient<RestService>(url, options).proxy;
 }
