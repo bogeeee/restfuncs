@@ -2,15 +2,15 @@ import {restify, RestService} from "@restfuncs/server";
 import express from "express";
 import {RestClient, restClient} from "@restfuncs/client";
 
-let serverPort = 10000; // this is increased
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
     app.use(path, restify(serverAPI));
-    serverPort++; // Bugfix: axios client throws a "socket hung up" when reusing the same port
-    const server = app.listen(serverPort);
+    const server = app.listen();
     // @ts-ignore
+    const serverPort = server.address().port;
+
     const client = restClient<Api>(`http://localhost:${serverPort}${path}`);
     await clientTests(client);
     // shut down server
@@ -60,11 +60,15 @@ test('Simple api call', async () => {
 });
 
 test('Most simple example (standalone http server)', async () => {
-    restify({
+    const server = restify({
         greet: (name) =>  `Hello ${name} from the server`
-    }, 9000) // port
+    }, 0);
 
-    const remote = restClient("http://localhost:9000")
+
+    // @ts-ignore
+    const port = server.address().port;
+
+    const remote = restClient(`http://localhost:${port}`)
     // @ts-ignore
     expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
 })
@@ -82,9 +86,11 @@ test('Proper example with express and type support', async () => {
 
     const app = express();
     app.use("/greeterAPI", restify( new GreeterService() ));
-    app.listen(9001);
+    const server = app.listen();
+    // @ts-ignore
+    const serverPort = server.address().port;
 
-    const greeterService = restClient<GreeterService>("http://localhost:9001/greeterAPI")
+    const greeterService = restClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
     expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
 })
 
@@ -129,7 +135,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = restClient(`http://localhost:${serverPort + 1}/api`); // Connect to server port that does not yet exist
+            const client = restClient(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
