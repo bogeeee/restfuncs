@@ -122,7 +122,7 @@ class MyService {
 
 ### Intercept calls (client side)
 
-Similar as above. Add that function to the options of-, or in a subclass of RestClient.  
+Similar as above. Add that function to the options of-, or in a subclass of RestfuncsClient.  
 
 ```typescript
 const myService = restfuncsClient<MyService>("/myAPI", { // options

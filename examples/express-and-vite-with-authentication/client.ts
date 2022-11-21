@@ -1,11 +1,11 @@
-import {RestClient, restfuncsClient} from "restfuncs-client"
+import {RestfuncsClient, restfuncsClient} from "restfuncs-client"
 import {MainframeService} from "./MainframeService.js" // Import to have types
 
 /**
- * This example subclasses the RestClient so you have a reusable client class for all your services (if you have multiple).
- * You may write instead then: class RestClientWithLogin<S extends MyBaseService> ...
+ * This example subclasses the RestfuncsClient so you have a reusable client class for all your services (if you have multiple).
+ * You may write instead then: class RestfuncsClientWithLogin<S extends MyBaseService> ...
  */
-class RestClientWithLogin<S> extends RestClient<S> {
+class RestfuncsClientWithLogin<S> extends RestfuncsClient<S> {
     async doCall(funcName: string, args: any[]) {
         try {
             return await super.doCall(funcName, args);
@@ -32,7 +32,7 @@ class RestClientWithLogin<S> extends RestClient<S> {
     }
 }
 
-const mainframeService = new RestClientWithLogin<MainframeService>("/mainframeAPI").proxy // This is the way to use a subclassed RestClient
+const mainframeService = new RestfuncsClientWithLogin<MainframeService>("/mainframeAPI").proxy // This is the way to use a subclassed RestfuncsClient
 
 document.getElementById("multiplyButton").onclick = async function() {
     // @ts-ignore

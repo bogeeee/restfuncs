@@ -1,6 +1,6 @@
 import {restfuncs, RestService} from "restfuncs-server";
 import express from "express";
-import {RestClient, restfuncsClient} from "restfuncs-client";
+import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -364,7 +364,7 @@ test('Intercept with doHttpCall (client side)', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    class MyRestClient extends RestClient<Service> {
+    class MyRestfuncsClient extends RestfuncsClient<Service> {
         async doHttpCall(funcName: string, args: any[], url: string, req: RequestInit) {
             args[0] = "b"; // Mangle
             const r: {result: any, resp: Response} = await super.doHttpCall(funcName, args, url, req);
@@ -372,7 +372,7 @@ test('Intercept with doHttpCall (client side)', async () => {
         }
     }
 
-    const apiProxy = new MyRestClient(`http://localhost:${port}`).proxy;
+    const apiProxy = new MyRestfuncsClient(`http://localhost:${port}`).proxy;
 
     expect(await apiProxy.getSomething("a")).toBe("b");
 

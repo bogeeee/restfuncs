@@ -34,11 +34,11 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
  * A method that's called here (on .proxy) get's send as a REST call to the server.
  *
  * Usage:
- * const remote = new RestClient<MyService>(url).proxy
+ * const remote = new RestfuncsClient<MyService>(url).proxy
  * await remote.myMethod()
  * @see restfuncsClient
  */
-export class RestClient<Service> {
+export class RestfuncsClient<Service> {
     readonly [index: string]: any;
 
     /**
@@ -60,7 +60,7 @@ export class RestClient<Service> {
         // Create a simulated environment, to make user's doCall super convenient:
         // Create the proxy that translates this.myMethod(..args) into this.inner_doCall("myMethod", args)
         const userProxy = <Service> new Proxy(this, {
-            get(target: RestClient<any>, p: string | symbol, receiver: any): any {
+            get(target: RestfuncsClient<any>, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -179,13 +179,13 @@ export class RestClient<Service> {
      *
      * @param options see the public fields (of this class)
      */
-    constructor(url: string, options: Partial<RestClient<any>> = {}) {
+    constructor(url: string, options: Partial<RestfuncsClient<any>> = {}) {
         this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
         this.proxy = <Service> new Proxy(this, {
-            get(target: RestClient<any>, p: string | symbol, receiver: any): any {
+            get(target: RestfuncsClient<any>, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if(typeof p != "string") {
@@ -217,8 +217,8 @@ export class RestClient<Service> {
  *
  *
  * @param url
- * @param options {@see RestClient}
+ * @param options {@see RestfuncsClient}
  */
-export function restfuncsClient<RestService>(url: string, options: Partial<RestClient<any>> = {}): RestService {
-    return new RestClient<RestService>(url, options).proxy;
+export function restfuncsClient<RestService>(url: string, options: Partial<RestfuncsClient<any>> = {}): RestService {
+    return new RestfuncsClient<RestService>(url, options).proxy;
 }
