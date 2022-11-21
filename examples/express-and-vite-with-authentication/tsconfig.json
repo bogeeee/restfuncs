@@ -1,8 +1,8 @@
 {
   "exclude": ["dist"],
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
+    "target": "ES2015",
+    "module": "ES2015",
     "lib": [
       "dom",
       "dom.iterable",
@@ -12,6 +12,7 @@
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "noFallthroughCasesInSwitch": true,
     "jsx": "react"
   }
 }

@@ -1,4 +1,4 @@
-##Session/authentication example with express and vite 
+Example with 
 
 ###Run it
 ```bash
