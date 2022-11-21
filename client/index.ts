@@ -1,5 +1,7 @@
 import _ from "underscore"
 
+const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
+
 /**
  * Thrown when there was an Error/exception thrown on the server during method call.
  */
@@ -136,6 +138,12 @@ export class RestClient<Service> {
 
             // Exec fetch:
             const response = <Response>await fixed_fetch(url, req);
+
+            // Check server protocol version:
+            const serverProtocolVersion = response.headers.get("restfuncs-protocol");
+            if(serverProtocolVersion && Number(serverProtocolVersion.split(".")[0]) > SUPPORTED_SERVER_PROTOCOL_MAXVERSION) {
+                throw new Error(`Restfuncs server uses a newer protocol version: ${serverProtocolVersion}. Please upgrade the 'restfuncs-client' package`)
+            }
 
             // Error handling:
             if (response.status !== 200) {

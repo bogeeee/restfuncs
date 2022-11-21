@@ -4,6 +4,7 @@ import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 
+const PROTOCOL_VERSION = "1.0"
 
 export type RestifyOptions = {
     /**
@@ -130,6 +131,12 @@ function createRESTFuncsRouter(restService: RestService, options: RestifyOptions
 
     router.use(async (req, resp, next) => {
         try {
+            // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
+            resp.header("Expires","-1");
+            resp.header("Pragma", "no-cache");
+
+            resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
+
             const methodName =  req.path.replace(/^\//, ""); // Remove trailing /
 
             // Parameter checks:
@@ -148,10 +155,6 @@ function createRESTFuncsRouter(restService: RestService, options: RestifyOptions
             }
 
             const args = req.body;
-
-            // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
-            resp.header("Expires","-1");
-            resp.header("Pragma", "no-cache");
 
             let session = null;
             // @ts-ignore
