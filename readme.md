@@ -1,9 +1,8 @@
 # RestFuncs
 
-Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over ?
+**Serve** a REST API for your **plain functions** and seamlessly **RPC-call** them from the client (browser).
 
-With `restfuncs-server` you can just **rest**ify(yourServiceObject) to make its member **func**tions available via a http REST API.   
-With `restfuncs-client` you can then simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
+Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over ?? How about this:
 
 
 ## Usage 
@@ -108,7 +107,7 @@ _The standalone server has it already done for you._
 
 ### Intercept calls (server side)
 
-Override the following method in your service _(=just add the function to it)_ and do what ever you want in there (i.e. handle errors, check for auth, filter args, filter result).
+Add the following method to your service and do what ever you want in there (i.e. handle errors, check for auth, filter args, filter result).
 You have access to [this.req](https://expressjs.com/en/4x/api.html#req), [this.resp](https://expressjs.com/en/4x/api.html#res) and `this.session` as usual.
 ```
 class MyService {

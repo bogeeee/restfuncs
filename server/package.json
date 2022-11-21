@@ -1,7 +1,7 @@
 {
   "name": "restfuncs-server",
   "version": "0.8.0",
-  "description": "Offer server functions via REST interface. Together with restfuncs-client, you can call them like they were local :). For use with express.",
+  "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). For use with express or standalone.",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {

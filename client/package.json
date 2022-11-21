@@ -1,7 +1,7 @@
 {
   "name": "restfuncs-client",
   "version": "0.8.0",
-  "description": "Call server functions (via REST/http) as if they were local. See also restfuncs-server",
+  "description": "Client for restfuncs-server. Allows you to seamlessly call server methods in RPC style.",
   "license": "MIT",
   "main": "index.js",
   "exports": {
@@ -20,6 +20,7 @@
     "underscore": "^1.13.3"
   },
   "devDependencies": {
-    "@types/underscore": "^1.11.4"
+    "@types/underscore": "^1.11.4",
+    "typescript": "^4.8.4"
   }
 }
