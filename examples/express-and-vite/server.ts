@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restify} from "@restfuncs/server"
+import {restify} from "restfuncs-server"
 import {GreeterService} from "./GreeterService.js"
 import session from "express-session";
 import crypto from "node:crypto";

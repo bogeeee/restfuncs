@@ -1,4 +1,4 @@
-import {RestService} from "@restfuncs/server";
+import {RestService} from "restfuncs-server";
 import _ from "underscore";
 
 class NotLoggedInError extends Error {

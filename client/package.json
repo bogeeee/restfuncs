@@ -1,7 +1,7 @@
 {
-  "name": "@restfuncs/client",
+  "name": "restfuncs-client",
   "version": "0.8.0",
-  "description": "Call server functions (via REST/http) as if they were local. See also @restfuncs/server",
+  "description": "Call server functions (via REST/http) as if they were local. See also restfuncs-server",
   "license": "MIT",
   "main": "index.js",
   "exports": {

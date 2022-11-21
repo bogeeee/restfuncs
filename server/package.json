@@ -1,7 +1,7 @@
 {
-  "name": "@restfuncs/server",
+  "name": "restfuncs-server",
   "version": "0.8.0",
-  "description": "Offer server functions via REST interface. Together with @restfuncs/client, you can call them like they were local :). For use with express.",
+  "description": "Offer server functions via REST interface. Together with restfuncs-client, you can call them like they were local :). For use with express.",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {

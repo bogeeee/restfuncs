@@ -2,15 +2,15 @@
 
 Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over ?
 
-With `@restfuncs/server` you can just **rest**ify(yourServiceObject) to make its member **func**tions available via a http REST API.   
-With `@restfuncs/client` you can then simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
+With `restfuncs-server` you can just **rest**ify(yourServiceObject) to make its member **func**tions available via a http REST API.   
+With `restfuncs-client` you can then simply call them in a **R**emote **P**rocedure **C**all style. With full type support.
 
 
 ## Usage 
 
 **_server.js_**
 ```javascript
-import {restify} from "@restfuncs/server"
+import {restify} from "restfuncs-server"
 
 restify({
     greet: (name) =>  `Hello ${name} from the server`    
@@ -20,7 +20,7 @@ restify({
 **_client.js_**
 
 ```javascript
-import {restClient} from "@restfuncs/client"
+import {restClient} from "restfuncs-client"
 
 const remote = restClient("http://localhost:3000")
 console.log(await remote.greet("Bob"))
@@ -30,7 +30,7 @@ console.log(await remote.greet("Bob"))
 
 **_GreeterService.ts_**
 ```typescript
-import {RestService} from "@restfuncs/server" // (we want to have types for req and resp fields)
+import {RestService} from "restfuncs-server" // (we want to have types for req and resp fields)
 
 export class GreeterService extends RestService { // Define the service as a class...
 
@@ -53,7 +53,7 @@ app.listen(3000)
 
 **_client.ts_**
 ```typescript
-import {restClient} from "@restfuncs/client"
+import {restClient} from "restfuncs-client"
 import {GreeterService} from "../path/to/server/or/its/packagename/GreeterService.js" // ...and import the class to have full type support on the client :)
 
 const greeterService = restClient<GreeterService>("/greeterAPI")

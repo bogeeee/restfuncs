@@ -1,4 +1,4 @@
-import {restClient} from "@restfuncs/client"
+import {restClient} from "restfuncs-client"
 import {GreeterService} from "./GreeterService.js" // Import to have types
 
 (async () => {

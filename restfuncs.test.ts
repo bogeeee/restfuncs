@@ -1,6 +1,6 @@
-import {restify, RestService} from "@restfuncs/server";
+import {restify, RestService} from "restfuncs-server";
 import express from "express";
-import {RestClient, restClient} from "@restfuncs/client";
+import {RestClient, restClient} from "restfuncs-client";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 

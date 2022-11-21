@@ -2,7 +2,7 @@
     loading...
 
     <script type="module">
-        import {restClient} from "@restfuncs/client"
+        import {restClient} from "restfuncs-client"
 
         const greeterService = restClient("/greeterAPI")
         document.body.append( await greeterService.greet("Bob") );
