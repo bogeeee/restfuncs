@@ -20,7 +20,7 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/greeterAPI", restify( new MainframeService() ))
+    app.use("/mainframeAPI", restify( new MainframeService() ))
 
     // Client web:
     if(process.env.NODE_ENV === 'production') {
