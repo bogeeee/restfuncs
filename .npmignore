@@ -1,0 +1,1 @@
+# Must have a .npmignore at top workspace level ! Otherwise .gitignore is taken and produces unwanted effects.
