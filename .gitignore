@@ -1,6 +1,7 @@
 .idea
 /node_modules/
 /**/*.js
+!jest.config.js
 /**/*.map
 /tsconfig.tsbuildinfo
 /examples/express-and-vite-tldr/node_modules
