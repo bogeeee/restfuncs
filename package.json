@@ -1,16 +1,15 @@
 {
-  "name": "restfuncs",
-  "version": "0.8.0",
-  "description": "Test that covers client and server code at the same time",
+  "name": "restfuncs-development",
+  "description": "Tests and build/publish scripts",
   "type": "module",
   "scripts": {
-    "dev:watch-and-run-tests": "nodemon -e ts --exec npm run _compile_and_run_tests",
+    "dev:watch-and-run-tests": "nodemon -e ts --exec npm run dev:_compile_and_run_tests",
+    "dev:_compile_and_run_tests": "clear && tsc --build && jest",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
     "prepublish": "npm run clean && npm run build && cp LICENSE readme.md client && cp LICENSE readme.md server && cp LICENSE readme.md restfuncs-metapackage",
-    "npmlogin": "npm login",
-    "publishAll": "npm run prepublish && npm publish --workspace server --workspace client --workspace restfuncs-metapackage",
-    "_compile_and_run_tests": "clear && tsc --build && jest"
+    "publish:npmlogin": "npm login",
+    "publish:publish": "npm run prepublish && npm publish --workspace server --workspace client --workspace restfuncs-metapackage"
   },
   "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
   "devDependencies": {
