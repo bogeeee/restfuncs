@@ -2,6 +2,7 @@
   "name": "restfuncs",
   "version": "0.8.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). Convenience meta package. You may use restfuncs-server and restfuncs-client instead.",
+  "author": "Boris Gingold <bogeee@bogitech.de>",
   "license": "MIT",
   "main": "index.js",
   "exports": {
