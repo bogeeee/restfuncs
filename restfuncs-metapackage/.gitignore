@@ -4,4 +4,5 @@
 /**/*.map
 /**/*.d.ts
 /tsconfig.tsbuildinfo
-
+LICENSE
+readme.md
