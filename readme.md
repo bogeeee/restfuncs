@@ -2,7 +2,7 @@
 
 **Serve** a REST API for your **plain functions** and seamlessly **RPC-call** them from the client (browser).
 
-Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over ?? How about this:
+Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over? How about this:
 
 
 ## Usage 
@@ -60,10 +60,10 @@ console.log(await greeterService.greet("Bob"))
 ```
 ## Example projects
 
-- [Bare minimal hello world web app](examples/express-and-vite-tldr)
-- [Hello world web app](examples/express-and-vite) (proper / use as starter stack)
-- [Hello world web app with server and client in separate dirs / packages](examples/express-and-vite) (if you prefer that cleaner layout)
-- [Hello world Web app with authentication](examples/express-and-vite) (uses things from the Advanced chapter)
+- [Bare minimal hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-tldr)
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) (proper / use as starter stack)
+- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-separate) (if you prefer that cleaner layout)
+- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
 
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 

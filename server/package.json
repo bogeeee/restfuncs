@@ -3,6 +3,11 @@
   "version": "0.8.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). For use with express or standalone.",
   "author": "Boris Gingold <bogeee@bogitech.de>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bogeeee/restfuncs.git",
+    "directory": "server"
+  },
   "license": "MIT",
   "main": "index.js",
   "exports": {

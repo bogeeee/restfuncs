@@ -1,9 +1,9 @@
 Simple hello world example with express server and vite as packager.
 Client(=web) and server are in separate packages / folders. The starter script entries are all under [server](server).
 
-###Run it
+### Run it
 ```bash
-git clone TODO
+git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/examples/express-and-vite-separate/server
 npm install
 npm run build
