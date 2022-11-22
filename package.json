@@ -20,5 +20,6 @@
   },
   "keywords": [],
   "author": "Boris Gingold <bogeee@bogitech.de>",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": "https://github.com/bogeeee/restfuncs.git"
 }

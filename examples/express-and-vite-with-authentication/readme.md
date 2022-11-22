@@ -1,8 +1,8 @@
-Example with 
+Example with authentication
 
-###Run it
+### Run it
 ```bash
-git clone TODO
+git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/examples/express-and-vite-with-authentication
 npm install
 npm run build
