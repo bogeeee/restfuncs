@@ -8,7 +8,8 @@
     "compile_and_run_tests": "clear && tsc --build && jest",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
-    "prepublish": "npm run clean && npm run build && cp LICENSE readme.md client && cp LICENSE readme.md server && cp LICENSE readme.md client restfuncs-metapackage"
+    "prepublish": "npm run clean && npm run build && cp LICENSE readme.md client && cp LICENSE readme.md server && cp LICENSE readme.md restfuncs-metapackage",
+    "publishAll": "npm run prepublish && npm publish --workspace server --workspace client --workspace restfuncs-metapackage"
   },
   "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
   "devDependencies": {
