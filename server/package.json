@@ -1,7 +1,7 @@
 {
   "name": "restfuncs-server",
-  "version": "0.8.0",
-  "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). For use with express or standalone.",
+  "version": "0.8.1",
+  "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). Works with express or standalone.",
   "author": "Boris Gingold <bogeee@bogitech.de>",
   "repository": {
     "type": "git",
