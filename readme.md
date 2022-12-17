@@ -12,7 +12,8 @@ Tired of handcrafting every server API method + fetch / ajax request + (forgotte
 import restfuncs from "restfuncs-server"
 
 restfuncs({
-    greet: (name) =>  `Hello ${name} from the server`    
+    greet: (name) =>  `Hello ${name} from the server`,
+    // ... <- more methods go here
 }, 3000) // specifying a port runs a standalone server
 ```
 
@@ -24,8 +25,11 @@ import restfuncsClient from "restfuncs-client"
 const remote = restfuncsClient("http://localhost:3000")
 console.log(await remote.greet("Bob"))
 ```
+<br/>
+<br/>
+<br/>
 
-## Usage with express and type support
+## Usage with express and end2end type safety
 
 **_GreeterService.ts_**
 ```typescript
