@@ -16,6 +16,9 @@
     "esModuleInterop": true, // somehow this must be specified at root level
     "sourceMap": true,
     "module": "CommonJS", // For Jest. Otherwise it can't dynamicly load modules
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
   }
 }

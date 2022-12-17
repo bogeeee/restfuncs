@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev:watch-and-run-tests": "nodemon -e ts --exec npm run dev:_compile_and_run_tests",
-    "dev:_compile_and_run_tests": "clear && tsc --build && jest",
+    "dev:_compile_and_run_tests": "clear && ttsc --build && jest",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
     "install": "npm install --ignore-scripts && echo \"<-- FIX: When npm install is typed from under the examples dir in a fresh cloned repo, it only wants to install its own packages (but still this prepublish script is triggerd, strangely) - so we force it to install the packages from all workspaces\"",
@@ -13,10 +13,15 @@
     "publish:publish": "npm run prepublish && npm publish --workspace server --workspace client --workspace restfuncs-metapackage"
   },
   "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-tldr", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication"],
+  "dependencies": {
+    "typescript-rtti": "^0.8.2",
+    "reflect-metadata": "^0.1.13"
+  },
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",
-    "typescript": "^4.8.4"
+    "typescript": "4.6",
+    "ttypescript": "^1.5.15"
   },
   "keywords": [],
   "author": "Boris Gingold <bogeee@bogitech.de>",
