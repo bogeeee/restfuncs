@@ -80,6 +80,21 @@ test('Test parameters', async () => {
     );
 })
 
+test('Test with anonymous class', async () => {
+
+    await runClientServerTests(new class {
+            params1(x: string) {
+            }
+        },
+        async (apiProxy) => {
+            await apiProxy.params1("ok");
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), "Too many arguments");
+        }
+    );
+})
+
 /*
 // This one fails with current typescript-rtti. But that's not a showstopper.
 test('Test anonymous object as service', async () => {
