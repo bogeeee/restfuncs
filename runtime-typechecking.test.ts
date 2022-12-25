@@ -1,5 +1,5 @@
-import {restfuncs, RestService} from "restfuncs-server";
 import 'reflect-metadata'
+import {restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {reflect} from "@typescript-rtti/reflect";
@@ -8,7 +8,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, restfuncs(serverAPI));
+    app.use(path, restfuncs(serverAPI, {checkParameters: true}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -52,3 +52,25 @@ test('Test if if rtti is available', async () => {
         .getProperty('favoriteColor')
         .type.is('union')).toBe(true);
 });
+
+test('Test parameters', async () => {
+    await runClientServerTests({
+            myVoidMethod() {
+            },
+            params1(x: string) {
+            },
+            params2(x: string, y: number, z: {}) {
+            },
+        },
+        async (apiProxy) => {
+            await apiProxy.myVoidMethod();
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.myVoidMethod("illegalParam"), "Too many arguments");
+
+            await apiProxy.params1("ok");
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), "Too many arguments");
+        }
+    );
+})

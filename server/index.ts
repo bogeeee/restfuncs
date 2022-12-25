@@ -1,16 +1,33 @@
+import 'reflect-metadata' // Must import
 import express, {Request, Response, Router} from "express";
 import session from "express-session";
 import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
+import {reflect, ReflectedMethod} from "typescript-rtti";
+
 
 const PROTOCOL_VERSION = "1.0"
+
+const RTTIINFO = "To enable runtime typechecking, Add the following line into tsconfig.json/compileroptions \n" +
+    "   \"plugins\": [{ \"transform\": \"typescript-rtti/dist/transformer\" }]";
 
 export type RestfuncsOptions = {
     /**
      * Only for standalone server
      */
     path?: string
+
+    /**
+     * Enable checking your func's parameters at runtime.
+     *
+     * To make it work, you have to add the following line into tsconfig.json/compileroptions
+     * "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
+     *
+     *
+     * When undefined, a warning is issued. It's recommended to explicitly enable this.
+     */
+    checkParameters?: boolean
 }
 
 /**
@@ -116,16 +133,87 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
 }
 
 /**
+ * Throws an exception if args does not match the parameters of reflectedMethod
+ * @param reflectedMethod
+ * @param args
+ */
+function checkParameterTypes(reflectedMethod: ReflectedMethod, args: any[]) {
+    const errors: string[] = [];
+    for(const i in reflectedMethod.parameters) {
+        const parameter = reflectedMethod.parameters[i];
+        if(parameter.isOmitted) {
+            throw new Error("Omitted arguments not supported");
+        }
+        if(parameter.isRest) {
+            throw new Error(`Parameter ${parameter.name}: Rest of arguments (...something) not yet supported for runtime typechecking`);
+            // TODO: Implement and also mind the args.length > reflectedMethod.parameters.length check
+        }
+        if(parameter.isBinding) {
+            throw new Error(`Parameter ${parameter.name}: Destructuring parameters not yet supported for runtime typechecking`);
+            // TODO: Implement and also mind the args.length > reflectedMethod.parameters.length check
+        }
+
+        const arg =  Number(i) < args.length?args[i]:undefined
+
+        // Allow undefined for optional parameter:
+        if(parameter.isOptional && arg === undefined) {
+            continue;
+        }
+        const collectedErrorForThisParam: Error[] = [];
+        const ok = parameter.type.matchesValue(arg, collectedErrorForThisParam); // Check value
+        if(!ok || collectedErrorForThisParam.length > 0) {
+            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorForThisParam.map(e => e.message).join(", ")}`);
+        }
+    }
+
+    if(args.length > reflectedMethod.parameters.length) {
+        throw new Error(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`);
+    }
+
+    if(errors.length > 0) {
+        throw new Error(errors.join("; "))
+    }
+}
+
+function isTypeInfoAvailable(restService: RestService) {
+    const r = reflect(restService);
+
+    // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
+    // TODO: improve checks for security reasons !
+
+    if(r.methods.length === 0) {
+        return false;
+    }
+    // Still this check was not enough because we received  the methods of the prototype
+
+    if(r.getProperty("xxyyyyzzzzzdoesntExist") !== undefined) { // non existing property reported as existing ?
+        return false;
+    }
+
+    return true
+}
+
+/**
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
 function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptions): Router {
     // @ts-ignore
-    const sessionPrototype = restService.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
+    const sessionPrototype = restService.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
 
     // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
     // @ts-ignore
     restService.req = null; restService.resp = null; restService.session = null;
+
+    // Warn/error if type info is not available:
+    if(!isTypeInfoAvailable(restService)) {
+        if(options.checkParameters) {
+            throw new Error("Runtime type information is not available.\n" + RTTIINFO);
+        }
+        else if(options.checkParameters === undefined) {
+            console.warn("**** Runtime type information is not available. This is a security risk !\n" + RTTIINFO)
+        }
+    }
 
     const router = express.Router();
 
@@ -155,8 +243,16 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             if(typeof method != "function") {
                 throw new Error(`${methodName} is not a function`);
             }
-
-            const args = req.body;
+            let args = req.body;
+            // Make sure that args is an array:
+            if(args.constructor !== Array) {
+                args = [];
+            }
+            // Runtime type checking of arguments:
+            if(options.checkParameters || (options.checkParameters === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
+                const reflectedMethod = reflect(method);
+                checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
+            }
 
             let session = null;
             // @ts-ignore

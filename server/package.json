@@ -23,7 +23,9 @@
   "dependencies": {
     "express": "^4.17.13",
     "express-session": "^1.17.3",
-    "underscore": "^1.13.3"
+    "underscore": "^1.13.3",
+    "typescript-rtti": "^0.8.2",
+    "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
