@@ -279,7 +279,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             }
             // Runtime type checking of arguments:
             if(options.checkParameters || (options.checkParameters === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
-                const reflectedMethod = reflect(method);
+                const reflectedMethod = reflect(restService).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
                 checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
                 checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
             }
