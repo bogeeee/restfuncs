@@ -133,6 +133,24 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
 }
 
 /**
+ * Throws an exception if you're not allowed to call the method from the outside
+ * @param reflectedMethod
+ */
+function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
+    if(reflectedMethod.isProtected) {
+        throw new Error("Method is protected.")
+    }
+    if(reflectedMethod.isPrivate) {
+        throw new Error("Method is private.")
+    }
+
+    // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
+    if(reflectedMethod.visibility !== "public") {
+        throw new Error("Method is not public")
+    }
+}
+
+/**
  * Throws an exception if args does not match the parameters of reflectedMethod
  * @param reflectedMethod
  * @param args
@@ -262,6 +280,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             // Runtime type checking of arguments:
             if(options.checkParameters || (options.checkParameters === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
                 const reflectedMethod = reflect(method);
+                checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
                 checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
             }
 

@@ -80,6 +80,47 @@ test('Test parameters', async () => {
     );
 })
 
+
+test('Test visibility', async () => {
+    class BaseServerAPI {
+        protected myPublic(x: string) {
+        }
+    }
+
+    class ServerAPI extends BaseServerAPI{
+        myVoidMethod() {
+        }
+
+        public myPublic(x: string) {
+        }
+
+        protected myProtected(x: string) {
+
+        }
+
+        private myPrivate(x:string) {
+
+        }
+
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            await apiProxy.myVoidMethod();
+
+            await apiProxy.myPublic("x");
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.myProtected("x"), "protected");
+
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.myPrivate("x"), "private");
+
+        }
+    );
+})
+
 test('Test with anonymous class', async () => {
 
     await runClientServerTests(new class {
