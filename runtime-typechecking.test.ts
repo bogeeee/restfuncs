@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {restfuncs, RestService} from "restfuncs-server";
+import {isTypeInfoAvailable, restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {reflect} from "@typescript-rtti/reflect";
@@ -51,17 +51,22 @@ test('Test if if rtti is available', async () => {
     expect(reflectedClass
         .getProperty('favoriteColor')
         .type.is('union')).toBe(true);
+
+    expect(isTypeInfoAvailable(new class {
+    })).toBeTruthy();
 });
 
 test('Test parameters', async () => {
-    await runClientServerTests({
-            myVoidMethod() {
-            },
-            params1(x: string) {
-            },
-            params2(x: string, y: number, z: {}) {
-            },
-        },
+    class ServerAPI {
+        myVoidMethod() {
+        }
+        params1(x: string) {
+        }
+        params2(x: string, y: number, z: {}) {
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
             await apiProxy.myVoidMethod();
             // @ts-ignore
@@ -74,3 +79,24 @@ test('Test parameters', async () => {
         }
     );
 })
+
+/*
+// This one fails with current typescript-rtti. But that's not a showstopper.
+test('Test anonymous object as service', async () => {
+    await runClientServerTests({
+            myVoidMethod() {
+            },
+            params1(x: string) {
+            },
+            params2(x: string, y: number, z: {}) {
+            },
+        },
+        async (apiProxy) => {
+            await apiProxy.params1("ok");
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), "Too many arguments");
+        }
+    );
+})
+*/

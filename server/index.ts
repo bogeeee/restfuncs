@@ -175,16 +175,26 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: any[]) {
     }
 }
 
-function isTypeInfoAvailable(restService: RestService) {
+function diagnosis_isAnonymousObject(o: object) {
+    if(o.constructor?.name === "Object") {
+        return true;
+    }
+
+    return false;
+}
+
+export function isTypeInfoAvailable(restService: object) {
     const r = reflect(restService);
 
     // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
     // TODO: improve checks for security reasons !
 
+    /*
     if(r.methods.length === 0) {
         return false;
     }
     // Still this check was not enough because we received  the methods of the prototype
+    */
 
     if(r.getProperty("xxyyyyzzzzzdoesntExist") !== undefined) { // non existing property reported as existing ?
         return false;
@@ -207,11 +217,12 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
 
     // Warn/error if type info is not available:
     if(!isTypeInfoAvailable(restService)) {
+        const diagnosis_whyNotAvailable = diagnosis_isAnonymousObject(restService)?"Probably this is because your service is an anonymous object and not defined as a class.":RTTIINFO
         if(options.checkParameters) {
-            throw new Error("Runtime type information is not available.\n" + RTTIINFO);
+            throw new Error("Runtime type information is not available.\n" +  diagnosis_whyNotAvailable);
         }
         else if(options.checkParameters === undefined) {
-            console.warn("**** Runtime type information is not available. This is a security risk !\n" + RTTIINFO)
+            console.warn("**** Runtime type information is not available. This can be a security risk as your func's parameters cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
         }
     }
 
