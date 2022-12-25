@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 
 const PROTOCOL_VERSION = "1.0"
 
-export type RestifyOptions = {
+export type RestfuncsOptions = {
     /**
      * Only for standalone server
      */
@@ -22,7 +22,7 @@ export type RestifyOptions = {
  * @param options
  * @return
  */
-export function restfuncs(service: object | RestService, port: number, options?: RestifyOptions) : http.Server;
+export function restfuncs(service: object | RestService, port: number, options?: RestfuncsOptions) : http.Server;
 /**
  * Creates an express router/middleware that makes service's member functions callable via REST.
  * Usage:
@@ -32,12 +32,12 @@ export function restfuncs(service: object | RestService, port: number, options?:
  * @param service
  * @return
  */
-export function restfuncs(service: object | RestService, options?: RestifyOptions): Router;
+export function restfuncs(service: object | RestService, options?: RestfuncsOptions): Router;
 export function restfuncs(service: object | RestService, arg1: any, arg2?: any): any {
 
     if(typeof(arg1) == "number") { // standalone ?
         const port = arg1;
-        const options:RestifyOptions = arg2 || {};
+        const options:RestfuncsOptions = arg2 || {};
 
         if(typeof (options) !== "object") {
             throw new Error("Invalid argument");
@@ -58,7 +58,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
         return app.listen(port);
     }
     else { // Express router
-        const options:RestifyOptions = arg1 || {};
+        const options:RestfuncsOptions = arg1 || {};
 
         if(typeof (options) !== "object") {
             throw new Error("Invalid argument");
@@ -119,7 +119,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
-function createRESTFuncsRouter(restService: RestService, options: RestifyOptions): Router {
+function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptions): Router {
     // @ts-ignore
     const sessionPrototype = restService.session || {}; // The user has maybe has some initialization code for his session: {counter:0}  - so we want to make that convenient
 
