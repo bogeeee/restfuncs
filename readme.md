@@ -62,6 +62,31 @@ import {GreeterService} from "../path/to/server/or/its/packagename/GreeterServic
 const greeterService = restfuncsClient<GreeterService>("/greeterAPI")
 console.log(await greeterService.greet("Bob"))
 ```
+<br/>
+<br/>
+<br/>
+
+## Runtime typechecking (shielding against evil input)
+
+To enforce all your func's parameters to deeply match the declared types, add the following to `tsconfig.json`
+```json
+  "compilerOptions": {
+    //...
+    "plugins": [
+      {
+        "transform": "typescript-rtti/dist/transformer"
+      }
+    ]
+  }
+
+```
+_Otherwise a security warning will be logged at startup noting that type checking is not available. See also the checkParameters flag in the options._
+
+### Security Note:
+**Objects can still be "poisoned" with additional properties** as this is still typescript conform. When you only have pure typescript code behind your func's, these just get ignored, but we're not living in an ideal world (i.e. the database just blindly storing all properties, or a non-ts lib using some unlisted fields), so strongly keep that in mind! 
+See a discussion of that issue [here](https://github.com/bogeeee/restfuncs/issues/1).   
+
+
 ## Example projects
 
 - [Bare minimal hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-tldr)
@@ -144,15 +169,10 @@ _If you want to mangle with request and response on the client, subclass it and 
 ## API
 Almost everything is already covered but for the full API details see the code's JSDoc.
 
-## Security
-
-**Types are not checked** at runtime on the server **yet**, so this is a **security risk** when you don't check them yourself.
-
 ## That's it !
 
 ### Things to come
 
-- Runtime type checking / protection as mentioned above
 - XSRF prevention (not investigated in this yet)
 - Conform to OPENAPI/Swagger standards and automatically generate swagger docs
 - Auto upgrade connection to websockets for faster calls or allow to send calls in batches

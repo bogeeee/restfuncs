@@ -9,7 +9,7 @@ import {reflect, ReflectedMethod} from "typescript-rtti";
 
 const PROTOCOL_VERSION = "1.0"
 
-const RTTIINFO = "To enable runtime typechecking, Add the following line into tsconfig.json/compileroptions \n" +
+const RTTIINFO = "To enable runtime typechecking, Add the following line into tsconfig.json/compilerOptions \n" +
     "   \"plugins\": [{ \"transform\": \"typescript-rtti/dist/transformer\" }]";
 
 export type RestfuncsOptions = {
@@ -21,7 +21,7 @@ export type RestfuncsOptions = {
     /**
      * Enable checking your func's parameters at runtime.
      *
-     * To make it work, you have to add the following line into tsconfig.json/compileroptions
+     * To make it work, you have to add the following line into tsconfig.json/compilerOptions
      * "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
      *
      *
