@@ -56,7 +56,7 @@ test('Test if if rtti is available', async () => {
     })).toBeTruthy();
 });
 
-test('Test parameters', async () => {
+test('Test arguments', async () => {
     class ServerAPI {
         myVoidMethod() {
         }
@@ -74,12 +74,86 @@ test('Test parameters', async () => {
 
             await apiProxy.params1("ok");
 
+            // Too many arguments:
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), "Too many arguments");
+
+            // To few arguments:
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1(), );
+
+            // With objects:
+            await apiProxy.params2("ok", 123, {});
+
+            // Additional value: (we could argue that we want to get an error here, or erase the additional value at runtime - to enhance security)
+            await apiProxy.params2("ok", 123, {someAdditionalValue: true});
+
+
         }
     );
 })
 
+test('Test rest arguments', async () => {
+    class ServerAPI {
+        restParams(x: string, ...y: number[]) {
+
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            await apiProxy.restParams("x");
+            await apiProxy.restParams("x", 1,2,3);
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, {}) );
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, undefined) );
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,undefined,3) );
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []) );
+
+            const variousInvalidRestParams = ["", null, undefined, true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"]
+            for(let p of variousInvalidRestParams) {
+                // @ts-ignore
+                await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", p) );
+            }
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []) );
+
+        }
+    );
+})
+
+/*
+// Not yet implemented
+test('Test destructuring arguments', async () => {
+    class ServerAPI {
+        restParams(x: string, {a: boolean, b: string}) {
+
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            await apiProxy.restParams("x", {a: true, b: "test"});
+
+            const variousInvalidParams = ["", null, undefined, true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"]
+            for(let p of variousInvalidParams) {
+                // @ts-ignore
+                await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", p) );
+            }
+
+        }
+    );
+
+});
+*/
 
 test('Test visibility', async () => {
     class BaseServerAPI {

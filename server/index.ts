@@ -155,7 +155,11 @@ function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
  * @param reflectedMethod
  * @param args
  */
-function checkParameterTypes(reflectedMethod: ReflectedMethod, args: any[]) {
+function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
+    // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
+    let argsStack = [...args]; // shallow clone
+    argsStack.reverse();
+
     const errors: string[] = [];
     for(const i in reflectedMethod.parameters) {
         const parameter = reflectedMethod.parameters[i];
@@ -163,28 +167,38 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: any[]) {
             throw new Error("Omitted arguments not supported");
         }
         if(parameter.isRest) {
-            throw new Error(`Parameter ${parameter.name}: Rest of arguments (...something) not yet supported for runtime typechecking`);
-            // TODO: Implement and also mind the args.length > reflectedMethod.parameters.length check
+            argsStack.reverse();
+
+            // Validate argsStack against parameter.type:
+            const collectedErrorsForThisParam: Error[] = [];
+            const ok = parameter.type.matchesValue(argsStack, collectedErrorsForThisParam); // Check value
+            if(!ok || collectedErrorsForThisParam.length > 0) {
+                errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
+            }
+
+            argsStack = [];
+            continue;
         }
         if(parameter.isBinding) {
-            throw new Error(`Parameter ${parameter.name}: Destructuring parameters not yet supported for runtime typechecking`);
-            // TODO: Implement and also mind the args.length > reflectedMethod.parameters.length check
+            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
         }
 
-        const arg =  Number(i) < args.length?args[i]:undefined
+        const arg =  argsStack.length > 0?argsStack.pop():undefined;
 
         // Allow undefined for optional parameter:
         if(parameter.isOptional && arg === undefined) {
             continue;
         }
-        const collectedErrorForThisParam: Error[] = [];
-        const ok = parameter.type.matchesValue(arg, collectedErrorForThisParam); // Check value
-        if(!ok || collectedErrorForThisParam.length > 0) {
-            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorForThisParam.map(e => e.message).join(", ")}`);
+
+        // Validate arg against parameter.type:
+        const collectedErrorsForThisParam: Error[] = [];
+        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
+        if(!ok || collectedErrorsForThisParam.length > 0) {
+            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
         }
     }
 
-    if(args.length > reflectedMethod.parameters.length) {
+    if(argsStack.length > 0) {
         throw new Error(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`);
     }
 
