@@ -83,8 +83,8 @@ Add the following to `tsconfig.json`
   }
 
 ```
-- Then either compile with `ttsc` instead of `tsc` for compilation (add `ttypescript` to devDependencies)
-- Or run with `ts-node -C ttypescript` (add `ttypescript` to devDependencies)
+And compile with `ttsc` instead of `tsc` (add `ttypescript` to devDependencies).
+
 
 _If this was not set up correctly, a security warning will be logged at startup (so you won't be silently left insecure). The [examples](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) already have this set up._
 
