@@ -85,7 +85,7 @@ test('Proper example with express and type support', async () => {
 
 
     const app = express();
-    app.use("/greeterAPI", restfuncs( new GreeterService() ));
+    app.use("/greeterAPI", restfuncs( new GreeterService(), {checkArguments: false} ));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -305,7 +305,7 @@ test('Sessions', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0);
+    const server = restfuncs(new Service(),0, {checkArguments: false});
 
     // @ts-ignore
     const port = server.address().port;
@@ -331,7 +331,7 @@ test('Intercept with doCall (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0);
+    const server = restfuncs(new Service(),0, {checkArguments: false});
 
     // @ts-ignore
     const port = server.address().port;
@@ -359,7 +359,7 @@ test('Intercept with doFetch (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0);
+    const server = restfuncs(new Service(),0, {checkArguments: false});
 
     // @ts-ignore
     const port = server.address().port;

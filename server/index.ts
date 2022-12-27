@@ -26,6 +26,11 @@ export type RestfuncsOptions = {
      * When undefined, typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.
      */
     checkArguments?: boolean
+
+    /**
+     * Development (tests) only
+     */
+    _dismissSecurityWarning2?: boolean
 }
 
 /**
@@ -255,6 +260,9 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
         }
     }
+
+    if(options.checkArguments !== false && !options._dismissSecurityWarning2) console.warn("**** SECURITY WARNING (2): Runtime typechecking is not yet in a stable state. Read the issues, see the docs and check for updates: https://github.com/bogeeee/restfuncs#runtime-typechecking");
+
 
     const router = express.Router();
 

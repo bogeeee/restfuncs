@@ -88,9 +88,12 @@ And compile with `ttsc` instead of `tsc` (add `ttypescript` to devDependencies).
 
 _If this was not set up correctly, a security warning will be logged at startup (so you won't be silently left insecure). The [examples](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) already have this set up._
 
-### Security Note:
-**Objects can still be "poisoned" with additional properties** as this is still typescript conform. When you only have pure typescript code behind your func's, these just get ignored, but we're not living in an ideal world (i.e. the database just blindly storing all properties, or a non-ts lib using some unlisted fields), so **strongly keep that in mind!** 
-See a discussion of that issue [here](https://github.com/bogeeee/restfuncs/issues/1).   
+### Security warning:
+The package [typescript-rtti](https://www.npmjs.com/package/typescript-rtti) which does the security sensitive typechecking is not yet in a stable state.  
+ **Keep [this security issue](https://github.com/typescript-rtti/typescript-rtti/issues/92) in mind!**
+
+Anyway, props go out to these guys for making such a great library and we want to push this forward ! Please consider contributing / security reviewing or donating there. 
+   
 
 
 ## Example projects
