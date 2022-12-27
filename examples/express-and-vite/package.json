@@ -5,11 +5,10 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "nodemon -e ts --exec npm run dev_compileAndRunOnce",
-    "dev_compileAndRunOnce": "clear && ttsc --build && ts-node server.js",
-    "clean": "tsc --build --clean && rm -rf tsconfig.tsbuildinfo dist",
+    "dev": "nodemon --exec cross-env NODE_ENV=development tsx server.ts",
+    "clean": "ttsc --build --clean && rm -rf dist",
     "build": "ttsc --build --force && vite build",
-    "start": "cross-env NODE_ENV=production ts-node server.js"
+    "start": "ts-node server.js"
   },
   "dependencies": {
     "express": "^4.17.13",
@@ -18,7 +17,7 @@
     "restfuncs-client": "^0.8.0"
   },
   "devDependencies": {
-    "ts-node": "^10.6.0",
+    "tsx": "^3.12.1",
     "typescript": "4.6",
     "ttypescript": "^1.5.15",
     "nodemon": "^2.0.15",
