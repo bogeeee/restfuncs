@@ -18,14 +18,14 @@ export type RestfuncsOptions = {
     path?: string
 
     /**
-     * Enable checking your func's parameters at runtime (shielding).
+     * Enable checking your func's arguments at runtime (shielding).
      *
      * To make it work, See https://github.com/bogeeee/restfuncs#runtime-typechecking.
      * See also the security notes there.
      *
      * When undefined, typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.
      */
-    checkParameters?: boolean
+    checkArguments?: boolean
 }
 
 /**
@@ -248,11 +248,11 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
     // Warn/error if type info is not available:
     if(!isTypeInfoAvailable(restService)) {
         const diagnosis_whyNotAvailable = diagnosis_isAnonymousObject(restService)?"Probably this is because your service is an anonymous object and not defined as a class.":RTTIINFO
-        if(options.checkParameters) {
+        if(options.checkArguments) {
             throw new Error("Runtime type information is not available.\n" +  diagnosis_whyNotAvailable);
         }
-        else if(options.checkParameters === undefined) {
-            console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's parameters cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
+        else if(options.checkArguments === undefined) {
+            console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
         }
     }
 
@@ -290,7 +290,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
                 args = [];
             }
             // Runtime type checking of arguments:
-            if(options.checkParameters || (options.checkParameters === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
+            if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
                 const reflectedMethod = reflect(restService).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
                 checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
                 checkParameterTypes(<ReflectedMethod> reflectedMethod,args);

@@ -6,7 +6,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkParameters: false}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -62,7 +62,7 @@ test('Simple api call', async () => {
 test('Most simple example (standalone http server)', async () => {
     const server = restfuncs({
         greet: (name) =>  `Hello ${name} from the server`
-    }, 0, {checkParameters: false});
+    }, 0, {checkArguments: false});
 
 
     // @ts-ignore

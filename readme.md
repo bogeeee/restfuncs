@@ -68,7 +68,7 @@ console.log(await greeterService.greet("Bob"))
 
 ## Runtime typechecking (shielding against evil input) {#runtime-typechecking}
 
-Enforces all your func's parameters to deeply match the declared types.  
+Enforces all your func's arguments to deeply match the declared types.  
 But therefore, to have the type information available at runtime, we need to bother you with a little build setup:
 
 Add the following to `tsconfig.json`

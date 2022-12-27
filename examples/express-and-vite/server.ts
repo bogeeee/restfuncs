@@ -21,7 +21,7 @@ import crypto from "node:crypto";
 
     // Remote service(s):
     app.use("/greeterAPI", restfuncs( new GreeterService(), {
-        checkParameters: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
+        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
     } ))
 
     // Client web:
