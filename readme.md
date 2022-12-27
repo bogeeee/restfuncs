@@ -66,9 +66,12 @@ console.log(await greeterService.greet("Bob"))
 <br/>
 <br/>
 
-## Runtime typechecking (shielding against evil input)
+## Runtime typechecking (shielding against evil input) {#runtime-typechecking}
 
-To enforce all your func's parameters to deeply match the declared types, add the following to `tsconfig.json`
+Enforces all your func's parameters to deeply match the declared types.  
+But therefore, to have the type information available at runtime, we need to bother you with a little build setup:
+
+Add the following to `tsconfig.json`
 ```json
   "compilerOptions": {
     //...
@@ -80,10 +83,13 @@ To enforce all your func's parameters to deeply match the declared types, add th
   }
 
 ```
-_Otherwise a security warning will be logged at startup noting that type checking is not available. See also the checkParameters flag in the options._
+- Then either compile with `ttsc` instead of `tsc` for compilation (add `ttypescript` to devDependencies)
+- Or run with `ts-node -C ttypescript` (add `ttypescript` to devDependencies)
+
+_If this was not set up correctly, a security warning will be logged at startup (so you won't be silently left insecure). The [examples](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) already have this set up._
 
 ### Security Note:
-**Objects can still be "poisoned" with additional properties** as this is still typescript conform. When you only have pure typescript code behind your func's, these just get ignored, but we're not living in an ideal world (i.e. the database just blindly storing all properties, or a non-ts lib using some unlisted fields), so strongly keep that in mind! 
+**Objects can still be "poisoned" with additional properties** as this is still typescript conform. When you only have pure typescript code behind your func's, these just get ignored, but we're not living in an ideal world (i.e. the database just blindly storing all properties, or a non-ts lib using some unlisted fields), so **strongly keep that in mind!** 
 See a discussion of that issue [here](https://github.com/bogeeee/restfuncs/issues/1).   
 
 

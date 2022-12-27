@@ -9,8 +9,7 @@ import {reflect, ReflectedMethod} from "typescript-rtti";
 
 const PROTOCOL_VERSION = "1.0"
 
-const RTTIINFO = "To enable runtime typechecking, Add the following line into tsconfig.json/compilerOptions \n" +
-    "   \"plugins\": [{ \"transform\": \"typescript-rtti/dist/transformer\" }]";
+const RTTIINFO = "To enable runtime typechecking, See https://github.com/bogeeee/restfuncs#runtime-typechecking";
 
 export type RestfuncsOptions = {
     /**
@@ -19,13 +18,12 @@ export type RestfuncsOptions = {
     path?: string
 
     /**
-     * Enable checking your func's parameters at runtime.
+     * Enable checking your func's parameters at runtime (shielding).
      *
-     * To make it work, you have to add the following line into tsconfig.json/compilerOptions
-     * "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
+     * To make it work, See https://github.com/bogeeee/restfuncs#runtime-typechecking.
+     * See also the security notes there.
      *
-     *
-     * When undefined, a warning is issued. It's recommended to explicitly enable this.
+     * When undefined, typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.
      */
     checkParameters?: boolean
 }
@@ -254,7 +252,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             throw new Error("Runtime type information is not available.\n" +  diagnosis_whyNotAvailable);
         }
         else if(options.checkParameters === undefined) {
-            console.warn("**** Runtime type information is not available. This can be a security risk as your func's parameters cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
+            console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's parameters cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
         }
     }
 
