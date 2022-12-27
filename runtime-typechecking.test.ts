@@ -64,6 +64,10 @@ test('Test arguments', async () => {
         }
         params2(x: string, y: number, z: {}) {
         }
+
+        setObjWithValues(z: {prop1: boolean}) {
+        }
+
     };
 
     await runClientServerTests(new ServerAPI(),
@@ -88,7 +92,16 @@ test('Test arguments', async () => {
             // Additional value: (we could argue that we want to get an error here, or erase the additional value at runtime - to enhance security)
             await apiProxy.params2("ok", 123, {someAdditionalValue: true});
 
+            await apiProxy.setObjWithValues({prop1: true});
 
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: 123}) );
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}) );
+
+            // @ts-ignore
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: true, poisonedProp: true}) );
         }
     );
 })
