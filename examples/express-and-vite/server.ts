@@ -21,7 +21,7 @@ import crypto from "node:crypto";
 
     // Remote service(s):
     app.use("/greeterAPI", restfuncs( new GreeterService(), {
-        checkParameters: (process.env.NODE_ENV !== 'development') // Disable for development cause we don't have type info with TSX/esbuild. This doesn't display the warning
+        checkParameters: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
     } ))
 
     // Client web:
