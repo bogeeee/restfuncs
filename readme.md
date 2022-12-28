@@ -13,7 +13,7 @@ import restfuncs from "restfuncs-server"
 
 restfuncs({
     greet: (name) =>  `Hello ${name} from the server`,
-    // ... <- more methods go here
+    // ... <- more functions go here
 }, 3000) // specifying a port runs a standalone server
 ```
 
@@ -41,7 +41,7 @@ export class GreeterService extends RestService { // Define the service as a cla
         return `Hello ${name} from the server`
     }
 
-    // <- more functions go here
+    // <- more methods go here
 }
 ```
 
@@ -103,14 +103,14 @@ See a discussion of that issue [here](https://github.com/bogeeee/restfuncs/issue
 
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
-## Advanced
+# Advanced
 
-### Mangle with raw request and response
+## Mangle with raw request and response
 
 `this.req` and `this.resp` are available in your methods during call to read / modify http headers, etc...   
 _See [Request](https://expressjs.com/en/4x/api.html#req) and [Response](https://expressjs.com/en/4x/api.html#res) in the express API._
 
-### Store values in the http- (browser) session...
+## Store values in the http- (browser) session...
 ...under `session` field.
 ```typescript
 class MyService {
@@ -141,7 +141,7 @@ app.use(session({
 
 _The standalone server has it already done for you._
 
-### Intercept calls (server side)
+## Intercept calls (server side)
 
 Add the following method to your service and do what ever you want in there (i.e. handle errors, check for auth, filter args, filter result).
 You have access to [this.req](https://expressjs.com/en/4x/api.html#req), [this.resp](https://expressjs.com/en/4x/api.html#res) and `this.session` as usual.
@@ -156,7 +156,7 @@ class MyService {
 }
 ```
 
-### Intercept calls (client side)
+## Intercept calls (client side)
 
 Similar as above. Add that function to the options of-, or in a subclass of RestfuncsClient.  
 
@@ -173,10 +173,10 @@ const myService = restfuncsClient<MyService>("/myAPI", { // options
 _If you want to mangle with request and response on the client, subclass it and override doFetch._ 
 
 
-## API
+# API
 Almost everything is already covered but for the full API details see the code's JSDoc.
 
-## That's it !
+# That's it !
 
 ### Things to come
 
@@ -188,7 +188,7 @@ Almost everything is already covered but for the full API details see the code's
 - Easy basicauth handler for the standalone server  
 - JsonP (maybe)
 
-## _Contribution_
+### _Contribution_
 
 See [DEVELOPMENT.md](DEVELOPMENT.md)
 
