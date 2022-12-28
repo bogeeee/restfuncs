@@ -18,4 +18,5 @@ When you want to test your code changes with the examples, then:
 ```bash
 npm run build
 ```
-This compiles the /**/dist/mjs which are what's used from the browser/vite packager. Then cd into the examples and `npm run dev` them.
+This compiles the /**/dist/mjs which are what's used from the browser/vite packager. Then cd into the examples and `npm run dev` them.    
+_eventually remove the /package-lock.json if examples still stick to old packages_
