@@ -66,7 +66,7 @@ console.log(await greeterService.greet("Bob"))
 <br/>
 <br/>
 
-## Runtime typechecking (shielding against evil input) {#runtime-typechecking}
+## Runtime arguments typechecking (shielding against evil input) {#runtime-arguments-typechecking}
 
 Enforces all your func's arguments to deeply match the declared types.  
 But therefore, to have the type information available at runtime, we need to bother you with a little build setup:

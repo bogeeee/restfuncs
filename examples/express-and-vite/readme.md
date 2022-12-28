@@ -16,7 +16,9 @@ npm run start
 npn run dev
 ```
 
-If you want to run in development with runtime type information (runtime typechecking, ...) , add `ts-node` to devDependencies  and replace these run scripts (but it reloads way slower that with tsx):
+#### With runtime type information
+
+If you want to run in development with runtime type information (runtime arguments typechecking, ...) , add `ts-node` to devDependencies  and replace these run scripts (but it reloads way slower that with tsx):
 ```json
 "dev": "nodemon -e ts --exec npm run dev_compileAndRunOnce",
 "dev_compileAndRunOnce": "clear && ttsc --build && cross-env NODE_ENV=development ts-node server.js",
