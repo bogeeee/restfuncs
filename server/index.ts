@@ -9,7 +9,7 @@ import {reflect, ReflectedMethod} from "typescript-rtti";
 
 const PROTOCOL_VERSION = "1.0"
 
-const RTTIINFO = "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking";
+const RTTIINFO = "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
 
 export type RestfuncsOptions = {
     /**
@@ -20,7 +20,7 @@ export type RestfuncsOptions = {
     /**
      * Enable checking your func's arguments at runtime (shielding).
      *
-     * To make it work, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking.
+     * To make it work, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input
      * See also the security notes there.
      *
      * When undefined, arguments typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.

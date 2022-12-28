@@ -66,7 +66,7 @@ console.log(await greeterService.greet("Bob"))
 <br/>
 <br/>
 
-## Runtime arguments typechecking (shielding against evil input) {#runtime-arguments-typechecking}
+## Runtime arguments typechecking (shielding against evil input)
 
 Enforces all your func's arguments to deeply match the declared types.  
 But therefore, to have the type information available at runtime, we need to bother you with a little build setup:
@@ -74,8 +74,9 @@ But therefore, to have the type information available at runtime, we need to bot
 Add the following to `tsconfig.json`
 ```json
   "compilerOptions": {
-    //...
-    "experimentalDecorators": true, // We might need this in the future soon for some to allow for some fine tuning.
+        
+        
+    "experimentalDecorators": true,
     "plugins": [
       {
         "transform": "typescript-rtti/dist/transformer"
