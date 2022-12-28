@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-client",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Client for restfuncs-server. Allows you to seamlessly call server methods in RPC style.",
   "author": "Boris Gingold <bogeee@bogitech.de>",
   "repository": {
