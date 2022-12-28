@@ -186,3 +186,13 @@ Almost everything is already covered but for the full API details see the code's
 - Support for file uploads
 - Easy basicauth handler for the standalone server  
 - JsonP (maybe)
+
+## _Contribution_
+
+See [DEVELOPMENT.md](DEVELOPMENT.md)
+
+Places where your help would be needed
+
+- Client code generator for Java, C#, Python, Rust. Typesafe / with types. The idea is to integrate this as a download inside the (upcoming) API -/ docs browser. This would all be generated automatically at runtime. We already have typescript-rtti but there also needs to be some transformer that makes the jsdoc available.   
+- Security review this and of typescript-rtti
+- Enhance [testcases for typescript-rtti](runtime-arguments-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
