@@ -20,13 +20,12 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/greeterAPI", restfuncs( new GreeterService() ))
+    app.use("/greeterAPI", restfuncs( new GreeterService(), {
+        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
+    } ))
 
     // Client web:
-    if(process.env.NODE_ENV === 'production') {
-        app.use(express.static('../client/dist')); // Serve pre-built web (cd ../client && npm run build)
-    }
-    else {
+    if(process.env.NODE_ENV === 'development') {
         // Serve client web through vite dev server:
         const viteDevServer = await vite.createServer({
             server: {
@@ -37,6 +36,8 @@ import crypto from "node:crypto";
 
         });
         app.use(viteDevServer.middlewares);
+    } else {
+        app.use(express.static('../client/dist')); // Serve pre-built web (cd ../client && npm run build)
     }
 
     app.listen(port)

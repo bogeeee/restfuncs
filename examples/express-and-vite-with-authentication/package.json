@@ -5,9 +5,10 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "nodemon --exec tsx server.ts",
-    "build": "vite build",
-    "start": "cross-env NODE_ENV=production tsx server"
+    "dev": "nodemon --exec cross-env NODE_ENV=development tsx server.ts",
+    "clean": "ttsc --build --clean && rm -rf dist",
+    "build": "ttsc --build --force && vite build",
+    "start": "ts-node server.js"
   },
   "dependencies": {
     "express": "^4.17.13",
@@ -18,6 +19,8 @@
   },
   "devDependencies": {
     "tsx": "^3.12.1",
+    "typescript": "4.6",
+    "ttypescript": "^1.5.15",
     "nodemon": "^2.0.15",
     "cross-env": "^7.0.3"
   }

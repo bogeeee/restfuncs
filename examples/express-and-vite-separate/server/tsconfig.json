@@ -3,6 +3,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
+    "sourceMap": true,
     "lib": [
       "dom",
       "dom.iterable",
@@ -13,5 +14,6 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
+    "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
   }
 }

@@ -4,10 +4,11 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec tsx server.ts",
-    "build": "npm run build:client",
+    "dev": "nodemon --exec cross-env NODE_ENV=development tsx server.ts",
+    "clean": "ttsc --build --clean && rm -rf ../client/dist",
+    "build": "ttsc --build --force && npm run build:client",
     "build:client": "cd ../client && vite build",
-    "start": "cross-env NODE_ENV=production tsx server"
+    "start": "ts-node server.js"
   },
   "dependencies": {
     "express": "^4.17.13",
