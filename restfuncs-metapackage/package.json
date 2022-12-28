@@ -1,6 +1,6 @@
 {
   "name": "restfuncs",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). Works with express or standalone.",
   "author": "Boris Gingold <bogeee@bogitech.de>",
   "repository": {
@@ -21,8 +21,8 @@
     "build": "tsc && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
-    "restfuncs-server": "0.8.1",
-    "restfuncs-client": "0.8.1"
+    "restfuncs-server": "0.9.0",
+    "restfuncs-client": "0.9.0"
   },
   "devDependencies": {
     "typescript": "^4.8.4"
