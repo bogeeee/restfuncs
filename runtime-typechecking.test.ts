@@ -2,7 +2,7 @@ import 'reflect-metadata'
 import {isTypeInfoAvailable, restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
-import {reflect} from "@typescript-rtti/reflect";
+import {reflect} from "typescript-rtti";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -99,12 +99,28 @@ test('Test arguments', async () => {
 
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}) );
+        }
+    );
+})
 
+/**
+ * See https://github.com/typescript-rtti/typescript-rtti/issues/92
+ */
+test('Test additional properties / overstrict checks', async () => {
+    class ServerAPI {
+        setObjWithValues(z: {prop1: boolean}) {
+        }
+
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: true, poisonedProp: true}) );
         }
     );
 })
+
 
 test('Test rest arguments', async () => {
     class ServerAPI {
