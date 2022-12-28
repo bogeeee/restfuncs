@@ -1,8 +1,8 @@
 {
   "name": "restfuncs-example-client",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "dependencies": {
-    "restfuncs-client": "^0.8.0",
+    "restfuncs-client": "^0.9.0",
     "react": "^18.2.0"
   }
 }
