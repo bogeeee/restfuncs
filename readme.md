@@ -75,6 +75,7 @@ Add the following to `tsconfig.json`
 ```json
   "compilerOptions": {
     //...
+    "experimentalDecorators": true, // We might need this in the future soon for some to allow for some fine tuning.
     "plugins": [
       {
         "transform": "typescript-rtti/dist/transformer"

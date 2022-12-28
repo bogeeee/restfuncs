@@ -15,6 +15,7 @@
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
+    "experimentalDecorators": true,
     "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
   }
 }
