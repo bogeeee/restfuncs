@@ -4,7 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec cross-env NODE_ENV=development tsx server.ts",
+    "dev": "nodemon -e ts --exec \"clear && ttsc --build && cross-env NODE_ENV=development ts-node server.js\"",
+    "dev:faster_but_without_rtti": "nodemon --exec cross-env NODE_ENV=development tsx server.ts",
     "clean": "ttsc --build --clean && rm -rf ../client/dist",
     "build": "ttsc --build --force && npm run build:client",
     "build:client": "cd ../client && vite build",
