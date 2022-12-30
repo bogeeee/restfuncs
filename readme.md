@@ -189,6 +189,9 @@ Almost everything is already covered but for the full API details see the code's
 - Easy basicauth handler for the standalone server  
 - JsonP (maybe)
 
+### Comparison to other RPC frameworks
+[Comparison table](https://github.com/bogeeee/RPCFrameworksComparison)
+
 ### _Contribution_
 
 See [DEVELOPMENT.md](DEVELOPMENT.md)
