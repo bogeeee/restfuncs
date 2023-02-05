@@ -5,9 +5,11 @@ import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod} from "typescript-rtti";
+import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
+import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 
 
-const PROTOCOL_VERSION = "1.0"
+const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
 const RTTIINFO = "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
 
@@ -258,8 +260,8 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
 
     const router = express.Router();
 
-    router.use(express.json({limit: Number.MAX_VALUE, strict: true, inflate: false})) // parse application/json. TODO: When used with authentication, parse after auth to make it safer
-
+    router.use(express.json({limit: Number.MAX_VALUE, strict: true, inflate: false})) // parse old style application/json and make it available in req.body (in further handlers) TODO: When used with authentication, parse after auth to make it safer
+    router.use(express.raw({limit: Number.MAX_VALUE, type: ["application/brillout-json"], inflate: false})) // parse application/brillout-json and make it available in req.body
     router.use(async (req, resp, next) => {
         try {
             // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
@@ -268,9 +270,8 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
 
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
 
+            // Check method name:
             const methodName =  req.path.replace(/^\//, ""); // Remove trailing /
-
-            // Parameter checks:
             if(!methodName) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
@@ -284,12 +285,28 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             if(typeof method != "function") {
                 throw new Error(`${methodName} is not a function`);
             }
-            let args = req.body;
+
+            // Parse req.body into args:
+            let args: any[];
+            const contentType = req.header("Content-Type");
+            if(contentType == "application/json") { // Application/json
+                args = req.body; // Args was already parsed to json by the express.json handler
+            }
+            else if(contentType == "application/brillout-json") {
+                if(!(req.body && req.body instanceof Buffer)) {
+                    throw new Error("req.body is no Buffer")
+                }
+                // @ts-ignore
+                args = brilloutJsonParse(req.body.toString("utf8"));
+            }
+            else {
+                throw new Error("You must set the Content-type header to application/json or application/brillout-json");
+            }
             // Make sure that args is an array:
-            if(args.constructor !== Array) {
+            if(!args || args.constructor !== Array) {
                 args = [];
             }
-            // Runtime type checking of arguments:
+            // Runtime type checking of args:
             if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
                 const reflectedMethod = reflect(restService).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
                 checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
@@ -318,8 +335,13 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
 
 
             // Send result:
-            result = result!==undefined?result:null; // Json does not support undefined
-            resp.json(result);
+            if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?
+                resp.send(brilloutJsonStringify(result));
+            }
+            else { // Send normal json (Old 0.x clients)
+                result = result!==undefined?result:null; // Json does not support undefined
+                resp.json(result);
+            }
         }
         catch (e) {
             resp.status(500);

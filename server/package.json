@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-server",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser). Works with express or standalone.",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -26,7 +26,8 @@
     "express-session": "^1.17.3",
     "underscore": "^1.13.3",
     "typescript-rtti": "^0.8.3",
-    "reflect-metadata": "^0.1.13"
+    "reflect-metadata": "^0.1.13",
+    "@brillout/json-serializer": "^0.5.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
