@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-client",
-  "version": "0.9.2",
+  "version": "1.0.0",
   "description": "Client for restfuncs-server. Allows you to seamlessly call server methods in RPC style.",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -22,7 +22,8 @@
     "build": "tsc && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
-    "underscore": "^1.13.3"
+    "underscore": "^1.13.3",
+    "@brillout/json-serializer": "^0.5.3"
   },
   "devDependencies": {
     "@types/underscore": "^1.11.4",

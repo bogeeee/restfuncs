@@ -40,7 +40,7 @@ test('Simply call a Void method', async () => {
             }
         },
         async (apiProxy) => {
-            expect(await apiProxy.myVoidMethod()).toBeNull();
+            expect(await apiProxy.myVoidMethod()).toBeUndefined();
         }
     );
 });
@@ -163,7 +163,7 @@ test('Exceptions', async () => {
     });
 });
 
-const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"];
+const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''", new Date()];
 
 test('Return types', async () => {
     for(let returnValue of variousDifferentTypes) {
@@ -192,9 +192,9 @@ test('Parameter types', async () => {
     for(let param of variousDifferentTypes) {
         await runClientServerTests({
                 myMethod(a,b,c) {
-                    expect(a).toStrictEqual(param !== undefined?param:null);
+                    expect(a).toStrictEqual(param);
                     expect(b).toBeFalsy();
-                    expect(c).toStrictEqual(param !== undefined?param:null);
+                    expect(c).toStrictEqual(param);
                 },
             },
             async (apiProxy) => {

@@ -1,6 +1,9 @@
 import _ from "underscore"
+import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
+import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
+const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
 
 /**
  * Thrown when there was an Error/exception thrown on the server during method call.
@@ -112,7 +115,8 @@ export class RestfuncsClient<Service> {
         const req: RequestInit = {
             method: this.method,
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/brillout-json',
+                'Accept': "application/brillout-json"
             },
             redirect: "follow",
             credentials: "include"
@@ -134,7 +138,7 @@ export class RestfuncsClient<Service> {
      * @param req The request, already prepared to be sent (without the body yet). You can still modify it. See https://developer.mozilla.org/en-US/docs/Web/API/Request
      */
     protected async doFetch(funcName: string, args: any[], url: string, req: RequestInit): Promise<{result: any, resp: Response}>{
-            req.body = JSON.stringify(args);
+            req.body =  brilloutJsonStringify(args);
 
             // Exec fetch:
             const response = <Response>await fixed_fetch(url, req);
@@ -181,7 +185,7 @@ export class RestfuncsClient<Service> {
             }
 
             // Parse result:
-            const result = JSON.parse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
+            const result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
             return {result, resp: response};
         }
 
