@@ -7,12 +7,10 @@ import crypto from "node:crypto";
 import {reflect, ReflectedMethod} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {RestService} from "./RestService";
+import {isTypeInfoAvailable, RestService} from "./RestService";
 export {RestService} from "./RestService";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
-
-const RTTIINFO = "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
 
 export type RestfuncsOptions = {
     /**
@@ -72,7 +70,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
             store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
         }));
 
-        app.use(createRESTFuncsRouter(<RestService>service, options));
+        app.use(createRestFuncsExpressRouter(service, options));
         return app.listen(port);
     }
     else { // Express router
@@ -82,7 +80,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
             throw new Error("Invalid argument");
         }
 
-        return createRESTFuncsRouter(<RestService>service, options);
+        return createRestFuncsExpressRouter(service, options);
     }
 }
 
@@ -208,56 +206,14 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<an
     }
 }
 
-function diagnosis_isAnonymousObject(o: object) {
-    if(o.constructor?.name === "Object") {
-        return true;
-    }
-
-    return false;
-}
-
-export function isTypeInfoAvailable(restService: object) {
-    const r = reflect(restService);
-
-    // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
-    // TODO: improve checks for security reasons !
-
-    /*
-    if(r.methods.length === 0) {
-        return false;
-    }
-    // Still this check was not enough because we received  the methods of the prototype
-    */
-
-    if(r.getProperty("xxyyyyzzzzzdoesntExist") !== undefined) { // non existing property reported as existing ?
-        return false;
-    }
-
-    return true
-}
 
 /**
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
-function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptions): Router {
-    // @ts-ignore
-    const sessionPrototype = restService.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
+function createRestFuncsExpressRouter(restServiceObj: object, options: RestfuncsOptions): Router {    ;
+    const restService = RestService.initializeRestService(restServiceObj, options);
 
-    // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
-    // @ts-ignore
-    restService.req = null; restService.resp = null; restService.session = null;
-
-    // Warn/error if type info is not available:
-    if(!isTypeInfoAvailable(restService)) {
-        const diagnosis_whyNotAvailable = diagnosis_isAnonymousObject(restService)?"Probably this is because your service is an anonymous object and not defined as a class.":RTTIINFO
-        if(options.checkArguments) {
-            throw new Error("Runtime type information is not available.\n" +  diagnosis_whyNotAvailable);
-        }
-        else if(options.checkArguments === undefined) {
-            console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
-        }
-    }
 
     const router = express.Router();
 
@@ -318,7 +274,7 @@ function createRESTFuncsRouter(restService: RestService, options: RestfuncsOptio
             // @ts-ignore
             const reqSession = req.session as Record<string,any>|undefined;
             if(reqSession !== undefined) { // Express runs a session handler ?
-                session = createProxyWithPrototype(reqSession, sessionPrototype); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
+                session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
             let result;

@@ -1,5 +1,6 @@
 import 'reflect-metadata'
-import {isTypeInfoAvailable, restfuncs, RestService} from "restfuncs-server";
+import {restfuncs, RestService} from "restfuncs-server";
+import {isTypeInfoAvailable} from "restfuncs-server/RestService";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {reflect} from "typescript-rtti";
