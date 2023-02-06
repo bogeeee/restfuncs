@@ -131,81 +131,6 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
     });
 }
 
-/**
- * Throws an exception if you're not allowed to call the method from the outside
- * @param reflectedMethod
- */
-function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
-    if(reflectedMethod.isProtected) {
-        throw new Error("Method is protected.")
-    }
-    if(reflectedMethod.isPrivate) {
-        throw new Error("Method is private.")
-    }
-
-    // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
-    if(reflectedMethod.visibility !== "public") {
-        throw new Error("Method is not public")
-    }
-}
-
-/**
- * Throws an exception if args does not match the parameters of reflectedMethod
- * @param reflectedMethod
- * @param args
- */
-function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
-    // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
-    let argsStack = [...args]; // shallow clone
-    argsStack.reverse();
-
-    const errors: string[] = [];
-    for(const i in reflectedMethod.parameters) {
-        const parameter = reflectedMethod.parameters[i];
-        if(parameter.isOmitted) {
-            throw new Error("Omitted arguments not supported");
-        }
-        if(parameter.isRest) {
-            argsStack.reverse();
-
-            // Validate argsStack against parameter.type:
-            const collectedErrorsForThisParam: Error[] = [];
-            const ok = parameter.type.matchesValue(argsStack, collectedErrorsForThisParam); // Check value
-            if(!ok || collectedErrorsForThisParam.length > 0) {
-                errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
-            }
-
-            argsStack = [];
-            continue;
-        }
-        if(parameter.isBinding) {
-            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
-        }
-
-        const arg =  argsStack.length > 0?argsStack.pop():undefined;
-
-        // Allow undefined for optional parameter:
-        if(parameter.isOptional && arg === undefined) {
-            continue;
-        }
-
-        // Validate arg against parameter.type:
-        const collectedErrorsForThisParam: Error[] = [];
-        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
-        if(!ok || collectedErrorsForThisParam.length > 0) {
-            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
-        }
-    }
-
-    if(argsStack.length > 0) {
-        throw new Error(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`);
-    }
-
-    if(errors.length > 0) {
-        throw new Error(errors.join("; "))
-    }
-}
-
 
 /**
  * Creates a middleware/router to use with express.
@@ -227,20 +152,9 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
 
-            // Check method name:
             const methodName =  req.path.replace(/^\//, ""); // Remove trailing /
             if(!methodName) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
-            }
-            if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
-                throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
-            }
-            if(restService[methodName] === undefined) {
-                throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
-            }
-            const method = restService[methodName];
-            if(typeof method != "function") {
-                throw new Error(`${methodName} is not a function`);
             }
 
             // Parse req.body into args:
@@ -263,12 +177,6 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             if(!args || args.constructor !== Array) {
                 args = [];
             }
-            // Runtime type checking of args:
-            if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(restService))) { // Checking required or available ?
-                const reflectedMethod = reflect(restService).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
-                checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
-                checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
-            }
 
             let session = null;
             // @ts-ignore
@@ -277,19 +185,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
-            let result;
-            // @ts-ignore
-            await enhanceViaProxyDuringCall(restService, {req, resp, session}, async (restService) => { // make .req and .resp safely available during call
-                // @ts-ignore
-                if(restService.doCall) { // function defined (when a plain object was passed, it may be undefined= ?
-                    // @ts-ignore
-                    result = await restService.doCall(methodName, args); // Call method with user's doCall interceptor
-                }
-                else {
-                    result = await method.apply(restService, args); // Call method
-                }
-            }, methodName);
-
+            let result = await restService.validateAndDoCall(methodName, args, {req, resp, session}, options);
 
             // Send result:
             if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?

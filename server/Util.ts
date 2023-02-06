@@ -8,7 +8,7 @@
  * @param enhancementProps These properties are virtually applied to the funcs object
  * @param callTheFunc
  */
-export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(funcs: F, enhancementProps: F, callTheFunc: (funcsProxy: F) => any, diagnosis_funcName: string) {
+export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(funcs: F, enhancementProps: Partial<F>, callTheFunc: (funcsProxy: F) => any, diagnosis_funcName: string) {
     // Create a proxy:
     let callHasEnded = false;
     const funcsProxy = new Proxy(funcs, {

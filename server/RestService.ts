@@ -1,7 +1,8 @@
 import {Request, Response} from "express";
 import _ from "underscore";
 import {RestfuncsOptions} from "./index";
-import {reflect} from "typescript-rtti";
+import {reflect, ReflectedMethod} from "typescript-rtti";
+import {enhanceViaProxyDuringCall} from "./Util";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -31,6 +32,81 @@ export function isTypeInfoAvailable(restService: object) {
     return true
 }
 
+
+/**
+ * Throws an exception if you're not allowed to call the method from the outside
+ * @param reflectedMethod
+ */
+function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
+    if(reflectedMethod.isProtected) {
+        throw new Error("Method is protected.")
+    }
+    if(reflectedMethod.isPrivate) {
+        throw new Error("Method is private.")
+    }
+
+    // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
+    if(reflectedMethod.visibility !== "public") {
+        throw new Error("Method is not public")
+    }
+}
+
+/**
+ * Throws an exception if args does not match the parameters of reflectedMethod
+ * @param reflectedMethod
+ * @param args
+ */
+function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
+    // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
+    let argsStack = [...args]; // shallow clone
+    argsStack.reverse();
+
+    const errors: string[] = [];
+    for(const i in reflectedMethod.parameters) {
+        const parameter = reflectedMethod.parameters[i];
+        if(parameter.isOmitted) {
+            throw new Error("Omitted arguments not supported");
+        }
+        if(parameter.isRest) {
+            argsStack.reverse();
+
+            // Validate argsStack against parameter.type:
+            const collectedErrorsForThisParam: Error[] = [];
+            const ok = parameter.type.matchesValue(argsStack, collectedErrorsForThisParam); // Check value
+            if(!ok || collectedErrorsForThisParam.length > 0) {
+                errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
+            }
+
+            argsStack = [];
+            continue;
+        }
+        if(parameter.isBinding) {
+            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+        }
+
+        const arg =  argsStack.length > 0?argsStack.pop():undefined;
+
+        // Allow undefined for optional parameter:
+        if(parameter.isOptional && arg === undefined) {
+            continue;
+        }
+
+        // Validate arg against parameter.type:
+        const collectedErrorsForThisParam: Error[] = [];
+        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
+        if(!ok || collectedErrorsForThisParam.length > 0) {
+            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
+        }
+    }
+
+    if(argsStack.length > 0) {
+        throw new Error(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`);
+    }
+
+    if(errors.length > 0) {
+        throw new Error(errors.join("; "))
+    }
+}
 
 
 /**
@@ -70,6 +146,51 @@ export class RestService {
     // @ts-ignore
     protected session: {} | null = {};
 
+
+    /**
+     * Security checks the method name and args and executes the methods call.
+     * @param methodName
+     * @param args
+     * @param enhancementProps These fields will be temporarily added to this during the call.
+     * @param options
+     */
+    public async validateAndDoCall(methodName: string, args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
+
+        // Chek methodName
+        if(!methodName) {
+            throw new Error(`methodName not set`);
+        }
+        if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
+            throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
+        }
+        if(this[methodName] === undefined) {
+            throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
+        }
+        const method = this[methodName];
+        if(typeof method != "function") {
+            throw new Error(`${methodName} is not a function`);
+        }
+
+        // Make sure that args is an array:
+        if(!args || args.constructor !== Array) {
+            throw new Error("args is not an array");
+        }
+
+        // Runtime type checking of args:
+        if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(this))) { // Checking required or available ?
+            const reflectedMethod = reflect(this).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
+            checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
+            checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
+        }
+
+        let result;
+        await enhanceViaProxyDuringCall(this, enhancementProps, async (restService) => { // make .req and .resp safely available during call
+            result = await restService.doCall(methodName, args); // Call method with user's doCall interceptor;
+        }, methodName);
+
+        return result
+    }
+
     /**
      * Allows you to intercept calls. Override and implement it with the default body:
      * <pre><code>
@@ -95,10 +216,25 @@ export class RestService {
     /**
      * Internal: Must be called by every adapter (i.e. express) before the service is used.
      * @param restServiceObj
+     * @param options
      */
     public static initializeRestService(restServiceObj: object, options: RestfuncsOptions): RestService {
+        /**
+         * Nonexisting props and methods get copied to the target so that it's like the target exends the base class .
+         * @param target
+         * @param base
+         */
+        function baseOn(target: {[index: string]: any }, base: {[index: string]: any }) {
+            [...Object.keys(base), ..._.functions(base)].map(propName => {
+                if(target[propName] === undefined) {
+                    target[propName] = base[propName];
+                }
+            })
+        }
+
+
         if(!(restServiceObj instanceof RestService)) {
-            _.extend(restServiceObj, [new RestService(), restServiceObj]); // Add the functions of RestService to restServiceObj. Then again, add all restServiceObj props and functions, cause they should dominate. I.e. see the docs where the user can just add a doCall function
+            baseOn(restServiceObj, new RestService());
         }
 
         const restService = <RestService> restServiceObj;
