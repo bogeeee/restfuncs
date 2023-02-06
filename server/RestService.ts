@@ -149,16 +149,23 @@ export class RestService {
 
     /**
      * Security checks the method name and args and executes the methods call.
-     * @param methodName
-     * @param args
+     * @param evil_methodName
+     * @param evil_args
      * @param enhancementProps These fields will be temporarily added to this during the call.
      * @param options
      */
-    public async validateAndDoCall(methodName: string, args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
+    public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
 
-        // Chek methodName
+        // typing was only for the caller. We go back to "any" so must check again:
+        const methodName = <any> evil_methodName;
+        const args = <any> evil_args;
+
+        // Check methodName:
         if(!methodName) {
             throw new Error(`methodName not set`);
+        }
+        if(typeof methodName !== "string") {
+            throw new Error(`methodName is not a string`);
         }
         if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
             throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
@@ -182,6 +189,13 @@ export class RestService {
             checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
             checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
         }
+
+        // Check enhancementProps (for the very paranoid):
+        if(!enhancementProps || typeof enhancementProps !== "object" || _.functions(enhancementProps).length > 0) {
+            throw new Error("Invalid enhancementProps argument");
+        }
+        const allowed: Record<string, boolean> = {req:true, resp: true, session: true}
+        Object.keys(enhancementProps).map(key => {if(!allowed[key]) { throw new Error(`${key} not allowed in enhancementProps`)}})
 
         let result;
         await enhanceViaProxyDuringCall(this, enhancementProps, async (restService) => { // make .req and .resp safely available during call

@@ -382,3 +382,37 @@ test('Intercept with doFetch (client side)', async () => {
 
 });
 
+
+test('validateAndDoCall security', async () => {
+   const service = new class extends RestService {
+       x = "string";
+       myMethod(a,b) {
+           return a + b;
+       }
+   }
+
+    expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", resp: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
+
+    // Malformed method name:
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("validateAndDoCall", [], {}, {}),"reserved name");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall(null, [], {}, {}),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("", [], {}, {}),"methodName not set");
+    // @ts-ignore
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall({}, [], {}, {}),"not a string");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("x", [], {}, {}),"not a function");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("nonExistant", [], {}, {}),"does not exist");
+
+    // malformed args:
+   await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", null, {}, {}),"not an array");
+    // @ts-ignore
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", "", {}, {}),"not an array");
+    // @ts-ignore
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", {}, {}, {}),"not an array");
+    // Further rtti argschecking is done in runtime-typechecking.test.ts
+
+    // malformed enhancementProps:
+    for(const invalidEnhancementProps of [null, undefined, "", { unallowed: true}, { x: "anotherstring"}, { myFunc(){}}]) {
+        // @ts-ignore
+        await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", ["a","b"], invalidEnhancementProps, {}),);
+    }
+});
