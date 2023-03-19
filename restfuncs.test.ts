@@ -18,6 +18,20 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     await new Promise((resolve) => server.close(resolve));
 }
 
+async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api") {
+    const app = express();
+    app.use(path, restfuncs(serverAPI, {checkArguments: false}));
+    const server = app.listen();
+    // @ts-ignore
+    const serverPort = server.address().port;
+
+    await rawFetchTests(`http://localhost:${serverPort}${path}`);
+
+    // shut down server
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+}
+
 async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {
     let caught = null;
     try {
@@ -162,6 +176,28 @@ test('Exceptions', async () => {
 
     });
 });
+
+test('GET methods', async () => {
+
+    let getTestTriggered = false;
+    let postTestTriggered = false;
+
+    await runRawFetchTests({
+        getTest() {
+            getTestTriggered = true;
+            return "ok";
+        },
+        postTest() {
+            postTestTriggered = true;
+        }
+    }, async (baseUrl) => {
+        await fetch(`${baseUrl}/getTest`, {method: "GET"});
+        expect(getTestTriggered).toBeTruthy();
+
+        await fetch(`${baseUrl}/postTest`, {method: "GET"});
+        expect(postTestTriggered).toBeFalsy();
+    });
+})
 
 const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''", new Date()];
 

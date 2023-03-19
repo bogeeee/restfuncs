@@ -157,22 +157,36 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
 
-            // Parse req.body into args:
             let args: any[];
-            const contentType = req.header("Content-Type");
-            if(contentType == "application/json") { // Application/json
-                args = req.body; // Args was already parsed to json by the express.json handler
-            }
-            else if(contentType == "application/brillout-json") {
-                if(!(req.body && req.body instanceof Buffer)) {
-                    throw new Error("req.body is no Buffer")
+            if(req.method === "GET") {
+                if(!restService.methodAllowedByGET(methodName)) {
+                    throw new Error(`${methodName} is not allowed to be called by http GET`);
                 }
-                // @ts-ignore
-                args = brilloutJsonParse(req.body.toString("utf8"));
+
+                args = []; // TODO
+            }
+            else if(req.method === "POST") {
+                // Parse req.body into args:
+                const contentType = req.header("Content-Type");
+                if(contentType == "application/json") { // Application/json
+                    args = req.body; // Args was already parsed to json by the express.json handler
+                }
+                else if(contentType == "application/brillout-json") {
+                    if(!(req.body && req.body instanceof Buffer)) {
+                        throw new Error("req.body is no Buffer")
+                    }
+                    // @ts-ignore
+                    args = brilloutJsonParse(req.body.toString("utf8"));
+                }
+                else {
+                    throw new Error("You must set the Content-type header to application/json or application/brillout-json");
+                }
             }
             else {
-                throw new Error("You must set the Content-type header to application/json or application/brillout-json");
+                throw new Error(`http ${req.method} not allowed`);
             }
+
+
             // Make sure that args is an array:
             if(!args || args.constructor !== Array) {
                 args = [];

@@ -66,6 +66,13 @@ console.log(await greeterService.greet("Bob"))
 <br/>
 <br/>
 
+# Security
+
+## getXXX methods can be called via GET
+
+Methods starting with `get` can be called by http GET. This means, they can be triggered cross site, even in the context of the logged on user! 
+Make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.  
+
 ## Runtime arguments typechecking (shielding against evil input)
 
 Enforces all your func's arguments to deeply match the declared types.  
@@ -172,7 +179,6 @@ const myService = restfuncsClient<MyService>("/myAPI", { // options
 ```
 
 _If you want to mangle with request and response on the client, subclass it and override doFetch._ 
-
 
 # API
 Almost everything is already covered but for the full API details see the code's JSDoc.

@@ -222,6 +222,14 @@ export class RestService {
 
 
     /**
+     * You can override this as part of the API
+     * @param methodName
+     */
+    public methodAllowedByGET(methodName: string) {
+       return methodName.startsWith("get");
+    }
+
+    /**
      * Internal
      * @private
      */
