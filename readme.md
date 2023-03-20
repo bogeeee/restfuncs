@@ -68,10 +68,11 @@ console.log(await greeterService.greet("Bob"))
 
 # Security
 
-## getXXX methods can be called via GET
+## get... methods can be triggered cross site
 
 Methods starting with `get` can be called by http GET. This means, they can be triggered cross site, even in the context of the logged on user! 
-Make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.  
+To prevent against XSRF attacks, make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.  
+Using 'SameSite' cookies (like in the example) can mitigate this but works only for [~95% of browsers](https://caniuse.com/?search=samesite) and may not always applicable, i.e. when using 3rd party login providers.  
 
 ## Runtime arguments typechecking (shielding against evil input)
 

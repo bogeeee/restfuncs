@@ -181,7 +181,7 @@ export class RestService {
 
         if(httpMethod === "GET") {
             if(!this.methodAllowedByGET(methodName)) {
-                throw new Error(`${methodName} is not allowed to be called by http GET for security reasons`);
+                throw new Error(`${methodName} is not allowed to be called by http GET. See https://github.com/bogeeee/restfuncs#get-methods-can-be-triggered-cross-site`);
             }
         }
         else if(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "DELETE") {
