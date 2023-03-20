@@ -149,12 +149,13 @@ export class RestService {
 
     /**
      * Security checks the method name and args and executes the methods call.
+     * @param httpMethod Http method that was used for the call. For websockets, you must make sure that you
      * @param evil_methodName
      * @param evil_args
      * @param enhancementProps These fields will be temporarily added to this during the call.
      * @param options
      */
-    public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
+    public async validateAndDoCall(httpMethod: string, evil_methodName: string, evil_args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
 
         // typing was only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -176,6 +177,18 @@ export class RestService {
         const method = this[methodName];
         if(typeof method != "function") {
             throw new Error(`${methodName} is not a function`);
+        }
+
+        if(httpMethod === "GET") {
+            if(!this.methodAllowedByGET(methodName)) {
+                throw new Error(`${methodName} is not allowed to be called by http GET for security reasons`);
+            }
+        }
+        else if(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "DELETE") {
+            // allow
+        }
+        else {
+            throw new Error(`http ${httpMethod} not allowed`);
         }
 
         // Make sure that args is an array:

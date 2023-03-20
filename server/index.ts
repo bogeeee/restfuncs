@@ -8,6 +8,7 @@ import {reflect, ReflectedMethod} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {isTypeInfoAvailable, RestService} from "./RestService";
+import _ from "underscore";
 export {RestService} from "./RestService";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
@@ -27,6 +28,19 @@ export type RestfuncsOptions = {
      * When undefined, arguments typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.
      */
     checkArguments?: boolean
+
+    /**
+     * Controls which methods can be called via http GET
+     *
+     * true/undefined (default): Only methods, starting with 'get', are allowed. I.e. getUser
+     * false: No methods allowed
+     * "all": All methods allowed (may be useful during development)
+     *
+     * SECURITY WARNING:
+     * Those allowed methods can be triggered cross site, even in the context of the logged on user!
+     * Make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.
+     */
+    allowGET?: true|false|"all"
 }
 
 /**
@@ -152,40 +166,29 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
 
+            // Determine method name:
             const methodName =  req.path.replace(/^\//, ""); // Remove trailing /
             if(!methodName) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
 
-            let args: any[];
-            if(req.method === "GET") {
-                if(!restService.methodAllowedByGET(methodName)) {
-                    throw new Error(`${methodName} is not allowed to be called by http GET`);
-                }
-
-                args = []; // TODO
+            let namedArgs: Record<string, any> = {};
+            let args: any[] = [];
+            // Parse req.body into args:
+            const contentType = req.header("Content-Type");
+            if(contentType == "application/json") { // Application/json
+                args = req.body; // Args was already parsed to json by the express.json handler
             }
-            else if(req.method === "POST") {
-                // Parse req.body into args:
-                const contentType = req.header("Content-Type");
-                if(contentType == "application/json") { // Application/json
-                    args = req.body; // Args was already parsed to json by the express.json handler
+            else if(contentType == "application/brillout-json") {
+                if(!(req.body && req.body instanceof Buffer)) {
+                    throw new Error("req.body is no Buffer")
                 }
-                else if(contentType == "application/brillout-json") {
-                    if(!(req.body && req.body instanceof Buffer)) {
-                        throw new Error("req.body is no Buffer")
-                    }
-                    // @ts-ignore
-                    args = brilloutJsonParse(req.body.toString("utf8"));
-                }
-                else {
-                    throw new Error("You must set the Content-type header to application/json or application/brillout-json");
-                }
+                // @ts-ignore
+                args = brilloutJsonParse(req.body.toString("utf8"));
             }
-            else {
-                throw new Error(`http ${req.method} not allowed`);
+            else if (!_.isEqual(req.body, {})) { // non empty body ?
+                throw new Error("You must set the Content-type header to application/json or application/brillout-json");
             }
-
 
             // Make sure that args is an array:
             if(!args || args.constructor !== Array) {
@@ -199,7 +202,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
-            let result = await restService.validateAndDoCall(methodName, args, {req, resp, session}, options);
+            let result = await restService.validateAndDoCall(req.method, methodName, args, {req, resp, session}, options);
 
             // Send result:
             if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?
