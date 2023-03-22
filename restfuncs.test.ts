@@ -199,6 +199,44 @@ test('GET methods security', async () => {
     });
 })
 
+test('various call styles', async () => {
+
+    await runRawFetchTests(new class {
+        getBook(name?: string, authorFilter?: string) {
+            return [name, authorFilter];
+        }
+    }, async (baseUrl) => {
+
+        async function fetchJson(input: RequestInfo, init?: RequestInit) {
+            const response = await fetch(input, init);
+            // Error handling:
+            if (response.status !== 200) {
+                throw new Error("server error: " + await response.text())
+            }
+
+            return JSON.parse(await response.text());
+        }
+
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "GET"})).toStrictEqual([null, null]);
+        expect(await fetchJson(`${baseUrl}/getBook/a`, {method: "GET"})).toStrictEqual(["a", null]); // list arguments in the path
+        expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]); // Arguments (named) in the qerystring
+        expect(await fetchJson(`${baseUrl}/getBook?a,b`, {method: "GET"})).toStrictEqual(["a", "b"]); // List the arguments (unnamed) in the querystring
+        expect(await fetchJson(`${baseUrl}/book/a?authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]);
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST"})).toStrictEqual([null, null]); //
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{name: "a"}'})).toStrictEqual(["a", null]); //
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '["a"]'})).toStrictEqual(["a", null]); //
+
+        // Combination of the above:
+        expect(await fetchJson(`${baseUrl}/getBook?name=fromQuery&authorFilter=b`, {method: "POST", body: '["fromBody"]'})).toStrictEqual(["fromBody", "b"]); //
+        expect(await fetchJson(`${baseUrl}/getBook/fromQuery?authorFilter=b`, {method: "POST", body: '["fromBody"]'})).toStrictEqual(["fromBody", "b"]); //
+        expect(await fetchJson(`${baseUrl}/getBook/fromQuery?authorFilter=b`, {method: "POST", body: '{authorFilter: "fromBody"}'})).toStrictEqual(["fromQuery", "fromBody"]); //
+
+
+
+        // TODO
+    });
+})
+
 const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''", new Date()];
 
 test('Return types', async () => {
@@ -271,19 +309,24 @@ test('.req, .resp and Resources leaks', async () => {
     });
 });
 
+test('parseQuery', () => {
+    expect(new RestService().parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
+    expect(new RestService().parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
+});
+
 test('Reserved names', async () => {
     await runClientServerTests(new class extends RestService{
 
     },async apiProxy => {
         for(const forbiddenName of ["req", "resp", "session"]) {
             // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, "You are trying to call a remote method that is a reserved name");
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
         }
 
         // Check that these can't be used if not defined:
         for(const forbiddenName of ["get", "set"]) {
             // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, "You are trying to call a remote method that does not exist");
+            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
         }
     });
 });

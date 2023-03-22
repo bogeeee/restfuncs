@@ -77,3 +77,14 @@ export function cloneError(e: any): object {
         ...e // try everything else that's accessible as properties
     }
 }
+
+/**
+ * @return Value with big "V"
+ */
+export function Camelize(value: string) {
+    if(value == "") {
+        return "";
+    }
+    return value.substring(0,1).toUpperCase() + value.substring(1);
+}
+

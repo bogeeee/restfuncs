@@ -4,12 +4,13 @@ import session from "express-session";
 import {cloneError, enhanceViaProxyDuringCall} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
-import {reflect, ReflectedMethod} from "typescript-rtti";
+import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {isTypeInfoAvailable, RestService} from "./RestService";
+import {isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
 import _ from "underscore";
 export {RestService} from "./RestService";
+import URL from "url"
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -166,33 +167,72 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
 
-            // Determine method name:
-            const methodName =  req.path.replace(/^\//, ""); // Remove trailing /
-            if(!methodName) {
-                throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
+            if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE") {
+                throw new Error("Unhandled http method: " + req.method);
             }
 
-            let namedArgs: Record<string, any> = {};
-            let args: any[] = [];
-            // Parse req.body into args:
+            // *** The following lines may have no or only lax security checks. All strict checks are then made in the call to restService.validateAndDoCall, see below ***
+
+            // Determine path tokens:
+            const url = URL.parse(req.url);
+            const relativePath =  req.path.replace(/^\//, ""); // Remove trailing / - relative to baseurl
+            const pathTokens = relativePath.split("/");
+
+            // retrieve method name:
+            let methodNameFromPath = pathTokens[0];
+            if(!methodNameFromPath) {
+                throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
+            }
+            const methodName = restService.getMethodNameForCall(req.method, methodNameFromPath);
+            if(!methodName) {
+                throw new Error(`No method candidate found for ${req.method} + ${methodName}.`);
+            }
+
+            let params: any[] = [];
+            const reflectMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
+
+            // Path:
+            if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
+                params = convertParamsList(restService, reflectMethod, pathTokens.slice(1), "string");
+            }
+
+            // Querystring params:
+            if(url.query) {
+                const parsed= restService.parseQuery(url.query);
+                if(_.isArray(parsed.result) && parsed.result.length > 0) { // Listed ?
+                    params = convertParamsList(restService, reflectMethod, parsed.result, "string")
+                }
+                else { // Named ?
+                    convertAndAddParamsMap(restService, reflectMethod, parsed.result, params, "string");
+                }
+
+                if(!reflectMethod) {
+                    throw new Error("Cannot use (named) query parameters because runtime type information is not available.\n" + restService._diagnosisWhyIsRTTINotAvailable());
+                }
+            }
+
+
+
+            // Parse req.body into params:
             const contentType = req.header("Content-Type");
             if(contentType == "application/json") { // Application/json
-                args = req.body; // Args was already parsed to json by the express.json handler
+                params = req.body; // Args was already parsed to json by the express.json handler
+                // TODO: auto fix dates etc.
             }
             else if(contentType == "application/brillout-json") {
                 if(!(req.body && req.body instanceof Buffer)) {
                     throw new Error("req.body is no Buffer")
                 }
                 // @ts-ignore
-                args = brilloutJsonParse(req.body.toString("utf8"));
+                params = brilloutJsonParse(req.body.toString("utf8"));
             }
             else if (!_.isEqual(req.body, {})) { // non empty body ?
                 throw new Error("You must set the Content-type header to application/json or application/brillout-json");
             }
 
-            // Make sure that args is an array:
-            if(!args || args.constructor !== Array) {
-                args = [];
+            // Make sure that params is an array:
+            if(!params || params.constructor !== Array) {
+                params = [];
             }
 
             let session = null;
@@ -202,7 +242,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
-            let result = await restService.validateAndDoCall(req.method, methodName, args, {req, resp, session}, options);
+            let result = await restService.validateAndDoCall(req.method, methodName, params, {req, resp, session}, options);
 
             // Send result:
             if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?
@@ -227,3 +267,64 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
     return router;
 }
 
+/**
+ * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
+ *
+ * @param restService
+ * @param reflectedMethod
+ * @param paramsMap
+ * @param targetParams
+ * @param source
+ */
+function convertAndAddParamsMap(restService: RestService, reflectedMethod: ReflectedMethod | null, paramsMap: Record<string, any>, targetParams: any[], source: ParameterSource) {
+    if(!reflectedMethod) {
+        throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+    }
+
+    for(const i in reflectedMethod.parameters) {
+        const parameter = reflectedMethod.parameters[i];
+
+        const value = paramsMap[parameter.name];
+        if(value !== undefined) {
+            if (parameter.isRest) {
+                throw new Error(`Cannot set ...${parameter.name} through named parameter`)
+            }
+            const convertedValue = restService.autoConvertValueForParameter(value, parameter, source);
+            targetParams[i] = convertedValue;
+        }
+    }
+}
+
+/**
+ *
+ * @param reflectedMethod
+ * @param params
+ * @returns
+ */
+function convertParamsList(restService: RestService, reflectedMethod: ReflectedMethod | null, params: string[], source: ParameterSource) {
+    if(!reflectedMethod) {
+        return params;
+    }
+
+    let behindRest = false;
+    let parameter: ReflectedMethodParameter;
+    return params.map((value,i) => {
+        // retrieve parameter:
+        if(!behindRest) {
+            parameter = reflectedMethod.parameters[i];
+            if(parameter.isRest) {
+                behindRest = true;
+            }
+        }
+
+        if(parameter.isOmitted || parameter.isBinding) {
+            return value;
+        }
+
+        if(parameter.isBinding) {
+            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+        }
+
+        return restService.autoConvertValueForParameter(value, parameter, source);
+    });
+}

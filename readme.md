@@ -1,6 +1,6 @@
 # Restfuncs
 
-**Serve** a REST API for your **plain functions** and seamlessly **RPC-call** them from the client (browser).
+**Serve** a REST interface for your **plain functions** and seamlessly **RPC-call** them from the client (browser).
 
 Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over? How about this:
 
@@ -23,8 +23,9 @@ restfuncs({
 import restfuncsClient from "restfuncs-client"
 
 const remote = restfuncsClient("http://localhost:3000")
-console.log(await remote.greet("Bob"))
+console.log(await remote.greet("Bob")) // Call in RPC style
 ```
+Now your greet method is also available as a [REST interface, see below](#rest-interface).
 <br/>
 <br/>
 <br/>
@@ -113,6 +114,41 @@ See a discussion of that issue [here](https://github.com/bogeeee/restfuncs/issue
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
 # Advanced
+
+# REST interface
+
+Like the name restfuncs suggests, there's also a REST interface for the case that you don't use the neat RPC client or you want to call these from other languages, etc.
+
+The following example service's method...
+```typescript
+    function getBook(name: string, authorFilter?: string) {
+        
+    }
+```
+...can be called in almost **every imaginable way** through http like:
+
+| Method | Url | Body | Description 
+| :----: | :-----------------------: | :-------------: | :-----------: |
+| GET | _/**getBook**/1984/George%20Orwell_ | | **Listed** arguments in the path
+| GET | _/**getBook**?1984,George%20Orwell | | **Listed** arguments in the query
+| GET | _/**getBook**?name=1984&authorFilter=George%20Orwell_ | | **Named** arguments in the query
+| GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your RestService subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
+| GET | _/**book** ..._ | | Read **"GET book"** like `getBook`. Applies to other http verbs also. Additionally **"PUT book"** will try to call `updateBook` or `setBook` cause this sounds more common in programming languages.
+| POST | _/**getBook**_ | | 
+| POST | _/**getBook**_ | `{name: "1984", authorFilter:"George Orwell"}` | **Named** arguments as JSON
+| POST | _/**getBook**_ | `["1984", "George Orwell"]` | **Listed** arguments as JSON
+
+You are free to mix these styles ;) **Named** arguments from a lower line in the table will override/precede the ones from above, while "**Listed**" style can't be used twice
+
+Also note the limitation of [GET beeing only allowed for get... methods](#get-methods-can-be-triggered-cross-site)
+### Content types
+To specify what you **send**, set the `Content-Type` header to 
+ - `application/json` _(default)_ Mind that JSON lacks support for some Data types.
+ - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) better.
+
+To specify what you **receive** in the response, Set the `Accept` header to above mentioned.
+
+ 
 
 ## Mangle with raw request and response
 

@@ -1,8 +1,8 @@
 import {Request, Response} from "express";
 import _ from "underscore";
 import {RestfuncsOptions} from "./index";
-import {reflect, ReflectedMethod} from "typescript-rtti";
-import {enhanceViaProxyDuringCall} from "./Util";
+import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
+import {Camelize, enhanceViaProxyDuringCall} from "./Util";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -109,6 +109,8 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<an
 }
 
 
+export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
+export type ParameterSource = "string" | "json";
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
@@ -179,8 +181,8 @@ export class RestService {
             throw new Error(`${methodName} is not a function`);
         }
 
-        if(httpMethod === "GET") {
-            if(!this.methodAllowedByGET(methodName)) {
+        if (httpMethod === "GET") {
+            if (this.denyMethodByGet(methodName)) {
                 throw new Error(`${methodName} is not allowed to be called by http GET. See https://github.com/bogeeee/restfuncs#get-methods-can-be-triggered-cross-site`);
             }
         }
@@ -236,11 +238,148 @@ export class RestService {
 
     /**
      * You can override this as part of the API
+     * @param query i.e. book=1984&author=George%20Orwell&keyWithoutValue
+     * @return I.e. {
+     *      result: {book: "1984", author="George Orwell", keyWithoutValue:"true"}
+     *      containsStringValuesOnly: true // decides, which of the autoConvertValueForParameter_... methods is used.
+     * }
+     */
+    parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
+        // Query is a list i.e: "a,b,c" ?
+        if(query.indexOf(",") > query.indexOf("=")) { // , before = means, we assume it is a comma separated list
+            return {
+                result: query.split(",").map( value => decodeURIComponent(value)),
+                containsStringValuesOnly: true
+            };
+        }
+        else { // Query is a map (named) ?
+            const result: Record<string, string> = {};
+            const tokens = query.split("&");
+            for (const token of tokens) {
+                if (!token) {
+                    continue;
+                }
+                if (token.indexOf("=") > -1) {
+                    const [key, value] = token.split("=");
+                    if (key) {
+                        result[decodeURIComponent(key)] = decodeURIComponent(value);
+                    }
+                } else {
+                    result[decodeURIComponent(token)] = "true";
+                }
+            }
+            return {result, containsStringValuesOnly: true};
+        }
+    }
+
+    /**
+     * You can override this as part of the API
+     * @param methodName method/function name
+     * @see RestfuncsOptions#allowGET This setting still has precedence.
+     */
+    public denyMethodByGet(methodName: string) {
+        return !methodName.startsWith("get");
+    }
+
+    /**
+     * You can override this as part of the API
      * @param methodName
      */
-    public methodAllowedByGET(methodName: string) {
-       return methodName.startsWith("get");
+    public hasMethod(methodName: string) {
+        return this[methodName] && (typeof this[methodName] === "function");
     }
+
+    /**
+     * Retrieves, which method should be picked. I.e GET user -> getUser
+     *
+     * You can override this as part of the API
+     * @param httpMethod
+     * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
+     */
+    public getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
+        if (this.hasMethod(path)) { // Direct hit
+            return path; // We are done and don't lose performance on other checks
+        }
+
+        // check: GET user -> getUser
+        {
+            const candidate = `${httpMethod.toLowerCase()}${Camelize(path)}`;
+            if (this.hasMethod(candidate)) {
+                return candidate;
+            }
+        }
+
+
+        if (httpMethod === "PUT") {
+            // check: PUT user -> updateUser
+            {
+                const candidate = `update${Camelize(path)}`;
+                if (this.hasMethod(candidate)) {
+                    return candidate;
+                }
+            }
+
+            // check: PUT user -> setUser
+            {
+                const candidate = `set${Camelize(path)}`;
+                if (this.hasMethod(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @see #autoConvertValueForParameter_fromString
+     * @see #autoConvertValueForParameter_fromJson
+     */
+    public autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
+        if(source === "string") {
+            if(typeof value !== "string") {
+                throw new Error(`${parameter.name} parameter should be a string`);
+            }
+            return this.autoConvertValueForParameter_fromString(value, parameter);
+        }
+        else if(source === "json") {
+            return this.autoConvertValueForParameter_fromJson(value, parameter);
+        }
+        else {
+            return value;
+        }
+    }
+
+    /**
+     * Values from the url path or the query are plain strings only.
+     * This method is called to convert them to the actual needed parameter type.
+     * If it doesn't know how to convert it, the value is returned as is. The validity/security is checked at a later stage again.
+     *
+     * You can override this as part of the API
+     * @param value
+     * @param parameter The parameter where this will be inserted into
+     * @returns
+     */
+    public autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
+        return value; // TODO
+    }
+
+    /**
+     * Fixes values that were passed in the request body (json) to the actual needed parameter type.
+     *
+     * Currently this is only for Date objects, since json lacks of representing these.
+     * Other values (i.e. parameter needs Number but value is a string) will be left untouched, so they will produce the right error message at the later validity/security checking stage.
+     *
+     * You can override this as part of the API
+     * @param value
+     * @param parameter The parameter where this will be inserted into
+     * @returns
+     */
+    public autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
+        return value; // TODO
+    }
+
+
 
     /**
      * Internal
@@ -281,16 +420,18 @@ export class RestService {
 
         // Warn/error if type info is not available:
         if(!isTypeInfoAvailable(restService)) {
-            const diagnosis_whyNotAvailable = diagnosis_isAnonymousObject(restService)?"Probably this is because your service is an anonymous object and not defined as a class.":"To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
             if(options.checkArguments) {
-                throw new Error("Runtime type information is not available.\n" +  diagnosis_whyNotAvailable);
+                throw new Error("Runtime type information is not available.\n" +  restService._diagnosisWhyIsRTTINotAvailable());
             }
             else if(options.checkArguments === undefined) {
-                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + diagnosis_whyNotAvailable)
+                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + restService._diagnosisWhyIsRTTINotAvailable())
             }
         }
 
         return restService;
     }
 
+    public _diagnosisWhyIsRTTINotAvailable() {
+        return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
+    }
 }
