@@ -135,7 +135,7 @@ The following example service's method...
 | GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your RestService subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
 | GET | _/**book** ..._ | | Read **"GET book"** like `getBook`. Applies to other http verbs also. Additionally **"PUT book"** will try to call `updateBook` or `setBook` cause this sounds more common in programming languages.
 | POST | _/**getBook**_ | | 
-| POST | _/**getBook**_ | `{name: "1984", authorFilter:"George Orwell"}` | **Named** arguments as JSON
+| POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Named** arguments as JSON
 | POST | _/**getBook**_ | `["1984", "George Orwell"]` | **Listed** arguments as JSON
 
 You are free to mix these styles ;) **Named** arguments from a lower line in the table will override/precede the ones from above, while "**Listed**" style can't be used twice

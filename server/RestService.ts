@@ -110,7 +110,7 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<an
 
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
-export type ParameterSource = "string" | "json";
+export type ParameterSource = "string" | "json" | null;
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */

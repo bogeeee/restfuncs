@@ -1,7 +1,7 @@
 import 'reflect-metadata' // Must import
-import express, {Router} from "express";
+import express, {raw, Router} from "express";
 import session from "express-session";
-import {cloneError, enhanceViaProxyDuringCall} from "./Util";
+import {cloneError} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -9,8 +9,9 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
 import _ from "underscore";
-export {RestService} from "./RestService";
 import URL from "url"
+
+export {RestService} from "./RestService";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -157,8 +158,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
     const router = express.Router();
 
-    router.use(express.json({limit: Number.MAX_VALUE, strict: true, inflate: false})) // parse old style application/json and make it available in req.body (in further handlers) TODO: When used with authentication, parse after auth to make it safer
-    router.use(express.raw({limit: Number.MAX_VALUE, type: ["application/brillout-json"], inflate: false})) // parse application/brillout-json and make it available in req.body
+    router.use(express.raw({limit: Number.MAX_VALUE, inflate: false, type: req => true})) // parse application/brillout-json and make it available in req.body
+
     router.use(async (req, resp, next) => {
         try {
             // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
@@ -198,6 +199,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             // Querystring params:
             if(url.query) {
+                //TODO: if(onlyOneSlotLeft) {restService.parseQuerySingleValue(url.query) ... }
                 const parsed= restService.parseQuery(url.query);
                 convertAndAddParams(restService, reflectMethod, parsed.result, params, parsed.containsStringValuesOnly?"string":"json");
             }
@@ -205,19 +207,41 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
 
             // Parse req.body into params:
-            const contentType = req.header("Content-Type");
-            if(contentType == "application/json") { // Application/json
-                convertAndAddParams(restService, reflectMethod, JSON.parse(req.body.toString("utf8")), params, "json");
-            }
-            else if(contentType == "application/brillout-json") {
-                if(!(req.body && req.body instanceof Buffer)) {
-                    throw new Error("req.body is no Buffer")
+            if(req.body && req.body instanceof Buffer) {
+                const contentType = req.header("Content-Type");
+                //TODO: if(onlyOneSlotLeft) { ... }
+                const rawBodyText = req.body.toString("utf8");
+                if (contentType == "application/json") { // Application/json
+                    convertAndAddParams(restService, reflectMethod, JSON.parse(rawBodyText), params, "json");
+                } else if (contentType == "application/brillout-json") {
+                    convertAndAddParams(restService, reflectMethod, brilloutJsonParse(rawBodyText), params, null);
+                } else {
+                    let arrayOrObjectFromJson;
+                    if(rawBodyText.startsWith("[") || rawBodyText.startsWith("{")) { // Json array or object ?
+                        try {
+                            arrayOrObjectFromJson = JSON.parse(rawBodyText);
+                        }
+                        catch (e) {
+                            arrayOrObjectFromJson = e;
+                        }
+                    }
+
+                    if(arrayOrObjectFromJson !== undefined && !(arrayOrObjectFromJson instanceof Error)) { // Successfully parsed from json ?
+                        convertAndAddParams(restService, reflectMethod, JSON.parse(rawBodyText), params, "json");
+                    }
+                    else if(rawBodyText === "") {
+                        // This means that most like likely the body is empty and the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
+                    }
+                    else if(arrayOrObjectFromJson instanceof Error) {
+                        throw arrayOrObjectFromJson;
+                    }
+                    else {
+                        throw new Error("Request body invalid");
+                    }
                 }
-                // @ts-ignore
-                params = brilloutJsonParse(req.body.toString("utf8"));
             }
             else if (!_.isEqual(req.body, {})) { // non empty body ?
-                throw new Error("You must set the Content-type header to application/json or application/brillout-json");
+                throw new Error("Unhandled non-empty body. Please report this as a bug.")
             }
 
             // Make sure that params is an array:
@@ -307,8 +331,7 @@ function convertAndAddParams(restService: RestService, reflectedMethod: Reflecte
                 if (parameter.isRest) {
                     throw new Error(`Cannot set ...${parameter.name} through named parameter`)
                 }
-                const convertedValue = restService.autoConvertValueForParameter(value, parameter, source);
-                targetParams[i] = convertedValue;
+                targetParams[i] = restService.autoConvertValueForParameter(value, parameter, source);
             }
         }
     }
