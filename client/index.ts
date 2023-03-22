@@ -27,7 +27,7 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
     } catch (e) {
         // @ts-ignore
         if (e?.cause) {
-            // TODO: throw a better message than just "fetch failed"
+            // TODO: throw a better message than just "fetch failed" -> nah, the runtime sometimes doesn't show the cause properly. Try recompiling
         }
         throw e;
     }
