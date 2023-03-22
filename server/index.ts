@@ -269,6 +269,9 @@ function convertAndAddParams(restService: RestService, reflectedMethod: Reflecte
         return params.map((value,i) => {
             // retrieve parameter:
             if(!behindRest) {
+                if(i >= reflectedMethod.parameters.length) { // Out of range ?
+                    return value; // Still add the value so later check will complain with the correct message
+                }
                 parameter = reflectedMethod.parameters[i];
                 if(parameter.isRest) {
                     behindRest = true;
