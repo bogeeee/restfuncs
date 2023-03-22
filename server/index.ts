@@ -193,22 +193,13 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             // Path:
             if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
-                params = convertParamsList(restService, reflectMethod, pathTokens.slice(1), "string");
+                convertAndAddParams(restService, reflectMethod, pathTokens.slice(1),params, "string");
             }
 
             // Querystring params:
             if(url.query) {
                 const parsed= restService.parseQuery(url.query);
-                if(_.isArray(parsed.result) && parsed.result.length > 0) { // Listed ?
-                    params = convertParamsList(restService, reflectMethod, parsed.result, "string")
-                }
-                else { // Named ?
-                    convertAndAddParamsMap(restService, reflectMethod, parsed.result, params, "string");
-                }
-
-                if(!reflectMethod) {
-                    throw new Error("Cannot use (named) query parameters because runtime type information is not available.\n" + restService._diagnosisWhyIsRTTINotAvailable());
-                }
+                convertAndAddParams(restService, reflectMethod, parsed.result, params, parsed.containsStringValuesOnly?"string":"json");
             }
 
 
@@ -216,8 +207,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             // Parse req.body into params:
             const contentType = req.header("Content-Type");
             if(contentType == "application/json") { // Application/json
-                params = req.body; // Args was already parsed to json by the express.json handler
-                // TODO: auto fix dates etc.
+                convertAndAddParams(restService, reflectMethod, JSON.parse(req.body.toString("utf8")), params, "json");
             }
             else if(contentType == "application/brillout-json") {
                 if(!(req.body && req.body instanceof Buffer)) {
@@ -267,33 +257,79 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
     return router;
 }
 
-/**
- * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
- *
- * @param restService
- * @param reflectedMethod
- * @param paramsMap
- * @param targetParams
- * @param source
- */
-function convertAndAddParamsMap(restService: RestService, reflectedMethod: ReflectedMethod | null, paramsMap: Record<string, any>, targetParams: any[], source: ParameterSource) {
-    if(!reflectedMethod) {
-        throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+function convertAndAddParams(restService: RestService, reflectedMethod: ReflectedMethod | null, params: any, targetParams: any[], source: ParameterSource) {
+
+    function autoConvertParamsArray(params: any[]) {
+        if(!reflectedMethod) {
+            return params;
+        }
+
+        let behindRest = false;
+        let parameter: ReflectedMethodParameter;
+        return params.map((value,i) => {
+            // retrieve parameter:
+            if(!behindRest) {
+                parameter = reflectedMethod.parameters[i];
+                if(parameter.isRest) {
+                    behindRest = true;
+                }
+            }
+
+            if(parameter.isOmitted || parameter.isBinding) {
+                return value;
+            }
+
+            if(parameter.isBinding) {
+                throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+            }
+
+            return restService.autoConvertValueForParameter(value, parameter, source);
+        });
     }
 
-    for(const i in reflectedMethod.parameters) {
-        const parameter = reflectedMethod.parameters[i];
 
-        const value = paramsMap[parameter.name];
-        if(value !== undefined) {
-            if (parameter.isRest) {
-                throw new Error(`Cannot set ...${parameter.name} through named parameter`)
+    /**
+     * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
+     */
+    function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
+        if(!reflectedMethod) {
+            throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+        }
+
+        for(const i in reflectedMethod.parameters) {
+            const parameter = reflectedMethod.parameters[i];
+
+            const value = paramsMap[parameter.name];
+            if(value !== undefined) {
+                if (parameter.isRest) {
+                    throw new Error(`Cannot set ...${parameter.name} through named parameter`)
+                }
+                const convertedValue = restService.autoConvertValueForParameter(value, parameter, source);
+                targetParams[i] = convertedValue;
             }
-            const convertedValue = restService.autoConvertValueForParameter(value, parameter, source);
-            targetParams[i] = convertedValue;
         }
     }
+
+    if(params === undefined || params === null) {
+        return;
+    }
+
+    if(_.isArray(params)) {
+        if(params.length > 0) {
+            if (targetParams.length > 0) {
+                throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
+            }
+            targetParams.push(...autoConvertParamsArray(params));
+        }
+    }
+    else if(typeof params === "object") { // Named ?
+        autoConvertAndAddParamsMap(params);
+    }
+    else {
+        throw new Error("Unhandled type: Please provide json with an array or an object as the root");
+    }
 }
+
 
 /**
  *
@@ -301,30 +337,3 @@ function convertAndAddParamsMap(restService: RestService, reflectedMethod: Refle
  * @param params
  * @returns
  */
-function convertParamsList(restService: RestService, reflectedMethod: ReflectedMethod | null, params: string[], source: ParameterSource) {
-    if(!reflectedMethod) {
-        return params;
-    }
-
-    let behindRest = false;
-    let parameter: ReflectedMethodParameter;
-    return params.map((value,i) => {
-        // retrieve parameter:
-        if(!behindRest) {
-            parameter = reflectedMethod.parameters[i];
-            if(parameter.isRest) {
-                behindRest = true;
-            }
-        }
-
-        if(parameter.isOmitted || parameter.isBinding) {
-            return value;
-        }
-
-        if(parameter.isBinding) {
-            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
-        }
-
-        return restService.autoConvertValueForParameter(value, parameter, source);
-    });
-}
