@@ -1,5 +1,5 @@
 import 'reflect-metadata' // Must import
-import express, {raw, Router} from "express";
+import express, {raw, Router, Request} from "express";
 import session from "express-session";
 import {cloneError} from "./Util";
 import http from "node:http";
@@ -172,15 +172,9 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new Error("Unhandled http method: " + req.method);
             }
 
-            // *** The following lines may have no or only lax security checks. All strict checks are then made in the call to restService.validateAndDoCall, see below ***
-
-            // Determine path tokens:
-            const url = URL.parse(req.url);
-            const relativePath =  req.path.replace(/^\//, ""); // Remove trailing / - relative to baseurl
-            const pathTokens = relativePath.split("/");
-
             // retrieve method name:
-            let methodNameFromPath = pathTokens[0];
+            const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
+            let methodNameFromPath = fixedPath.split("/")[0];
             if(!methodNameFromPath) {
                 throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
             }
@@ -189,139 +183,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new Error(`No method candidate found for ${req.method} + ${methodName}.`);
             }
 
-            let collectedParams: any[] = []; // Params that will actually enter the method
-            const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
-
-            const convertAndAddParams = function(params: any, source: ParameterSource) {
-
-                function autoConvertParamsArray(params: any[]) {
-                    if(!reflectedMethod) {
-                        return params;
-                    }
-
-                    let behindRest = false;
-                    let parameter: ReflectedMethodParameter;
-                    return params.map((value,i) => {
-                        // retrieve parameter:
-                        if(!behindRest) {
-                            if(i >= reflectedMethod.parameters.length) { // Out of range ?
-                                return value; // Still add the value so later check will complain with the correct message
-                            }
-                            parameter = reflectedMethod.parameters[i];
-                            if(parameter.isRest) {
-                                behindRest = true;
-                            }
-                        }
-
-                        if(parameter.isOmitted || parameter.isBinding) {
-                            return value;
-                        }
-
-                        if(parameter.isBinding) {
-                            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
-                        }
-
-                        return restService.autoConvertValueForParameter(value, parameter, source);
-                    });
-                }
-
-
-                /**
-                 * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
-                 */
-                function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
-                    if(!reflectedMethod) {
-                        throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
-                    }
-
-                    for(const i in reflectedMethod.parameters) {
-                        const parameter = reflectedMethod.parameters[i];
-
-                        const value = paramsMap[parameter.name];
-                        if(value !== undefined) {
-                            if (parameter.isRest) {
-                                throw new Error(`Cannot set ...${parameter.name} through named parameter`)
-                            }
-                            collectedParams[i] = restService.autoConvertValueForParameter(value, parameter, source);
-                        }
-                    }
-                }
-
-                if(params === undefined || params === null) {
-                    return;
-                }
-
-                if(_.isArray(params)) {
-                    if(params.length > 0) {
-                        if (collectedParams.length > 0) {
-                            throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
-                        }
-                        collectedParams.push(...autoConvertParamsArray(params));
-                    }
-                }
-                else if(typeof params === "object") { // Named ?
-                    autoConvertAndAddParamsMap(params);
-                }
-                else {
-                    throw new Error("Unhandled type: Please provide json with an array or an object as the root");
-                }
-            }
-
-
-            // Path:
-            if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
-                convertAndAddParams(pathTokens.slice(1),"string");
-            }
-
-            // Querystring params:
-            if(url.query) {
-                //TODO: if(onlyOneSlotLeft) {restService.parseQuerySingleValue(url.query) ... }
-                const parsed= restService.parseQuery(url.query);
-                convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
-            }
-
-            // Parse req.body into params:
-            if(req.body && req.body instanceof Buffer) {
-                const contentType = req.header("Content-Type");
-                //TODO: if(onlyOneSlotLeft) { ... }
-                const rawBodyText = req.body.toString("utf8");
-                if (contentType == "application/json") { // Application/json
-                    convertAndAddParams(JSON.parse(rawBodyText), "json");
-                } else if (contentType == "application/brillout-json") {
-                    convertAndAddParams(brilloutJsonParse(rawBodyText), null);
-                } else {
-                    let arrayOrObjectFromJson;
-                    if(rawBodyText.startsWith("[") || rawBodyText.startsWith("{")) { // Json array or object ?
-                        try {
-                            arrayOrObjectFromJson = JSON.parse(rawBodyText);
-                        }
-                        catch (e) {
-                            arrayOrObjectFromJson = e;
-                        }
-                    }
-
-                    if(arrayOrObjectFromJson !== undefined && !(arrayOrObjectFromJson instanceof Error)) { // Successfully parsed from json ?
-                        convertAndAddParams(JSON.parse(rawBodyText), "json");
-                    }
-                    else if(rawBodyText === "") {
-                        // This means that most like likely the body is empty and the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
-                    }
-                    else if(arrayOrObjectFromJson instanceof Error) {
-                        throw arrayOrObjectFromJson;
-                    }
-                    else {
-                        throw new Error("Request body invalid");
-                    }
-                }
-            }
-            else if (!_.isEqual(req.body, {})) { // non empty body ?
-                throw new Error("Unhandled non-empty body. Please report this as a bug.")
-            }
-
-            // Make sure that params is an array:
-            if(!collectedParams || collectedParams.constructor !== Array) {
-                collectedParams = [];
-            }
+            const collectedParams = collectParamsFromRequest(restService, methodName, req);
 
             let session = null;
             // @ts-ignore
@@ -353,4 +215,151 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
     });
 
     return router;
+}
+
+/**
+ * Wildly collects the parameters. This method is only side effect free but the result may not be secure !
+ *
+ * @see RestService#validateAndDoCall use this method to check the security on the result
+ * @param restService
+ * @param methodName
+ * @param req
+ * @return evil parameters
+ */
+function collectParamsFromRequest(restService: RestService, methodName: string, req: Request): any[] {
+    // Determine path tokens:
+    const url = URL.parse(req.url);
+    const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
+    const pathTokens = relativePath.split("/");
+
+    let result: any[] = []; // Params that will actually enter the method
+    const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
+
+    const convertAndAddParams = function(params: any, source: ParameterSource) {
+
+        function autoConvertParamsArray(params: any[]) {
+            if(!reflectedMethod) {
+                return params;
+            }
+
+            let behindRest = false;
+            let parameter: ReflectedMethodParameter;
+            return params.map((value,i) => {
+                // retrieve parameter:
+                if(!behindRest) {
+                    if(i >= reflectedMethod.parameters.length) { // Out of range ?
+                        return value; // Still add the value so later check will complain with the correct message
+                    }
+                    parameter = reflectedMethod.parameters[i];
+                    if(parameter.isRest) {
+                        behindRest = true;
+                    }
+                }
+
+                if(parameter.isOmitted || parameter.isBinding) {
+                    return value;
+                }
+
+                if(parameter.isBinding) {
+                    throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+                }
+
+                return restService.autoConvertValueForParameter(value, parameter, source);
+            });
+        }
+
+
+        /**
+         * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
+         */
+        function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
+            if(!reflectedMethod) {
+                throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+            }
+
+            for(const i in reflectedMethod.parameters) {
+                const parameter = reflectedMethod.parameters[i];
+
+                const value = paramsMap[parameter.name];
+                if(value !== undefined) {
+                    if (parameter.isRest) {
+                        throw new Error(`Cannot set ...${parameter.name} through named parameter`)
+                    }
+                    result[i] = restService.autoConvertValueForParameter(value, parameter, source);
+                }
+            }
+        }
+
+        if(params === undefined || params === null) {
+            return;
+        }
+
+        if(_.isArray(params)) {
+            if(params.length > 0) {
+                if (result.length > 0) {
+                    throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
+                }
+                result.push(...autoConvertParamsArray(params));
+            }
+        }
+        else if(typeof params === "object") { // Named ?
+            autoConvertAndAddParamsMap(params);
+        }
+        else {
+            throw new Error("Unhandled type: Please provide json with an array or an object as the root");
+        }
+    }
+
+
+    // Path:
+    if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
+        convertAndAddParams(pathTokens.slice(1),"string");
+    }
+
+    // Querystring params:
+    if(url.query) {
+        //TODO: if(onlyOneSlotLeft) {restService.parseQuerySingleValue(url.query) ... }
+        const parsed= restService.parseQuery(url.query);
+        convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
+    }
+
+    // Parse req.body into params:
+    if(req.body && req.body instanceof Buffer) {
+        const contentType = req.header("Content-Type");
+        //TODO: if(onlyOneSlotLeft) { ... }
+        const rawBodyText = req.body.toString("utf8");
+        if (contentType == "application/json") { // Application/json
+            convertAndAddParams(JSON.parse(rawBodyText), "json");
+        } else if (contentType == "application/brillout-json") {
+            convertAndAddParams(brilloutJsonParse(rawBodyText), null);
+        } else {
+            let arrayOrObjectFromJson;
+            if(rawBodyText.startsWith("[") || rawBodyText.startsWith("{")) { // Json array or object ?
+                try {
+                    arrayOrObjectFromJson = JSON.parse(rawBodyText);
+                }
+                catch (e) {
+                    arrayOrObjectFromJson = e;
+                }
+            }
+
+            if(arrayOrObjectFromJson !== undefined && !(arrayOrObjectFromJson instanceof Error)) { // Successfully parsed from json ?
+                convertAndAddParams(JSON.parse(rawBodyText), "json");
+            }
+            else if(rawBodyText === "") {
+                // This means that most like likely the body is empty and the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
+            }
+            else if(arrayOrObjectFromJson instanceof Error) {
+                throw arrayOrObjectFromJson;
+            }
+            else {
+                throw new Error("Request body invalid");
+            }
+        }
+    }
+    else if (!_.isEqual(req.body, {})) { // non empty body ?
+        throw new Error("Unhandled non-empty body. Please report this as a bug.")
+    }
+
+    return result;
 }
