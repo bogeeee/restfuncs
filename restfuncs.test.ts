@@ -312,6 +312,10 @@ test('.req, .resp and Resources leaks', async () => {
 test('parseQuery', () => {
     expect(new RestService().parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
     expect(new RestService().parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
+    expect(new RestService().parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
+    expect(new RestService().parseQuery("&c").result).toStrictEqual({"c": "true"});
+    expect(new RestService().parseQuery("singleElement").result).toStrictEqual(["singleElement"]);
+
 });
 
 test('Reserved names', async () => {

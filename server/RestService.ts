@@ -252,7 +252,7 @@ export class RestService {
                 containsStringValuesOnly: true
             };
         }
-        else { // Query is a map (named) ?
+        else if(query.indexOf("=") > 0 || query.indexOf("&") > -1){ // Query is a map (named) ?
             const result: Record<string, string> = {};
             const tokens = query.split("&");
             for (const token of tokens) {
@@ -269,6 +269,9 @@ export class RestService {
                 }
             }
             return {result, containsStringValuesOnly: true};
+        }
+        else {
+            return {result: [query], containsStringValuesOnly: true}; // Single element
         }
     }
 
