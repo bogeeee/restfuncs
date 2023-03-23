@@ -232,47 +232,48 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
     const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
     const pathTokens = relativePath.split("/");
 
+    const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):undefined;
+
     let result: any[] = []; // Params that will actually enter the method
-    const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
+    let listInsertionIndex = -1; // For Listed style /array
+    let listInsertionParameter: ReflectedMethodParameter;
 
     const convertAndAddParams = function(params: any, source: ParameterSource) {
 
-        function autoConvertParamsArray(params: any[]) {
-            if(!reflectedMethod) {
-                return params;
+        function addParamsArray(params: any[]): void {
+            function addValue(value: any) {
+                result[listInsertionIndex] = value;
             }
 
-            let behindRest = false;
-            let parameter: ReflectedMethodParameter;
-            return params.map((value,i) => {
-                // retrieve parameter:
-                if(!behindRest) {
-                    if(i >= reflectedMethod.parameters.length) { // Out of range ?
-                        return value; // Still add the value so later check will complain with the correct message
-                    }
-                    parameter = reflectedMethod.parameters[i];
-                    if(parameter.isRest) {
-                        behindRest = true;
+            for(const value of params) {
+                // progress list insertion
+                listInsertionIndex++;
+                if (reflectedMethod) {
+                    if (!(listInsertionParameter?.isRest)) { // Not behind rest
+                        listInsertionParameter = reflectedMethod.parameters[listInsertionIndex]
                     }
                 }
 
-                if(parameter.isOmitted || parameter.isBinding) {
-                    return value;
+                if(!listInsertionParameter) {
+                    addValue(value);
                 }
-
-                if(parameter.isBinding) {
+                else if(listInsertionParameter.isOmitted || listInsertionParameter.isBinding) {
+                    addValue(value);
+                }
+                else if(listInsertionParameter.isBinding) {
                     throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
                 }
-
-                return restService.autoConvertValueForParameter(value, parameter, source);
-            });
+                else {
+                    addValue(restService.autoConvertValueForParameter(value, listInsertionParameter, source));
+                }
+            }
         }
 
 
         /**
          * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
          */
-        function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
+        function addParamsMap(paramsMap: Record<string, any>) {
             if(!reflectedMethod) {
                 throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
             }
@@ -295,15 +296,10 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
         }
 
         if(_.isArray(params)) {
-            if(params.length > 0) {
-                if (result.length > 0) {
-                    throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
-                }
-                result.push(...autoConvertParamsArray(params));
-            }
+            addParamsArray(params);
         }
         else if(typeof params === "object") { // Named ?
-            autoConvertAndAddParamsMap(params);
+            addParamsMap(params);
         }
         else {
             throw new Error("Unhandled type: Please provide json with an array or an object as the root");

@@ -138,7 +138,7 @@ The following example service's method...
 | POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Named** arguments as JSON
 | POST | _/**getBook**_ | `["1984", "George Orwell"]` | **Listed** arguments as JSON
 
-You are free to mix these styles ;) **Named** arguments from a lower line in the table will override/precede the ones from above, while "**Listed**" style can't be used twice
+You are free to mix these styles ;) The styles are parsed in the order as listed, so arguments from a lower line in the table will override (named) or append to (listed) the ones from above.
 
 Also note the limitation of [GET beeing only allowed for get... methods](#get-methods-can-be-triggered-cross-site)
 ### Content types
