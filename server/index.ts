@@ -189,22 +189,96 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new Error(`No method candidate found for ${req.method} + ${methodName}.`);
             }
 
-            let params: any[] = [];
-            const reflectMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
+            let collectedParams: any[] = []; // Params that will actually enter the method
+            const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):null;
+
+            const convertAndAddParams = function(params: any, source: ParameterSource) {
+
+                function autoConvertParamsArray(params: any[]) {
+                    if(!reflectedMethod) {
+                        return params;
+                    }
+
+                    let behindRest = false;
+                    let parameter: ReflectedMethodParameter;
+                    return params.map((value,i) => {
+                        // retrieve parameter:
+                        if(!behindRest) {
+                            if(i >= reflectedMethod.parameters.length) { // Out of range ?
+                                return value; // Still add the value so later check will complain with the correct message
+                            }
+                            parameter = reflectedMethod.parameters[i];
+                            if(parameter.isRest) {
+                                behindRest = true;
+                            }
+                        }
+
+                        if(parameter.isOmitted || parameter.isBinding) {
+                            return value;
+                        }
+
+                        if(parameter.isBinding) {
+                            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+                        }
+
+                        return restService.autoConvertValueForParameter(value, parameter, source);
+                    });
+                }
+
+
+                /**
+                 * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
+                 */
+                function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
+                    if(!reflectedMethod) {
+                        throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+                    }
+
+                    for(const i in reflectedMethod.parameters) {
+                        const parameter = reflectedMethod.parameters[i];
+
+                        const value = paramsMap[parameter.name];
+                        if(value !== undefined) {
+                            if (parameter.isRest) {
+                                throw new Error(`Cannot set ...${parameter.name} through named parameter`)
+                            }
+                            collectedParams[i] = restService.autoConvertValueForParameter(value, parameter, source);
+                        }
+                    }
+                }
+
+                if(params === undefined || params === null) {
+                    return;
+                }
+
+                if(_.isArray(params)) {
+                    if(params.length > 0) {
+                        if (collectedParams.length > 0) {
+                            throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
+                        }
+                        collectedParams.push(...autoConvertParamsArray(params));
+                    }
+                }
+                else if(typeof params === "object") { // Named ?
+                    autoConvertAndAddParamsMap(params);
+                }
+                else {
+                    throw new Error("Unhandled type: Please provide json with an array or an object as the root");
+                }
+            }
+
 
             // Path:
             if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
-                convertAndAddParams(restService, reflectMethod, pathTokens.slice(1),params, "string");
+                convertAndAddParams(pathTokens.slice(1),"string");
             }
 
             // Querystring params:
             if(url.query) {
                 //TODO: if(onlyOneSlotLeft) {restService.parseQuerySingleValue(url.query) ... }
                 const parsed= restService.parseQuery(url.query);
-                convertAndAddParams(restService, reflectMethod, parsed.result, params, parsed.containsStringValuesOnly?"string":"json");
+                convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
             }
-
-
 
             // Parse req.body into params:
             if(req.body && req.body instanceof Buffer) {
@@ -212,9 +286,9 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 //TODO: if(onlyOneSlotLeft) { ... }
                 const rawBodyText = req.body.toString("utf8");
                 if (contentType == "application/json") { // Application/json
-                    convertAndAddParams(restService, reflectMethod, JSON.parse(rawBodyText), params, "json");
+                    convertAndAddParams(JSON.parse(rawBodyText), "json");
                 } else if (contentType == "application/brillout-json") {
-                    convertAndAddParams(restService, reflectMethod, brilloutJsonParse(rawBodyText), params, null);
+                    convertAndAddParams(brilloutJsonParse(rawBodyText), null);
                 } else {
                     let arrayOrObjectFromJson;
                     if(rawBodyText.startsWith("[") || rawBodyText.startsWith("{")) { // Json array or object ?
@@ -227,7 +301,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     }
 
                     if(arrayOrObjectFromJson !== undefined && !(arrayOrObjectFromJson instanceof Error)) { // Successfully parsed from json ?
-                        convertAndAddParams(restService, reflectMethod, JSON.parse(rawBodyText), params, "json");
+                        convertAndAddParams(JSON.parse(rawBodyText), "json");
                     }
                     else if(rawBodyText === "") {
                         // This means that most like likely the body is empty and the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
@@ -245,8 +319,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
             // Make sure that params is an array:
-            if(!params || params.constructor !== Array) {
-                params = [];
+            if(!collectedParams || collectedParams.constructor !== Array) {
+                collectedParams = [];
             }
 
             let session = null;
@@ -256,7 +330,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
-            let result = await restService.validateAndDoCall(req.method, methodName, params, {req, resp, session}, options);
+            let result = await restService.validateAndDoCall(req.method, methodName, collectedParams, {req, resp, session}, options);
 
             // Send result:
             if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?
@@ -280,86 +354,3 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
     return router;
 }
-
-function convertAndAddParams(restService: RestService, reflectedMethod: ReflectedMethod | null, params: any, targetParams: any[], source: ParameterSource) {
-
-    function autoConvertParamsArray(params: any[]) {
-        if(!reflectedMethod) {
-            return params;
-        }
-
-        let behindRest = false;
-        let parameter: ReflectedMethodParameter;
-        return params.map((value,i) => {
-            // retrieve parameter:
-            if(!behindRest) {
-                if(i >= reflectedMethod.parameters.length) { // Out of range ?
-                    return value; // Still add the value so later check will complain with the correct message
-                }
-                parameter = reflectedMethod.parameters[i];
-                if(parameter.isRest) {
-                    behindRest = true;
-                }
-            }
-
-            if(parameter.isOmitted || parameter.isBinding) {
-                return value;
-            }
-
-            if(parameter.isBinding) {
-                throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
-            }
-
-            return restService.autoConvertValueForParameter(value, parameter, source);
-        });
-    }
-
-
-    /**
-     * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
-     */
-    function autoConvertAndAddParamsMap(paramsMap: Record<string, any>) {
-        if(!reflectedMethod) {
-            throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
-        }
-
-        for(const i in reflectedMethod.parameters) {
-            const parameter = reflectedMethod.parameters[i];
-
-            const value = paramsMap[parameter.name];
-            if(value !== undefined) {
-                if (parameter.isRest) {
-                    throw new Error(`Cannot set ...${parameter.name} through named parameter`)
-                }
-                targetParams[i] = restService.autoConvertValueForParameter(value, parameter, source);
-            }
-        }
-    }
-
-    if(params === undefined || params === null) {
-        return;
-    }
-
-    if(_.isArray(params)) {
-        if(params.length > 0) {
-            if (targetParams.length > 0) {
-                throw new Error("Cannot use *listed* parameter style twice. See https://github.com/bogeeee/restfuncs#rest-interface")
-            }
-            targetParams.push(...autoConvertParamsArray(params));
-        }
-    }
-    else if(typeof params === "object") { // Named ?
-        autoConvertAndAddParamsMap(params);
-    }
-    else {
-        throw new Error("Unhandled type: Please provide json with an array or an object as the root");
-    }
-}
-
-
-/**
- *
- * @param reflectedMethod
- * @param params
- * @returns
- */
