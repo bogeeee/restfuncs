@@ -85,13 +85,19 @@ test('Most simple example (standalone http server)', async () => {
         greet: (name) =>  `Hello ${name} from the server`
     }, 0, {checkArguments: false});
 
+    try {
+        // @ts-ignore
+        const port = server.address().port;
 
-    // @ts-ignore
-    const port = server.address().port;
-
-    const remote = restfuncsClient(`http://localhost:${port}`)
-    // @ts-ignore
-    expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
+        const remote = restfuncsClient(`http://localhost:${port}`)
+        // @ts-ignore
+        expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 })
 
 test('Proper example with express and type support', async () => {
@@ -108,11 +114,19 @@ test('Proper example with express and type support', async () => {
     const app = express();
     app.use("/greeterAPI", restfuncs( new GreeterService(), {checkArguments: false} ));
     const server = app.listen();
-    // @ts-ignore
-    const serverPort = server.address().port;
 
-    const greeterService = restfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
-    expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+    try {
+        // @ts-ignore
+        const serverPort = server.address().port;
+
+        const greeterService = restfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
+        expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 })
 
 test('test with different api paths', async () => {
