@@ -300,8 +300,8 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
         else if(typeof params === "object") { // Named ?
             addParamsMap(params);
         }
-        else {
-            throw new Error("Unhandled type: Please provide json with an array or an object as the root");
+        else { // Single object ?
+            addParamsArray([params])
         }
     }
 
@@ -313,7 +313,6 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
 
     // Querystring params:
     if(url.query) {
-        //TODO: if(onlyOneSlotLeft) {restService.parseQuerySingleValue(url.query) ... }
         const parsed= restService.parseQuery(url.query);
         convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
     }
