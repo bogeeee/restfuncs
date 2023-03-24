@@ -278,16 +278,15 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
                 throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
             }
 
-            for(const i in reflectedMethod.parameters) {
-                const parameter = reflectedMethod.parameters[i];
-
-                const value = paramsMap[parameter.name];
-                if(value !== undefined) {
-                    if (parameter.isRest) {
-                        throw new Error(`Cannot set ...${parameter.name} through named parameter`)
-                    }
-                    result[i] = restService.autoConvertValueForParameter(value, parameter, source);
+            for(const name in paramsMap) {
+                const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
+                if(!parameter) {
+                    throw new Error(`Method ${methodName} does not have a parameter named '${name}'`);
                 }
+                if(parameter.isRest) {
+                    throw new Error(`Cannot set ...${name} through named parameter`);
+                }
+                result[parameter.index] = restService.autoConvertValueForParameter(paramsMap[name], parameter, source)
             }
         }
 
