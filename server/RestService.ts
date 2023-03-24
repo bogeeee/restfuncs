@@ -271,7 +271,7 @@ export class RestService {
             return {result, containsStringValuesOnly: true};
         }
         else {
-            return {result: [query], containsStringValuesOnly: true}; // Single element
+            return {result: [decodeURIComponent(query)], containsStringValuesOnly: true}; // Single element
         }
     }
 
