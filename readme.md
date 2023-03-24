@@ -137,16 +137,25 @@ The following example service's method...
 | POST | _/**getBook**_ | | 
 | POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Named** arguments as JSON
 | POST | _/**getBook**_ | `["1984", "George Orwell"]` | **Listed** arguments as JSON
+| POST | _/**getBook**/1984_ | `"George Orwell"` | **Single** JSON primitive
+| POST | _/**getBook**/1984_ | `George Orwell` | Plain string. For this you must explicitly set the `Content-Type` header to `text/plain`
+| POST | _/**getBook**/1984_ | _&lt;Any binary data&gt;_ | Your function parameter (i.e. here the 2nd one) must be of type `Buffer`.
 
 You are free to mix these styles ;) The styles are parsed in the order as listed, so arguments from a lower line in the table will override (named) or append to (listed) the ones from above.
 
-Also note the limitation of [GET beeing only allowed for get... methods](#get-methods-can-be-triggered-cross-site)
+Also note the limitation of [GET beeing **only** allowed for get... methods](#get-methods-can-be-triggered-cross-site).
+
 ### Content types
 To specify what you **send**, set the `Content-Type` header to 
- - `application/json` _(default)_ Mind that JSON lacks support for some Data types.
- - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) better.
+ - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
+ - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) -  Better.
+ - `text/plain` - For the one case, see above.
+ - _Any other_ - Can be consumed by a `Buffer` parameter.
 
-To specify what you **receive** in the response, Set the `Accept` header to above mentioned.
+To specify what you want to **receive** in the response, Set the `Accept` header to
+ - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
+ - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Better.
+ - TODO: Implement html / text/plain
 
  
 

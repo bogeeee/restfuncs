@@ -205,6 +205,27 @@ test('various call styles', async () => {
         getBook(name?: string, authorFilter?: string) {
             return [name, authorFilter];
         }
+
+        get3args(a: string, b: string, c: string) {
+            return [a,b,c];
+        }
+
+        getNoArgs() {
+            return "ok"
+        }
+
+        getMixed(a: string, b?: string, ...c: string[]) {
+            return [a,b,...c];
+        }
+
+        postWithBuffer(a: Buffer, b: string, c: string) {
+            return [a.toString("utf8"),b,c];
+        }
+
+        postWithBuffer2(a: string, b: Buffer, c: string) {
+            return [a, b.toString("utf8"),c];
+        }
+
     }, async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
@@ -226,10 +247,31 @@ test('various call styles', async () => {
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", null]); //
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '["a"]'})).toStrictEqual(["a", null]); //
 
+
+        //expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", null]); //
+
         // Combination of the above:
         expect(await fetchJson(`${baseUrl}/getBook?name=fromQuery&authorFilter=b`, {method: "POST", body: '["fromBody"]'})).toStrictEqual(["fromBody", "b"]); //
         expect(await fetchJson(`${baseUrl}/getBook/fromQuery?authorFilter=b`, {method: "POST", body: '["fromBody"]'})).toStrictEqual(["fromQuery","fromBody"]); //
         expect(await fetchJson(`${baseUrl}/getBook/fromQuery?authorFilter=b`, {method: "POST", body: '{"authorFilter": "fromBody"}'})).toStrictEqual(["fromQuery", "fromBody"]); //
+
+        expect(await fetchJson(`${baseUrl}/mixed/a?b,c,d`, {method: "GET"})).toStrictEqual(["a", "b", "c", "d"]); // With rest params
+
+        // Single value in body
+        expect(await fetchJson(`${baseUrl}/get3args/a?c=c`, {method: "POST", body: '"b"', headers: {"Content-Type": "application/json"}})).toStrictEqual(["a", "b","c"]); // Json string in body with explicit content type
+        expect(await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: '"b"'})).toStrictEqual(["a", "b"]); // JSON string sin body
+        await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: 'b'})}); // as plain string - this should not be accepted cause it's too much magic and could lead to unwanted { injections as a security risk
+        expect(await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: 'b', headers: {"Content-Type": "text/plain"}})).toStrictEqual(["a", "b"]); // Now with text/plain this should work
+
+        // With Buffer in parameters:
+        expect(await fetchJson(`${baseUrl}/withBuffer?b=b&c=c`, {method: "POST", body: 'a'})).toStrictEqual(["a", "b","c"]);
+        expect(await fetchJson(`${baseUrl}/withBuffer/a?c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]);
+        expect(await fetchJson(`${baseUrl}/withBuffer/a?b=fromQuery&c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]); // from query should not overwrite
+
+        // Invalid parameters
+        await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
+        await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
+        await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
 
 
 

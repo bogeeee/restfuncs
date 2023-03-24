@@ -110,7 +110,7 @@ function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<an
 
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
-export type ParameterSource = "string" | "json" | null;
+export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
@@ -349,6 +349,7 @@ export class RestService {
             return this.autoConvertValueForParameter_fromJson(value, parameter);
         }
         else {
+            // TODO: Auto convert Buffers into strings
             return value;
         }
     }

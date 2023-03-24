@@ -180,7 +180,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
             const methodName = restService.getMethodNameForCall(req.method, methodNameFromPath);
             if(!methodName) {
-                throw new Error(`No method candidate found for ${req.method} + ${methodName}.`);
+                throw new Error(`No method candidate found for ${req.method} + ${methodNameFromPath}.`);
             }
 
             const collectedParams = collectParamsFromRequest(restService, methodName, req);
@@ -237,6 +237,17 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
     let result: any[] = []; // Params that will actually enter the method
     let listInsertionIndex = -1; // For Listed style /array
     let listInsertionParameter: ReflectedMethodParameter;
+
+    function peekNextListedParameter() {
+        if(reflectedMethod) {
+            if(listInsertionParameter?.isRest) {
+                return listInsertionParameter;
+            }
+            if((listInsertionIndex + 1) < reflectedMethod.parameters.length) {
+                return  reflectedMethod.parameters[listInsertionIndex + 1];
+            }
+        }
+    }
 
     const convertAndAddParams = function(params: any, source: ParameterSource) {
 
@@ -319,40 +330,113 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
 
     // Parse req.body into params:
     if(req.body && req.body instanceof Buffer) {
-        const contentType = req.header("Content-Type");
-        //TODO: if(onlyOneSlotLeft) { ... }
-        const rawBodyText = req.body.toString("utf8");
+        const [contentType, contentTypeAttributes] = parseContentTypeHeader(req.header("Content-Type"));
         if (contentType == "application/json") { // Application/json
+            const rawBodyText = req.body.toString(fixTextEncoding(contentTypeAttributes["encoding"] || "utf8"));
             convertAndAddParams(JSON.parse(rawBodyText), "json");
         } else if (contentType == "application/brillout-json") {
+            const rawBodyText = req.body.toString(fixTextEncoding(contentTypeAttributes["encoding"] || "utf8"));
             convertAndAddParams(brilloutJsonParse(rawBodyText), null);
-        } else {
-            let arrayOrObjectFromJson;
-            if(rawBodyText.startsWith("[") || rawBodyText.startsWith("{")) { // Json array or object ?
-                try {
-                    arrayOrObjectFromJson = JSON.parse(rawBodyText);
-                }
-                catch (e) {
-                    arrayOrObjectFromJson = e;
-                }
+        } else if(contentType == "application/x-www-form-urlencoded") {
+            throw new Error("TODO");
+        }
+        else if(contentType == "multipart/form-data") {
+            throw new Error("TODO");
+        }
+        else if(contentType == "application/octet-stream") { // Stream ?
+            convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
+        }
+        else if(peekNextListedParameter()?.type.isClass(Buffer)) { // Next parameter is a Buffer ?
+            convertAndAddParams([req.body], null); // Catch the body regardless of further content types
+        }
+        else if(contentType == "text/plain") {
+            let encoding = fixTextEncoding(contentTypeAttributes["encoding"] || "ascii");
+            const rawBodyText = req.body.toString(encoding);
+            convertAndAddParams(rawBodyText, "string");
+        }
+        else if(!contentType) { // Unspecified ?
+            const rawBodyText = req.body.toString("utf8");
+            let valueFromJSON;
+            try {
+                valueFromJSON = JSON.parse(rawBodyText);
+            }
+            catch (e) {
+                valueFromJSON = e;
             }
 
-            if(arrayOrObjectFromJson !== undefined && !(arrayOrObjectFromJson instanceof Error)) { // Successfully parsed from json ?
-                convertAndAddParams(JSON.parse(rawBodyText), "json");
+            if(valueFromJSON !== undefined && !(valueFromJSON instanceof Error)) { // Successfully parsed from json ?
+                convertAndAddParams(valueFromJSON, "json");
             }
             else if(rawBodyText === "") {
                 // This means that most like likely the body is empty and the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
             }
-            else if(arrayOrObjectFromJson instanceof Error) {
-                throw arrayOrObjectFromJson;
+            else if(valueFromJSON instanceof Error) {
+                throw valueFromJSON;
             }
             else {
-                throw new Error("Request body invalid");
+                throw new Error("Request body invalid. Consider explicitly specifying the content type");
             }
+        }
+        else {
+            throw new Error(`Content-Type: '${contentType}' not supported`);
         }
     }
     else if (!_.isEqual(req.body, {})) { // non empty body ?
         throw new Error("Unhandled non-empty body. Please report this as a bug.")
+    }
+
+    return result;
+}
+
+
+/**
+ *
+ * @param contentType I.e. text/plain;charset=UTF-8
+ * @return Would result into ["text/plain", {charset: "UTF-8"}]
+ */
+function parseContentTypeHeader(contentType?: string): [string | undefined, Record<string, string>] {
+    const attributes: Record<string, string> = {};
+
+    if(!contentType) {
+        return [undefined, attributes];
+    }
+    const tokens = contentType.split(";");
+    for (const token of tokens.slice(1)) {
+        if (!token || token.trim() == "") {
+            continue;
+        }
+        if (token.indexOf("=") > -1) {
+            const [key, value] = token.split("=");
+            if (key) {
+                attributes[key.trim()] = value?.trim();
+            }
+        }
+    }
+
+    return [tokens[0], attributes]
+}
+
+/**
+ * Fixes the encoding to a value, compatible with Buffer
+ * @param encoding
+ */
+function fixTextEncoding(encoding: string): BufferEncoding {
+    const encodingsMap: Record<string, BufferEncoding> = {
+        "us-ascii": 'ascii',
+        'ascii': "ascii",
+        'utf8': 'utf8',
+        'utf-8': 'utf-8',
+        'utf16le': 'utf16le',
+        'ucs2': 'ucs2',
+        'ucs-2': 'ucs2',
+        'base64': 'base64',
+        'base64url': 'base64url',
+        'latin1': 'latin1',
+    };
+    const result = encodingsMap[encoding.toLowerCase()];
+
+    if(!result) {
+        throw new Error(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
     }
 
     return result;
