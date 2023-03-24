@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev:watch-and-run-tests": "nodemon -e ts --exec npm run dev:_compile_and_run_tests",
-    "dev:_compile_and_run_tests": "clear && ttsc --build && jest",
-    "dev:runSpecificTest_runtimeTypechecking": "clear && ttsc --build && jest runtime-typechecking",
+    "dev:_compile_and_run_tests": "clear && ttsc --build && jest --runInBand",
+    "dev:runSpecificTest_runtimeTypechecking": "clear && ttsc --build && jest --runInBand runtime-typechecking",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
     "install": "npm install --ignore-scripts && echo \"<-- FIX: When npm install is typed from under the examples dir in a fresh cloned repo, it only wants to install its own packages (but still this prepublish script is triggerd, strangely) - so we force it to install the packages from all workspaces\"",
