@@ -14,11 +14,15 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     // @ts-ignore
     const serverPort = server.address().port;
 
-    const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
-    await clientTests(client);
-    // shut down server
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+        const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
+        await clientTests(client);
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 }
 
 async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {

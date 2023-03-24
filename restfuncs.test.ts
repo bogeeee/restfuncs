@@ -11,11 +11,15 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     // @ts-ignore
     const serverPort = server.address().port;
 
-    const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
-    await clientTests(client);
-    // shut down server
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+        const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
+        await clientTests(client);
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 }
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api") {
@@ -25,11 +29,14 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
     // @ts-ignore
     const serverPort = server.address().port;
 
-    await rawFetchTests(`http://localhost:${serverPort}${path}`);
-
-    // shut down server
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
+    try {
+        await rawFetchTests(`http://localhost:${serverPort}${path}`);
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 }
 
 async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {
@@ -432,20 +439,21 @@ test('Sessions', async () => {
 
     // Use with standalone server cause there should be a session handler installed:
     const server = restfuncs(new Service(),0, {checkArguments: false});
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`)
 
-    // @ts-ignore
-    const port = server.address().port;
-    const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`)
+        await apiProxy.checkInitialSessionValues();
 
-    await apiProxy.checkInitialSessionValues();
-
-    await apiProxy.storeValueInSession(123);
-    expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
-
-    // shut down server:
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
-
+        await apiProxy.storeValueInSession(123);
+        expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
+    }
+    finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 });
 
 
@@ -462,19 +470,21 @@ test('Intercept with doCall (client side)', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {
-        async doCall(funcName:string, args: any[]) {
-            args[0] = "b"
-            return await this[funcName](...args) // Call the original function
-        }
-    });
+    try {
+        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {
+            async doCall(funcName: string, args: any[]) {
+                args[0] = "b"
+                return await this[funcName](...args) // Call the original function
+            }
+        });
 
-    expect(await apiProxy.getSomething("a")).toBe("b");
-
-    // shut down server:
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
-
+        expect(await apiProxy.getSomething("a")).toBe("b");
+    }
+    finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 });
 
 test('Intercept with doFetch (client side)', async () => {
@@ -490,22 +500,24 @@ test('Intercept with doFetch (client side)', async () => {
     // @ts-ignore
     const port = server.address().port;
 
-    class MyRestfuncsClient extends RestfuncsClient<Service> {
-        async doFetch(funcName: string, args: any[], url: string, req: RequestInit) {
-            args[0] = "b"; // Mangle
-            const r: {result: any, resp: Response} = await super.doFetch(funcName, args, url, req);
-            return r
+    try {
+        class MyRestfuncsClient extends RestfuncsClient<Service> {
+            async doFetch(funcName: string, args: any[], url: string, req: RequestInit) {
+                args[0] = "b"; // Mangle
+                const r: { result: any, resp: Response } = await super.doFetch(funcName, args, url, req);
+                return r
+            }
         }
+
+        const apiProxy = new MyRestfuncsClient(`http://localhost:${port}`).proxy;
+
+        expect(await apiProxy.getSomething("a")).toBe("b");
     }
-
-    const apiProxy = new MyRestfuncsClient(`http://localhost:${port}`).proxy;
-
-    expect(await apiProxy.getSomething("a")).toBe("b");
-
-    // shut down server:
-    server.closeAllConnections();
-    await new Promise((resolve) => server.close(resolve));
-
+    finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 });
 
 
