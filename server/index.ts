@@ -350,7 +350,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
             convertAndAddParams([req.body], null); // Catch the body regardless of further content types
         }
         else if(contentType == "text/plain") {
-            let encoding = fixTextEncoding(contentTypeAttributes["encoding"] || "ascii");
+            const encoding = fixTextEncoding(contentTypeAttributes["encoding"] || "utf8");
             const rawBodyText = req.body.toString(encoding);
             convertAndAddParams(rawBodyText, "string");
         }
