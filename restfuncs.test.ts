@@ -289,8 +289,8 @@ test('various call styles', async () => {
 
         // With Buffer in parameters:
         expect(await fetchJson(`${baseUrl}/withBuffer?b=b&c=c`, {method: "POST", body: 'a'})).toStrictEqual(["a", "b","c"]);
-        expect(await fetchJson(`${baseUrl}/withBuffer/a?c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]);
-        expect(await fetchJson(`${baseUrl}/withBuffer/a?b=fromQuery&c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]); // from query should not overwrite
+        expect(await fetchJson(`${baseUrl}/withBuffer2/a?c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]);
+        expect(await fetchJson(`${baseUrl}/withBuffer2/a?b=fromQuery&c=c`, {method: "POST", body: 'b'})).toStrictEqual(["a", "b","c"]); // from query should not overwrite
 
         // Invalid parameters
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
