@@ -56,7 +56,7 @@ function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
  * @param reflectedMethod
  * @param args
  */
-function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
+export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
     // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
     let argsStack = [...args]; // shallow clone
     argsStack.reverse();

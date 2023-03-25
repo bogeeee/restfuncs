@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
+import {checkParameterTypes, isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
 import _ from "underscore";
 import URL from "url"
 
@@ -352,7 +352,22 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
         else if(contentType == "text/plain") {
             const encoding = fixTextEncoding(contentTypeAttributes["encoding"] || "utf8");
             const rawBodyText = req.body.toString(encoding);
-            convertAndAddParams(rawBodyText, "string");
+            try {
+                convertAndAddParams(rawBodyText, null); // no conversion
+                // Do a full check to provoke error for, see catch
+                if(reflectedMethod) {
+                    checkParameterTypes(reflectedMethod, result);
+                }
+            }
+            catch (e) {
+                // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
+                if(e instanceof Error && diagnosis_looksLikeJSON(rawBodyText)) {
+                    throw new Error(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
+                }
+                else {
+                    throw e;
+                }
+            }
         }
         else if(!contentType) { // Unspecified ?
             const rawBodyText = req.body.toString("utf8");
@@ -440,4 +455,8 @@ function fixTextEncoding(encoding: string): BufferEncoding {
     }
 
     return result;
+}
+
+export function diagnosis_looksLikeJSON(value : string) {
+    return /^([0-9\[{]|-[0-9]|true|false|null)/.test(value);
 }

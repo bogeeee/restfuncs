@@ -1,4 +1,4 @@
-import {restfuncs, RestService} from "restfuncs-server";
+import {diagnosis_looksLikeJSON, restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 
@@ -250,7 +250,10 @@ test('various call styles', async () => {
     }, async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
-            const response = await fetch(input, init);
+            const response = await fetch(input, {
+                headers: {"Content-Type": ""}, // Default to unset
+                ...init
+            });
             // Error handling:
             if (response.status !== 200) {
                 throw new Error("server error: " + await response.text())
@@ -380,6 +383,18 @@ test('parseQuery', () => {
     expect(new RestService().parseQuery("&c").result).toStrictEqual({"c": "true"});
     expect(new RestService().parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
 
+});
+
+test('diagnosis_looksLikeJson', () => {
+    expect(diagnosis_looksLikeJSON("test")).toBeFalsy();
+    expect(diagnosis_looksLikeJSON("test123")).toBeFalsy();
+    expect(diagnosis_looksLikeJSON('{"prop": true}}')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('[1,2]')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('true')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('-1')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('50')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('null')).toBeTruthy();
+    expect(diagnosis_looksLikeJSON('0.523')).toBeTruthy();
 });
 
 test('Reserved names', async () => {
