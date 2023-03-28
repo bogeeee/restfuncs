@@ -457,6 +457,7 @@ function fixTextEncoding(encoding: string): BufferEncoding {
     return result;
 }
 
+const FAST_JSON_DETECTOR_REGEXP = /^([0-9\[{]|-[0-9]|true|false|null)/;
 export function diagnosis_looksLikeJSON(value : string) {
-    return /^([0-9\[{]|-[0-9]|true|false|null)/.test(value);
+    return FAST_JSON_DETECTOR_REGEXP.test(value);
 }
