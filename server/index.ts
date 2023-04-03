@@ -161,6 +161,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
     router.use(express.raw({limit: Number.MAX_VALUE, inflate: false, type: req => true})) // parse application/brillout-json and make it available in req.body
 
     router.use(async (req, resp, next) => {
+        let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json" // TODO: add options
+        acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
         try {
             // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
             resp.header("Expires","-1");
@@ -195,22 +197,24 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             let result = await restService.validateAndDoCall(req.method, methodName, collectedParams, {req, resp, session}, options);
 
             // Send result:
-            if(req.header(("Accept")) == "application/brillout-json") { // Client requested the better json ?
-                resp.send(brilloutJsonStringify(result));
-            }
-            else { // Send normal json (Old 0.x clients)
-                result = result!==undefined?result:null; // Json does not support undefined
-                resp.json(result);
-            }
+            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
+                if (accept == "application/brillout-json") { // The better json ?
+                    resp.send(brilloutJsonStringify(result));
+                }
+                else if(accept == "application/json") {
+                    result = result!==undefined?result:null; // Json does not support undefined
+                    resp.json(result);
+                }
+                else {
+                    return false; // not handled ?
+                }
+                return true; // it was handled
+            });
         }
         catch (e) {
             resp.status(500);
-            if(e instanceof Error) {
-                resp.json(cloneError(e));
-            }
-            else {
-                resp.json(e);
-            }
+            e = (e instanceof Error)?cloneError(e): e;
+            resp.json(e);
         }
     });
 
