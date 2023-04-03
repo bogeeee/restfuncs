@@ -1,7 +1,7 @@
 import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
-import {cloneError} from "./Util";
+import {cloneError, errorToHtml} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -214,7 +214,24 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
         catch (e) {
             resp.status(500);
             e = (e instanceof Error)?cloneError(e): e;
-            resp.json(e);
+            // Format e and send it:
+            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
+                if(accept == "application/json") {
+                    resp.json(e);
+                }
+                else if(accept == "text/html") {
+                    resp.contentType("text/html; charset=utf-8")
+                    resp.send(`<!DOCTYPE html><html>${errorToHtml(e)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
+                }
+                else if(accept.startsWith("text/")) {
+                    // TODO
+                    return false;
+                }
+                else {
+                    return false; // not handled ?
+                }
+                return true; // it was handled
+            });
         }
     });
 

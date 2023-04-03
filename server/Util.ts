@@ -1,3 +1,4 @@
+import escapeHtml from "escape-html";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -86,5 +87,30 @@ export function Camelize(value: string) {
         return "";
     }
     return value.substring(0,1).toUpperCase() + value.substring(1);
+}
+
+export function errorToHtml(err: Error | any): string {
+    if(!err || typeof err !== "object") {
+        return escapeHtml(String(err));
+    }
+
+    function textToHtml(value: string) {
+        return value.split("\n").map(v => escapeHtml(v)).join("<br/>\n");
+    }
+
+    const e = <Error & {cause?: Error, fileName?: string, lineNumber?: Number, columnNumber? : Number, stack?: string}> err; // Better type
+
+    let title= (e.name ? `${e.name}: `: "") + (e.message || String(e))
+
+    let stack = e.stack;
+    if(stack?.startsWith(title)) {
+        stack=stack.substring(title.length);
+    }
+
+
+    return `<b>${textToHtml( title)}</b>"` +
+        (stack ? `\n<pre>${escapeHtml(stack)}</pre>` : '') +
+        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
+        (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
