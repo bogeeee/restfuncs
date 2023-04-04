@@ -62,19 +62,27 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
 }
 
 /**
+ * Properties of a usual error
+ */
+export const ERROR_PROPERTIES = ["message", "name", "cause", "fileName", "lineNumber", "columnNumber", "stack"]
+
+/**
  * Clones an error with hopefully all properties. You can't list / clone them normally.
  * Using https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#instance_properties to guess the properties
  * @param e
  */
 export function cloneError(e: any): ErrorWithExtendedInfo {
+    const copiedProps = {}
+
+    // Copy ERROR_PROPERTIES from e to copiedProps
+    ERROR_PROPERTIES.forEach((propName) => {if(e[propName] !== undefined) {
+        // @ts-ignore
+        copiedProps[propName] = e[propName]
+    } });
+
     return {
-        message: e.message,
-        name: e.name,
+        ...copiedProps,
         cause: e.cause instanceof Error?cloneError(e.cause):e.cause,
-        fileName: e. fileName,
-        lineNumber: e.lineNumber,
-        columnNumber: e.columnNumber,
-        stack: e.stack,
         ...e // try everything else that's accessible as properties
     }
 }

@@ -1,7 +1,7 @@
 import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
-import {cloneError, errorToHtml, errorToString, ErrorWithExtendedInfo} from "./Util";
+import {cloneError, ERROR_PROPERTIES, errorToHtml, errorToString, ErrorWithExtendedInfo} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -42,8 +42,11 @@ export type RestfuncsOptions = {
      * Whether to show/expose error information to the client:
      * - true: Exposes ALL error messages + stacks. Enable this for development.
      * - "messageOnly": Exposes only the message/title + class name. But no stack or other info.
-     * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of RestError. Those are intended to aid the interface consumer or mark some special situation. I.e. a user defined NotLoggedInException subclass may trigger showing a Login Form. TODO: Use RestError class withing restfuncs
-     * - false: No information is exposed. The client will get an standard Error: "Internal server error".
+     * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of {@see RestError}. Those are intended to aid the interface consumer.
+     * - false: No information is exposed. The client will get a standard Error: "Internal server error".
+     *
+     *  User defined SUB- classes of {@see RestError} will always fall through this restriction and have their message, name and custom properties exposed.
+     *  I.e. You could implement a 'class NotLoggedInException extends RestError' as in indicator to trigger a login form.
      */
     exposeErrors?: true|"messageOnly"|"RestErrorsOnly"|false
 
@@ -509,7 +512,21 @@ function fixTextEncoding(encoding: string): BufferEncoding {
 }
 
 function logAndConcealError(error: Error, options: RestfuncsOptions) {
+    /**
+     * Removes usual error properties (leaving all custom properties)
+     */
+    function customPropertiesOnly(e: ErrorWithExtendedInfo) {
+        const result = cloneError(e);
+        ERROR_PROPERTIES.forEach((propName) => {
+            // @ts-ignore
+            delete result[propName];
+        });
+        return result;
+    }
+
+
     const errorExt: ErrorWithExtendedInfo = cloneError(error);
+
     // Log error to console:
     let errorId;
     // @ts-ignore
@@ -521,28 +538,43 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
         }
     }
 
-    // Cut off the parts of errorExt that should not be exposed and add some description.
+    // ** Cut off the parts of errorExt that should not be exposed and add some description *** :
+
     const DIAGNOSIS_SHOWFULLERRORS="If you want to see full errors on the client (development), set exposeErrors=true in the restfuncs options."
     if(options.exposeErrors === true) {
         return errorExt;
     }
-    else if(options.exposeErrors === "messageOnly") {
+
+    let definitelyIncludedProps: Record<string, any> = {};
+    if(error instanceof RestError && error.constructor !== RestError) { // A (special) SUB-class of RestError ? I.e. think of a custom NotLoggedInError
+        // Make sure this error is ALWAYS identifyable by the client and its custom properties are included, cause they were explicitly implemented by the user for a reason.
+        definitelyIncludedProps = {
+            ...customPropertiesOnly(errorExt),
+            message: errorExt.message,
+            name: errorExt.name,
+        };
+    }
+
+    if(options.exposeErrors === "messageOnly") {
         return {
             message: errorExt.message,
             name: errorExt.name,
-            stack: `Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`
+            stack: `Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
+            ...definitelyIncludedProps,
         };
     }
     else if( (options.exposeErrors === "RestErrorsOnly" || options.exposeErrors === undefined) && error instanceof RestError) {
         return {
             message: errorExt.message,
             name: errorExt.name,
+            ...definitelyIncludedProps,
         };
     }
     else {
         return {
             message: `Internal server error.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
             name: "Error",
+            ...definitelyIncludedProps,
         }
     }
 }
@@ -568,8 +600,11 @@ export type RestErrorOptions = ErrorOptions & {
 /**
  * These Errors will get sent to the client with their full errormessage while normal Errors wold usually be concealed. {@see RestfuncsOptions.exposeErrors}
  * Also you can specify the http status code in the options.
+ * Also custom properties will (always) be sent to the client.
  *
- * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends RestError' would trigger a login popup dialog.
+ * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends RestError' that would trigger a login popup dialog.
+ *
+ * Note that on the client you will catch it wrapped in a 'ServerError' so you'll find this RestError under the .cause property.
  */
 export class RestError extends Error {
     public httpStatusCode?: number;

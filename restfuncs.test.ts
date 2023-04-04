@@ -1,4 +1,4 @@
-import {diagnosis_looksLikeJSON, restfuncs, RestService} from "restfuncs-server";
+import {diagnosis_looksLikeJSON, RestError, restfuncs, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 
@@ -147,6 +147,10 @@ test('test with different api paths', async () => {
 });
 
 test('Exceptions', async () => {
+    class CustomRestError extends RestError {
+        myProperty: string;
+    }
+
     await runClientServerTests({
             throwAnError() {
                 throw new Error("Expected test error");
@@ -166,6 +170,12 @@ test('Exceptions', async () => {
 
             async throwSomething(ball: any) {
                 throw ball;
+            },
+
+            throwCustomRestError() {
+                const e = new CustomRestError("test");
+                e.myProperty = "test";
+                throw e;
             },
 
             usualFunc() {
@@ -211,6 +221,15 @@ test('Exceptions', async () => {
                 }
 
                 expect(caught).toStrictEqual(ball);
+            }
+
+            // Custom RestError with attached property:
+            try {
+                await apiProxy.throwCustomRestError();
+                fail(new Error(`Should have thrown`))
+            }
+            catch (x) {
+                expect(x.cause.myProperty).toBe("test");
             }
 
     });
