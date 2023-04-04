@@ -512,7 +512,9 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
     const errorExt: ErrorWithExtendedInfo = cloneError(error);
     // Log error to console:
     let errorId;
-    if(options.logErrors || options.logErrors === undefined) {
+    // @ts-ignore
+    const error_log: boolean | undefined = error.log // Better type
+    if(error_log !== false && (error_log || options.logErrors !== false)) {
         if(options.exposeErrors !== true) { // Do we need an errorId cause not every info will be handed out ?
             errorId = crypto.randomBytes(6).toString("hex");
             console.error(`${errorId}: ${errorToString(errorExt)}`);
@@ -555,6 +557,12 @@ export type RestErrorOptions = ErrorOptions & {
      * Set the status code that should be send
      */
     httpStatusCode?: number
+
+    /**
+     * You can explicitly enable or disable logging for this error.
+     * undefined = controlled by global setting {@see RestfuncsOptions.logErrors}
+     */
+    log?: boolean
 }
 
 /**
