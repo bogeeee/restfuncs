@@ -66,7 +66,7 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
  * Using https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#instance_properties to guess the properties
  * @param e
  */
-export function cloneError(e: any): object {
+export function cloneError(e: any): ErrorWithExtendedInfo {
     return {
         message: e.message,
         name: e.name,
@@ -89,16 +89,22 @@ export function Camelize(value: string) {
     return value.substring(0,1).toUpperCase() + value.substring(1);
 }
 
-export function errorToHtml(err: Error | any): string {
-    if(!err || typeof err !== "object") {
-        return escapeHtml(String(err));
+export type ErrorWithExtendedInfo = Error & { cause?: Error, fileName?: string, lineNumber?: Number, columnNumber?: Number, stack?: string };
+
+export function errorToHtml(e: any): string {
+    // Handle other types:
+    if(!e || typeof e !== "object") {
+        return escapeHtml(String(e));
     }
+    if(!e.message) { // e is not an ErrorWithExtendedInfo ?
+        return escapeHtml(JSON.stringify(e));
+    }
+    e = <ErrorWithExtendedInfo> e;
 
     function textToHtml(value: string) {
         return value.split("\n").map(v => escapeHtml(v)).join("<br/>\n");
     }
 
-    const e = <Error & {cause?: Error, fileName?: string, lineNumber?: Number, columnNumber? : Number, stack?: string}> err; // Better type
 
     let title= (e.name ? `${e.name}: `: "") + (e.message || String(e))
 
@@ -114,3 +120,21 @@ export function errorToHtml(err: Error | any): string {
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
+
+export function errorToString(e: any): string {
+    // Handle other types:
+    if(!e || typeof e !== "object") {
+        return String(e);
+    }
+    if(!e.message) { // e is not an ErrorWithExtendedInfo ?
+        return JSON.stringify(e);
+    }
+    e = <ErrorWithExtendedInfo> e;
+
+
+    return (e.name ? (e.name + ": ") : "") + (e.message || e) +
+        (e.stack ? `\nServer stack: ${e.stack}` : '') +
+        (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
+        (e.cause ? `\nCause: ${errorToString(e.cause)}` : '')
+
+}

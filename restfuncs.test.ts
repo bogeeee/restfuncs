@@ -6,7 +6,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -24,7 +24,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api") {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -112,7 +112,7 @@ test('Proper example with express and type support', async () => {
 
 
     const app = express();
-    app.use("/greeterAPI", restfuncs( new GreeterService(), {checkArguments: false} ));
+    app.use("/greeterAPI", restfuncs( new GreeterService(), {checkArguments: false, logErrors: false, exposeErrors: true} ));
     const server = app.listen();
 
     try {
@@ -164,6 +164,10 @@ test('Exceptions', async () => {
                 throw "Expected test error";
             },
 
+            async throwSomething(ball: any) {
+                throw ball;
+            },
+
             usualFunc() {
 
             }
@@ -194,6 +198,20 @@ test('Exceptions', async () => {
             await expectAsyncFunctionToThrow(async () => {
                 await apiProxy.asyncThrowsString();
             },"Expected test error");
+
+            // Try+catch with any non-Error value:
+            for(const ball of variousDifferentTypes) {
+                let caught;
+                try {
+                    await apiProxy.throwSomething(ball);
+                    fail(new Error(`Should have thrown. Ball=${ball}`))
+                }
+                catch (x) {
+                    caught = x;
+                }
+
+                expect(caught).toStrictEqual(ball);
+            }
 
     });
 });

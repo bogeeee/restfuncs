@@ -1,7 +1,7 @@
 import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
-import {cloneError, errorToHtml} from "./Util";
+import {cloneError, errorToHtml, errorToString, ErrorWithExtendedInfo} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -32,11 +32,27 @@ export type RestfuncsOptions = {
     checkArguments?: boolean
 
     /**
-     * Controls which methods can be called via http GET
+     * Whether errors during call should be logged to the console.
+     * You can supply a logger function
+     * Default: true
+     */
+    logErrors?: boolean | ((message: string) => void)
+
+    /**
+     * Whether to show/expose error information to the client:
+     * - true: Exposes ALL error messages + stacks. Enable this for development.
+     * - "messageOnly": Exposes only the message/title + class name. But no stack or other info.
+     * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of RestError. Those are intended to aid the interface consumer or mark some special situation. I.e. a user defined NotLoggedInException subclass may trigger showing a Login Form. TODO: Use RestError class withing restfuncs
+     * - false: No information is exposed. The client will get an standard Error: "Internal server error".
+     */
+    exposeErrors?: true|"messageOnly"|"RestErrorsOnly"|false
+
+    /**
+     * Whether methods can be called via http GET
      *
-     * true/undefined (default): Only methods, starting with 'get', are allowed. I.e. getUser
-     * false: No methods allowed
      * "all": All methods allowed (may be useful during development)
+     * true (default): Only methods, starting with 'get', are allowed. I.e. getUser
+     * false: No methods allowed
      *
      * SECURITY WARNING:
      * Those allowed methods can be triggered cross site, even in the context of the logged on user!
@@ -163,6 +179,26 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
     router.use(async (req, resp, next) => {
         let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json" // TODO: add options
         acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
+
+        /**
+         * Http-sends the result, depending on the requested content type:
+         */
+        function sendResult(result: any) {
+            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
+                if (accept == "application/brillout-json") { // The better json ?
+                    resp.send(brilloutJsonStringify(result));
+                }
+                else if(accept == "application/json") {
+                    result = result!==undefined?result:null; // Json does not support undefined
+                    resp.json(result);
+                }
+                else {
+                    return false; // not handled ?
+                }
+                return true; // it was handled
+            });
+        }
+
         try {
             // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
             resp.header("Expires","-1");
@@ -195,43 +231,37 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
             let result = await restService.validateAndDoCall(req.method, methodName, collectedParams, {req, resp, session}, options);
-
-            // Send result:
-            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
-                if (accept == "application/brillout-json") { // The better json ?
-                    resp.send(brilloutJsonStringify(result));
-                }
-                else if(accept == "application/json") {
-                    result = result!==undefined?result:null; // Json does not support undefined
-                    resp.json(result);
-                }
-                else {
-                    return false; // not handled ?
-                }
-                return true; // it was handled
-            });
+            sendResult(result);
         }
-        catch (e) {
-            resp.status(500);
-            e = (e instanceof Error)?cloneError(e): e;
-            // Format e and send it:
-            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
-                if(accept == "application/json") {
-                    resp.json(e);
-                }
-                else if(accept == "text/html") {
-                    resp.contentType("text/html; charset=utf-8")
-                    resp.send(`<!DOCTYPE html><html>${errorToHtml(e)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
-                }
-                else if(accept.startsWith("text/")) {
-                    // TODO
-                    return false;
-                }
-                else {
-                    return false; // not handled ?
-                }
-                return true; // it was handled
-            });
+        catch (caught) {
+            if(caught instanceof Error) {
+                resp.status(500);
+
+                const error = logAndConcealError(caught, options);
+
+                // Format error and send it:
+                acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
+                    if(accept == "application/json") {
+                        resp.json(error);
+                    }
+                    else if(accept == "text/html") {
+                        resp.contentType("text/html; charset=utf-8")
+                        resp.send(`<!DOCTYPE html><html>${errorToHtml(error)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
+                    }
+                    else if(accept.startsWith("text/")) {
+                        resp.contentType(`${accept}; charset=utf-8`)
+                        resp.send(errorToString(error))
+                    }
+                    else {
+                        return false; // not handled ?
+                    }
+                    return true; // it was handled
+                });
+            }
+            else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
+                resp.status(550); // Indicate "throw legal value" to the client
+                sendResult(caught); // Just send it.
+            }
         }
     });
 
@@ -478,7 +508,48 @@ function fixTextEncoding(encoding: string): BufferEncoding {
     return result;
 }
 
+function logAndConcealError(error: Error, options: RestfuncsOptions) {
+    const errorExt: ErrorWithExtendedInfo = cloneError(error);
+    // Log error to console:
+    let errorId;
+    if(options.logErrors || options.logErrors === undefined) {
+        if(options.exposeErrors !== true) { // Do we need an errorId cause not every info will be handed out ?
+            errorId = crypto.randomBytes(6).toString("hex");
+            console.error(`${errorId}: ${errorToString(errorExt)}`);
+        }
+    }
+
+    // Cut off the parts of errorExt that should not be exposed and add some description.
+    const DIAGNOSIS_SHOWFULLERRORS="If you want to see full errors on the client (development), set exposeErrors=true in the restfuncs options."
+    if(options.exposeErrors === true) {
+        return errorExt;
+    }
+    else if(options.exposeErrors === "messageOnly") {
+        return {
+            message: errorExt.message,
+            name: errorExt.name,
+            stack: `Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`
+        };
+    }
+    else if( (options.exposeErrors === "RestErrorsOnly" || options.exposeErrors === undefined) && error instanceof RestError) {
+        return {
+            message: errorExt.message,
+            name: errorExt.name,
+        };
+    }
+    else {
+        return {
+            message: `Internal server error.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
+            name: "Error",
+        }
+    }
+}
+
 const FAST_JSON_DETECTOR_REGEXP = /^([0-9\[{]|-[0-9]|true|false|null)/;
 export function diagnosis_looksLikeJSON(value : string) {
     return FAST_JSON_DETECTOR_REGEXP.test(value);
+}
+
+export class RestError extends Error {
+    // TODO add http status code
 }

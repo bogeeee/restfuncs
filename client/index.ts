@@ -159,8 +159,16 @@ export class RestfuncsClient<Service> {
                 throw new Error(`Invalid response. Seems like '${this.url}' is not served by restfuncs cause there's no 'restfuncs-protocol' header field. Response body:\n${responseText}`);
             }
 
-            // Error handling:
-            if (response.status !== 200) {
+            if(response.status >= 200 && response.status < 300) { // 2xx ?
+                // Parse result:
+                const result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
+                return {result, resp: response};
+            }
+            else if(response.status == 550) { // "throw legal value" (non-error)
+                const result = brilloutJsonParse(await response.text()); // Parse result:
+                throw result;
+            }
+            else { // Other / Error
                 const responseText = await response.text();
 
                 let responseJSON;
@@ -183,10 +191,6 @@ export class RestfuncsClient<Service> {
 
                 throw new ServerError(formatError(responseJSON), {cause: responseJSON});
             }
-
-            // Parse result:
-            const result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
-            return {result, resp: response};
         }
 
     /**
