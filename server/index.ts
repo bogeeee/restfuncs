@@ -550,6 +550,23 @@ export function diagnosis_looksLikeJSON(value : string) {
     return FAST_JSON_DETECTOR_REGEXP.test(value);
 }
 
+export type RestErrorOptions = ErrorOptions & {
+    /**
+     * Set the status code that should be send
+     */
+    httpStatusCode?: number
+}
+
+/**
+ * These Errors will get sent to the client with their full errormessage while normal Errors wold usually be concealed. {@see RestfuncsOptions.exposeErrors}
+ * Also you can specify the http status code in the options.
+ *
+ * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends RestError' would trigger a login popup dialog.
+ */
 export class RestError extends Error {
-    // TODO add http status code
+    public httpStatusCode?: number;
+    constructor(message: string, options?: RestErrorOptions ) {
+        super(message, options);
+        this.httpStatusCode = options?.httpStatusCode;
+    }
 }
