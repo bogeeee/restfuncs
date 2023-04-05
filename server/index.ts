@@ -547,7 +547,7 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
     }
 
     let definitelyIncludedProps: Record<string, any> = {};
-    if(error instanceof RestError && error.constructor !== RestError) { // A (special) SUB-class of RestError ? I.e. think of a custom NotLoggedInError
+    if(isRestError(error) && error.constructor !== RestError) { // A (special) SUB-class of RestError ? I.e. think of a custom NotLoggedInError
         // Make sure this error is ALWAYS identifyable by the client and its custom properties are included, cause they were explicitly implemented by the user for a reason.
         definitelyIncludedProps = {
             ...customPropertiesOnly(errorExt),
@@ -560,11 +560,11 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
         return {
             message: errorExt.message,
             name: errorExt.name,
-            stack: `Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
+            stack: isRestError(error)?undefined:`Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
             ...definitelyIncludedProps,
         };
     }
-    else if( (options.exposeErrors === "RestErrorsOnly" || options.exposeErrors === undefined) && error instanceof RestError) {
+    else if( (options.exposeErrors === "RestErrorsOnly" || options.exposeErrors === undefined) && isRestError(error)) {
         return {
             message: errorExt.message,
             name: errorExt.name,
@@ -609,8 +609,22 @@ export type RestErrorOptions = ErrorOptions & {
  */
 export class RestError extends Error {
     public httpStatusCode?: number;
+
+    /**
+     * Redundant indicator that this is a RestError (sub-) class because an 'instanceof RestError' strangely does not work across different packages.
+     */
+    public isRestError= true;
+
+    public log?: boolean;
+
     constructor(message: string, options?: RestErrorOptions ) {
         super(message, options);
         this.httpStatusCode = options?.httpStatusCode;
+        this.log = options?.log;
     }
+}
+
+function isRestError(error: Error) {
+    // @ts-ignore
+    return error.isRestError
 }
