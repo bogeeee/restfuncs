@@ -238,7 +238,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
         }
         catch (caught) {
             if(caught instanceof Error) {
-                resp.status(500);
+                resp.status( isRestError(caught) && (<RestError>caught).httpStatusCode || 500);
 
                 fixErrorStack(caught)
                 let error = logAndConcealError(caught, options, req);
