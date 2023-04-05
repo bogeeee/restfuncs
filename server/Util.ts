@@ -123,9 +123,9 @@ export function errorToHtml(e: any): string {
     }
 
 
-    return `<b>${textToHtml( title)}</b>"` +
+    return `<b>${textToHtml( title)}</b>` +
         (stack ? `\n<pre>${escapeHtml(stack)}</pre>` : '') +
-        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
+        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (escapeHtml(e.columnNumber) ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
