@@ -117,15 +117,9 @@ export function errorToHtml(e: any): string {
 
     let title= (e.name ? `${e.name}: `: "") + (e.message || String(e))
 
-    let stack = e.stack;
-    if(stack?.startsWith(title)) {
-        stack=stack.substring(title.length);
-    }
-
-
     return `<b>${textToHtml( title)}</b>` +
-        (stack ? `\n<pre>${escapeHtml(stack)}</pre>` : '') +
-        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (escapeHtml(e.columnNumber) ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
+        (e.stack ? `\n<pre>${escapeHtml(e.stack)}</pre>` : '') +
+        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (e.columnNumber ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
@@ -140,10 +134,33 @@ export function errorToString(e: any): string {
     }
     e = <ErrorWithExtendedInfo> e;
 
-
-    return (e.name ? (e.name + ": ") : "") + (e.message || e) +
-        (e.stack ? `\nServer stack: ${e.stack}` : '') +
+    return (e.name ? `${e.name}: `: "") + (e.message || String(e)) +
+        (e.stack ? `\n${e.stack}` : '') +
         (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
         (e.cause ? `\nCause: ${errorToString(e.cause)}` : '')
+}
 
+const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*RestError.*\n/;
+
+/**
+ * Removes redundant info from the error.stack + error.cause properties
+ * @param error
+ */
+export function fixErrorStack(error: Error) {
+    //Redundantly fix error.cause's
+    if(error.cause && typeof error.cause === "object") {
+        fixErrorStack(error.cause);
+    }
+
+    if(typeof error.stack !== "string") {
+        return;
+    }
+
+    // Remove repeated title from the stack:
+    let title= (error.name ? `${error.name}: `: "") + (error.message || String(error))
+    if(error.stack?.startsWith(title + "\n")) {
+        error.stack=error.stack.substring(title.length + 1);
+    }
+
+    error.stack = error.stack.replace(RESTERRORSTACKLINE,"") // Remove "at new Resterror..." line
 }

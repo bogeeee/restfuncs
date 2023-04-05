@@ -1,7 +1,7 @@
 import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
-import {cloneError, ERROR_PROPERTIES, errorToHtml, errorToString, ErrorWithExtendedInfo} from "./Util";
+import {cloneError, ERROR_PROPERTIES, errorToHtml, errorToString, ErrorWithExtendedInfo, fixErrorStack} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -240,7 +240,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             if(caught instanceof Error) {
                 resp.status(500);
 
-                const error = logAndConcealError(caught, options);
+                fixErrorStack(caught)
+                let error = logAndConcealError(caught, options);
 
                 // Format error and send it:
                 acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
@@ -534,7 +535,7 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
     if(error_log !== false && (error_log || options.logErrors !== false)) {
         if(options.exposeErrors !== true) { // Do we need an errorId cause not every info will be handed out ?
             errorId = crypto.randomBytes(6).toString("hex");
-            console.error(`${errorId}: ${errorToString(errorExt)}`);
+            console.error(`[${errorId}]: ${errorToString(errorExt)}`);
         }
     }
 
