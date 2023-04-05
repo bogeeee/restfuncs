@@ -95,7 +95,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
         const collectedErrorsForThisParam: Error[] = [];
         const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
         if(!ok || collectedErrorsForThisParam.length > 0) {
-            errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
+            errors.push(`Invalid value for parameter ${parameter.name}` + (collectedErrorsForThisParam.length > 0?`: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`:""));
         }
     }
 
