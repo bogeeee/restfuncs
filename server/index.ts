@@ -41,14 +41,14 @@ export type RestfuncsOptions = {
     /**
      * Whether to show/expose error information to the client:
      * - true: Exposes ALL error messages + stacks. Enable this for development.
-     * - "messageOnly": Exposes only the message/title + class name. But no stack or other info.
+     * - "messagesOnly": Exposes only the message/title + class name. But no stack or other info.
      * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of {@see RestError}. Those are intended to aid the interface consumer.
      * - false: No information is exposed. The client will get a standard Error: "Internal server error".
      *
      *  User defined SUB- classes of {@see RestError} will always fall through this restriction and have their message, name and custom properties exposed.
      *  I.e. You could implement a 'class NotLoggedInException extends RestError' as in indicator to trigger a login form.
      */
-    exposeErrors?: true|"messageOnly"|"RestErrorsOnly"|false
+    exposeErrors?: true|"messagesOnly"|"RestErrorsOnly"|false
 
     /**
      * Whether methods can be called via http GET
@@ -556,7 +556,7 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
         };
     }
 
-    if(options.exposeErrors === "messageOnly") {
+    if(options.exposeErrors === "messagesOnly") {
         return {
             message: errorExt.message,
             name: errorExt.name,
