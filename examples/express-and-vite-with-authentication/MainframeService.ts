@@ -1,8 +1,12 @@
-import {RestService} from "restfuncs-server";
+import {RestError, RestService} from "restfuncs-server";
 import _ from "underscore";
 
-class NotLoggedInError extends Error {
+class NotLoggedInError extends RestError {
     name= "NotLoggedInError"; // Properly flag it for the client to recognize
+
+    constructor() {
+        super("Not logged in",{log: false, httpStatusCode: 401})
+    }
 }
 
 export class MainframeService extends RestService {
@@ -15,7 +19,7 @@ export class MainframeService extends RestService {
     // Interceptor that checks for login on every function call
     protected async doCall(funcName: string, args: any[]) {
         if(!_(["login", "myUnrestrictedFunction"]).contains(funcName) && !this.session.logonUser) {
-            throw new NotLoggedInError("Not logged in")
+            throw new NotLoggedInError()
         }
         return await super.doCall(funcName, args);
     }
