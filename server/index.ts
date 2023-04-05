@@ -91,7 +91,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
         const options:RestfuncsOptions = arg2 || {};
 
         if(typeof (options) !== "object") {
-            throw new Error("Invalid argument");
+            throw new RestError("Invalid argument")
         }
 
         const app = express();
@@ -112,7 +112,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
         const options:RestfuncsOptions = arg1 || {};
 
         if(typeof (options) !== "object") {
-            throw new Error("Invalid argument");
+            throw new RestError("Invalid argument")
         }
 
         return createRestFuncsExpressRouter(service, options);
@@ -131,7 +131,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
         get(target: Record<string, any>, p: string | symbol, receiver: any): any {
             // Reject symbols (don't know what it means but we only want strings as property names):
             if (typeof p != "string") {
-                throw new Error(`Unhandled : ${String(p)}`);
+                throw new RestError(`Unhandled : ${String(p)}`)
             }
 
             if (target[p] === undefined) {
@@ -142,11 +142,11 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
         set(target: Record<string, any>, p: string | symbol, newValue: any, receiver: any): boolean {
             // Reject symbols (don't know what it means but we only want strings as property names):
             if (typeof p != "string") {
-                throw new Error(`Unhandled : ${String(p)}`);
+                throw new RestError(`Unhandled : ${String(p)}`)
             }
 
             if (newValue === undefined && sessionPrototype[p] !== undefined) { // Setting a value that exists on the prototype to undefined ?
-                throw new Error(`Cannot set session.${p} to undefined. Please set it to null instead.`); // We can't allow that because the next get would return the initial value (from the prototype) and that's not an expected behaviour.
+                throw new RestError(`Cannot set session.${p} to undefined. Please set it to null instead.`) // We can't allow that because the next get would return the initial value (from the prototype) and that's not an expected behaviour.
             }
 
             target[p] = newValue;
@@ -210,18 +210,18 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
 
             if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE") {
-                throw new Error("Unhandled http method: " + req.method);
+                throw new RestError("Unhandled http method: " + req.method)
             }
 
             // retrieve method name:
             const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
             let methodNameFromPath = fixedPath.split("/")[0];
             if(!methodNameFromPath) {
-                throw new Error(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`);
+                throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
             }
             const methodName = restService.getMethodNameForCall(req.method, methodNameFromPath);
             if(!methodName) {
-                throw new Error(`No method candidate found for ${req.method} + ${methodNameFromPath}.`);
+                throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 
             const collectedParams = collectParamsFromRequest(restService, methodName, req);
@@ -326,7 +326,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
                     addValue(value);
                 }
                 else if(listInsertionParameter.isBinding) {
-                    throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+                    throw new RestError(`Runtime typechecking of destructuring arguments is not yet supported`)
                 }
                 else {
                     addValue(restService.autoConvertValueForParameter(value, listInsertionParameter, source));
@@ -340,16 +340,16 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
          */
         function addParamsMap(paramsMap: Record<string, any>) {
             if(!reflectedMethod) {
-                throw new Error(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+                throw new RestError(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
             }
 
             for(const name in paramsMap) {
                 const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
                 if(!parameter) {
-                    throw new Error(`Method ${methodName} does not have a parameter named '${name}'`);
+                    throw new RestError(`Method ${methodName} does not have a parameter named '${name}'`)
                 }
                 if(parameter.isRest) {
-                    throw new Error(`Cannot set ...${name} through named parameter`);
+                    throw new RestError(`Cannot set ...${name} through named parameter`)
                 }
                 result[parameter.index] = restService.autoConvertValueForParameter(paramsMap[name], parameter, source)
             }
@@ -416,7 +416,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
             catch (e) {
                 // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
                 if(e instanceof Error && diagnosis_looksLikeJSON(rawBodyText)) {
-                    throw new Error(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
+                    throw new RestError(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
                 }
                 else {
                     throw e;
@@ -443,15 +443,15 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
                 throw valueFromJSON;
             }
             else {
-                throw new Error("Request body invalid. Consider explicitly specifying the content type");
+                throw new RestError("Request body invalid. Consider explicitly specifying the content type")
             }
         }
         else {
-            throw new Error(`Content-Type: '${contentType}' not supported`);
+            throw new RestError(`Content-Type: '${contentType}' not supported`)
         }
     }
     else if (!_.isEqual(req.body, {})) { // non empty body ?
-        throw new Error("Unhandled non-empty body. Please report this as a bug.")
+        throw new RestError("Unhandled non-empty body. Please report this as a bug.")
     }
 
     return result;
@@ -505,7 +505,7 @@ function fixTextEncoding(encoding: string): BufferEncoding {
     const result = encodingsMap[encoding.toLowerCase()];
 
     if(!result) {
-        throw new Error(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
+        throw new RestError(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
     }
 
     return result;

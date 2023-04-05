@@ -1,4 +1,5 @@
 import escapeHtml from "escape-html";
+import {RestError} from "./index";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -22,7 +23,7 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
 
             // Output special diagnosis errormessage in case the user hasn't installed a session handler:
             if(p === "session" && enhancementProps[p] === undefined) {
-                throw new Error("No session handler has been installed in express. Please install it using the following code snippet:\n" +
+                throw new RestError("No session handler has been installed in express. Please install it using the following code snippet:\n" +
                     "***************\n" +
                     "import session from \"express-session\";\n" +
                     "import crypto from \"node:crypto\";\n" +
@@ -35,7 +36,7 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
                     "    unset: \"destroy\",\n" +
                     "    store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session\n" +
                     "}));\n" +
-                    "***************\n");
+                    "***************\n")
             }
 
             // get a property that should be enhanced ?

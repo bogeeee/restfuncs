@@ -1,6 +1,6 @@
 import {Request, Response} from "express";
 import _ from "underscore";
-import {RestfuncsOptions} from "./index";
+import {RestError, RestfuncsOptions} from "./index";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {Camelize, enhanceViaProxyDuringCall} from "./Util";
 
@@ -39,15 +39,15 @@ export function isTypeInfoAvailable(restService: object) {
  */
 function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
     if(reflectedMethod.isProtected) {
-        throw new Error("Method is protected.")
+        throw new RestError("Method is protected.")
     }
     if(reflectedMethod.isPrivate) {
-        throw new Error("Method is private.")
+        throw new RestError("Method is private.")
     }
 
     // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
     if(reflectedMethod.visibility !== "public") {
-        throw new Error("Method is not public")
+        throw new RestError("Method is not public")
     }
 }
 
@@ -65,7 +65,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     for(const i in reflectedMethod.parameters) {
         const parameter = reflectedMethod.parameters[i];
         if(parameter.isOmitted) {
-            throw new Error("Omitted arguments not supported");
+            throw new RestError("Omitted arguments not supported")
         }
         if(parameter.isRest) {
             argsStack.reverse();
@@ -81,7 +81,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
             continue;
         }
         if(parameter.isBinding) {
-            throw new Error(`Runtime typechecking of destructuring arguments is not yet supported`);
+            throw new RestError(`Runtime typechecking of destructuring arguments is not yet supported`)
         }
 
         const arg =  argsStack.length > 0?argsStack.pop():undefined;
@@ -100,11 +100,11 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     }
 
     if(argsStack.length > 0) {
-        throw new Error(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`);
+        throw new RestError(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`)
     }
 
     if(errors.length > 0) {
-        throw new Error(errors.join("; "))
+        throw new RestError(errors.join("; "))
     }
 }
 
@@ -165,37 +165,37 @@ export class RestService {
 
         // Check methodName:
         if(!methodName) {
-            throw new Error(`methodName not set`);
+            throw new RestError(`methodName not set`)
         }
         if(typeof methodName !== "string") {
-            throw new Error(`methodName is not a string`);
+            throw new RestError(`methodName is not a string`)
         }
         if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
-            throw new Error(`You are trying to call a remote method that is a reserved name: ${methodName}`);
+            throw new RestError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if(this[methodName] === undefined) {
-            throw new Error(`You are trying to call a remote method that does not exist: ${methodName}`);
+            throw new RestError(`You are trying to call a remote method that does not exist: ${methodName}`)
         }
         const method = this[methodName];
         if(typeof method != "function") {
-            throw new Error(`${methodName} is not a function`);
+            throw new RestError(`${methodName} is not a function`)
         }
 
         if (httpMethod === "GET") {
             if (this.denyMethodByGet(methodName)) {
-                throw new Error(`${methodName} is not allowed to be called by http GET. See https://github.com/bogeeee/restfuncs#get-methods-can-be-triggered-cross-site`);
+                throw new RestError(`${methodName} is not allowed to be called by http GET. See https://github.com/bogeeee/restfuncs#get-methods-can-be-triggered-cross-site`)
             }
         }
         else if(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "DELETE") {
             // allow
         }
         else {
-            throw new Error(`http ${httpMethod} not allowed`);
+            throw new RestError(`http ${httpMethod} not allowed`)
         }
 
         // Make sure that args is an array:
         if(!args || args.constructor !== Array) {
-            throw new Error("args is not an array");
+            throw new RestError("args is not an array")
         }
 
         // Runtime type checking of args:
@@ -341,7 +341,7 @@ export class RestService {
     public autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
         if(source === "string") {
             if(typeof value !== "string") {
-                throw new Error(`${parameter.name} parameter should be a string`);
+                throw new RestError(`${parameter.name} parameter should be a string`)
             }
             return this.autoConvertValueForParameter_fromString(value, parameter);
         }
@@ -425,7 +425,7 @@ export class RestService {
         // Warn/error if type info is not available:
         if(!isTypeInfoAvailable(restService)) {
             if(options.checkArguments) {
-                throw new Error("Runtime type information is not available.\n" +  restService._diagnosisWhyIsRTTINotAvailable());
+                throw new RestError("Runtime type information is not available.\n" +  restService._diagnosisWhyIsRTTINotAvailable())
             }
             else if(options.checkArguments === undefined) {
                 console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + restService._diagnosisWhyIsRTTINotAvailable())
