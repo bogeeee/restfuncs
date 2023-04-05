@@ -108,6 +108,24 @@ test('Test arguments', async () => {
     );
 })
 
+test('Test BigInt', async () => {
+
+    class A {
+        i: BigInt
+    }
+
+    const iProp = reflect(A).getProperty("i");
+    expect(iProp.matchesValue(123n)).toBe(true);
+    expect(iProp.matchesValue(undefined)).toBe(false);
+    expect(iProp.matchesValue(null)).toBe(false);
+    expect(iProp.matchesValue(123)).toBe(false);
+    expect(iProp.matchesValue("")).toBe(false);
+    expect(iProp.matchesValue(-1)).toBe(false);
+    expect(iProp.matchesValue(Number.NaN)).toBe(false);
+    expect(iProp.matchesValue(Number.POSITIVE_INFINITY)).toBe(false);
+    expect(iProp.matchesValue(Number.NEGATIVE_INFINITY)).toBe(false);
+})
+
 /**
  * See https://github.com/typescript-rtti/typescript-rtti/issues/92
  */

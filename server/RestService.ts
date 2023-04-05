@@ -354,6 +354,13 @@ export class RestService {
         }
     }
 
+    protected static STRING_TO_BOOL_MAP: Record<string, boolean | undefined> = {
+        "true": true,
+        "false": false,
+        // "1": true, "0": false // Nah -> we should keep the door open for number|bool auto conversion
+        "": undefined
+    }
+
     /**
      * Values from the url path or the query are plain strings only.
      * This method is called to convert them to the actual needed parameter type.
@@ -365,7 +372,41 @@ export class RestService {
      * @returns
      */
     public autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
-        return value; // TODO
+        // TODO: number|bool and other ambiguous types could be auto converted to
+        try {
+            if (parameter.type.isClass(Number)) {
+                if (value === "") {
+                    return undefined;
+                }
+                if (value === "NaN") {
+                    return Number.NaN
+                }
+                return Number(value);
+            }
+
+            if (parameter.type.isClass(BigInt)) {
+                if (value === "") {
+                    return undefined;
+                }
+                return BigInt(value);
+            }
+
+            if (parameter.type.isClass(Boolean)) {
+                return RestService.STRING_TO_BOOL_MAP[value];
+            }
+
+            if (parameter.type.isClass(Date)) {
+                if (value === "") {
+                    return undefined;
+                }
+                return new Date(value);
+            }
+
+            return value;
+        }
+        catch (e) {
+            throw new RestError(`Error converting value ${value} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a RestError cause we probably don't need to reveal the stacktrace here / keep the message simple
+        }
     }
 
     /**
@@ -380,7 +421,23 @@ export class RestService {
      * @returns
      */
     public autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
-        return value; // TODO
+        // *** Help us make this method convert to nested dates like myFunc(i: {someDate: Date})
+        // *** You can use [this nice little playground](https://typescript-rtti.org) to quickly see how the ReflectedMethodParameter works ;)
+
+        // null -> undefined
+        if(value === null && !parameter.type.matchesValue(null) && (parameter.isOptional || parameter.type.matchesValue(undefined) )) { // undefined values were passed as null (i.e. an parameter array [undefined] would JSON.stringify to [null] TODO: whe should only check this if we came from an array to lessen magic / improve security
+            return undefined;
+        }
+
+        if (parameter.type.isClass(BigInt) && typeof value === "number") {
+            return BigInt(value);
+        }
+
+        if(parameter.type.isClass(Date) && typeof value === "string") {
+            return new Date(value);
+        }
+
+        return value;
     }
 
 

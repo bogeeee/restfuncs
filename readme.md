@@ -148,14 +148,23 @@ Also note the limitation of [GET beeing **only** allowed for get... methods](#ge
 ### Content types
 To specify what you **send**, set the `Content-Type` header to 
  - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
- - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) -  Better.
- - `text/plain` - For the one case, see above.
- - _Any other_ - Can be consumed by a `Buffer` parameter.
+ - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Fixes the above.
+ - `text/plain` - For the one case, see table above.
+ - _Any other_ - Can be consumed by a `Buffer` parameter (TODO).
 
 To specify what you want to **receive** in the response, Set the `Accept` header to
  - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
  - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Better.
  - TODO: Implement html / text/plain
+
+### Auto value conversion
+Parameter values will be **reasonably** auto converted to the actual declared type.  
+- The **query or path** can only carry strings, so they **will auto convert to boolean, number, Date, BigInt** types.
+- **JSON**'s unsupported `undefined` (in arrays), `BigInt` and `Date` values will auto convert.   
+_Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `RestService.autoConvertValueForParameter_fromJson` method to improve it._
+
+_Restfuncs won't try to convert ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._ 
+
 
  
 

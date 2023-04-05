@@ -1,7 +1,8 @@
-import {diagnosis_looksLikeJSON, RestError, restfuncs, RestService} from "restfuncs-server";
+import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, RestService} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
-
+import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
+import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
@@ -22,9 +23,9 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     }
 }
 
-async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api") {
+async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options: Partial<RestfuncsOptions> = {}) {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true, ...options}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -255,6 +256,81 @@ test('GET methods security', async () => {
         await fetch(`${baseUrl}/postTest`, {method: "GET"});
         expect(postTestTriggered).toBeFalsy();
     });
+})
+
+test('auto convert parameters', async () => {
+
+    await runRawFetchTests(new class {
+        getNum(num?: number) {
+            return num;
+        }
+
+        getBigInt(num?: BigInt) {
+            return num;
+        }
+
+        getBool(bool?: boolean) {
+            return bool;
+        }
+
+        getDate(date?: Date) {
+            return date;
+        }
+
+    }, async (baseUrl) => {
+
+        async function fetchJson(input: RequestInfo, init?: RequestInit) {
+            const response = await fetch(input, {
+                headers: {"Content-Type": "", "Accept": "application/brillout-json"},
+                ...init
+            });
+            // Error handling:
+            if (response.status !== 200) {
+                throw new Error("server error: " + await response.text())
+            }
+
+            return brilloutJsonParse(await response.text());
+        }
+
+        // **** Query (string) ***
+
+        // Number:
+        expect(await fetchJson(`${baseUrl}/getNum/123`, {method: "GET"})).toStrictEqual(123);
+        expect(await fetchJson(`${baseUrl}/getNum/NaN`, {method: "GET"})).toStrictEqual(Number.NaN);
+        expect(await fetchJson(`${baseUrl}/getNum/Infinity`, {method: "GET"})).toStrictEqual(Number.POSITIVE_INFINITY);
+        expect(await fetchJson(`${baseUrl}/getNum/-12345.67`, {method: "GET"})).toStrictEqual(-12345.67);
+        expect(await fetchJson(`${baseUrl}/getNum?num=`, {method: "GET"})).toStrictEqual(undefined);
+
+        // BigInt:
+        expect(await fetchJson(`${baseUrl}/getBigInt/123`, {method: "GET"})).toStrictEqual(123n);
+        expect(await fetchJson(`${baseUrl}/getBigInt/9007199254740992`, {method: "GET"})).toStrictEqual(9007199254740992n);
+        expect(await fetchJson(`${baseUrl}/getBigInt/0x1fffffffffffff`, {method: "GET"})).toStrictEqual(0x1fffffffffffffn);
+        expect(await fetchJson(`${baseUrl}/getBigInt?num=`, {method: "GET"})).toStrictEqual(undefined);
+
+
+        // Bool:
+        expect(await fetchJson(`${baseUrl}/getBool/true`, {method: "GET"})).toStrictEqual(true);
+        expect(await fetchJson(`${baseUrl}/getBool/false`, {method: "GET"})).toStrictEqual(false);
+        expect(await fetchJson(`${baseUrl}/getBool?bool=`, {method: "GET"})).toStrictEqual(undefined);
+
+        // Date:
+        const strDate = "2023-04-05T16:30:45.712Z";
+        const date = new Date(strDate);
+        expect(await fetchJson(`${baseUrl}/getDate?date=`, {method: "GET"})).toStrictEqual(undefined);
+        expect(await fetchJson(`${baseUrl}/getDate?date=${encodeURIComponent(strDate)}`, {method: "GET"})).toStrictEqual(date);
+        expect(await fetchJson(`${baseUrl}/getDate?date=`, {method: "GET"})).toStrictEqual(undefined);
+
+
+        // *** JSON ****
+        expect(await fetchJson(`${baseUrl}/getNum`, {method: "POST", body: JSON.stringify([123])})).toStrictEqual(123); // Should work even without auto conversion
+        expect(await fetchJson(`${baseUrl}/getNum`, {method: "POST", body: JSON.stringify([undefined])})).toStrictEqual(undefined);
+        expect(await fetchJson(`${baseUrl}/getBigInt`, {method: "POST", body: JSON.stringify([123])})).toStrictEqual(123n);
+        expect(await fetchJson(`${baseUrl}/getBigInt`, {method: "POST", body: JSON.stringify([undefined])})).toStrictEqual(undefined);
+        expect(await fetchJson(`${baseUrl}/getDate`, {method: "POST", body: JSON.stringify(date)})).toStrictEqual(date);
+        expect(await fetchJson(`${baseUrl}/getDate`, {method: "POST", body: JSON.stringify([undefined])})).toStrictEqual(undefined);
+
+
+    }, "/api", {checkArguments: true});
 })
 
 test('various call styles', async () => {
