@@ -36,7 +36,7 @@ export type RestfuncsOptions = {
      * You can supply a logger function
      * Default: true
      */
-    logErrors?: boolean | ((message: string) => void)
+    logErrors?: boolean | ((message: string, req?: Request) => void)
 
     /**
      * Whether to show/expose error information to the client:
@@ -241,7 +241,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 resp.status(500);
 
                 fixErrorStack(caught)
-                let error = logAndConcealError(caught, options);
+                let error = logAndConcealError(caught, options, req);
 
                 // Format error and send it:
                 acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
@@ -512,7 +512,13 @@ function fixTextEncoding(encoding: string): BufferEncoding {
     return result;
 }
 
-function logAndConcealError(error: Error, options: RestfuncsOptions) {
+/**
+ *
+ * @param error
+ * @param options
+ * @param req Retrieve For retrieving info for logging
+ */
+function logAndConcealError(error: Error, options: RestfuncsOptions, req: Request) {
     /**
      * Removes usual error properties (leaving all custom properties)
      */
@@ -528,14 +534,21 @@ function logAndConcealError(error: Error, options: RestfuncsOptions) {
 
     const errorExt: ErrorWithExtendedInfo = cloneError(error);
 
-    // Log error to console:
+    // Log error:
     let errorId;
     // @ts-ignore
     const error_log: boolean | undefined = error.log // Better type
     if(error_log !== false && (error_log || options.logErrors !== false)) {
-        if(options.exposeErrors !== true) { // Do we need an errorId cause not every info will be handed out ?
+        if(options.exposeErrors !== true) { // We need an errorId cause we'll conceal some info ?
             errorId = crypto.randomBytes(6).toString("hex");
-            console.error(`[${errorId}]: ${errorToString(errorExt)}`);
+        }
+
+        const logMessage = `${errorId?`[${errorId}]: `:""}${errorToString(errorExt)}`;
+        if(typeof options.logErrors === "function") {
+            options.logErrors(logMessage, req)
+        }
+        else {
+            console.error(logMessage);
         }
     }
 
