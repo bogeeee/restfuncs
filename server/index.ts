@@ -393,7 +393,9 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
             const rawBodyText = req.body.toString(fixTextEncoding(contentTypeAttributes["encoding"] || "utf8"));
             convertAndAddParams(brilloutJsonParse(rawBodyText), null);
         } else if(contentType == "application/x-www-form-urlencoded") {
-            throw new Error("TODO");
+            const rawBodyText = req.body.toString(fixTextEncoding(contentTypeAttributes["encoding"] || "utf8"));
+            const parsed= restService.parseQuery(rawBodyText);
+            convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
         }
         else if(contentType == "multipart/form-data") {
             throw new Error("TODO");

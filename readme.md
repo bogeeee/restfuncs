@@ -117,9 +117,10 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 # REST interface
 
-Like the name restfuncs suggests, there's also a REST interface for the case that you don't use the neat RPC client or you want to call these from other languages, etc.
-
-The following example service's method...
+Like the name restfuncs suggests, there's also a REST interface for the case that you don't use the neat RPC client or you want to call these from other languages, etc.  
+<br/>
+Restfuncs follows a **zero conf / gracefully accepting** approach:  
+The following service's example method...
 ```typescript
     function getBook(name: string, authorFilter?: string) {
         
@@ -129,27 +130,28 @@ The following example service's method...
 
 | Method | Url | Body | Description 
 | :----: | :-----------------------: | :-------------: | :-----------: |
-| GET | _/**getBook**/1984/George%20Orwell_ | | **Listed** arguments in the path
-| GET | _/**getBook**?1984,George%20Orwell | | **Listed** arguments in the query
-| GET | _/**getBook**?name=1984&authorFilter=George%20Orwell_ | | **Named** arguments in the query
+| GET | _/**getBook**/1984/George%20Orwell_ | | **List** arguments in the **path**
+| GET | _/**getBook**?1984,George%20Orwell_ | | **List** arguments in the **query**
+| GET | _/**getBook**?name=1984&authorFilter=George%20Orwell_ | | **Name** arguments in the **query**
 | GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your RestService subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
 | GET | _/**book** ..._ | | Read **"GET book"** like `getBook`. Applies to other http verbs also. Additionally **"PUT book"** will try to call `updateBook` or `setBook` cause this sounds more common in programming languages.
-| POST | _/**getBook**_ | | 
-| POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Named** arguments as JSON
-| POST | _/**getBook**_ | `["1984", "George Orwell"]` | **Listed** arguments as JSON
+| POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Name** arguments inside JSON body
+| POST | _/**getBook**_ | `["1984", "George Orwell"]` | **List** arguments inside JSON body
 | POST | _/**getBook**/1984_ | `"George Orwell"` | **Single** JSON primitive
-| POST | _/**getBook**/1984_ | `George Orwell` | Plain string. For this you must explicitly set the `Content-Type` header to `text/plain`
-| POST | _/**getBook**/1984_ | _&lt;Any binary data&gt;_ | Your function parameter (i.e. here the 2nd one) must be of type `Buffer`.
+| POST | _/**getBook**/1984_ | `George Orwell` | **Plain string**. For this you must explicitly set the `Content-Type` header to `text/plain`
+| POST | _/**getBook**_ | `name=1984&authorFilter=George%20Orwell` | Classic **Html &lt;form&gt;** with `Content-Type` = `application/x-www-form-urlencoded`. Still remember these ? They can be used here as well ;)
+| POST | _/**getBook**/1984_ | _&lt;Any binary data&gt;_ | **Binary Data**. Your function parameter (i.e. here the 2nd one) must be of type `Buffer`.
 
-You are free to mix these styles ;) The styles are parsed in the order as listed, so arguments from a lower line in the table will override (named) or append to (listed) the ones from above.
+You are free to mix these styles ;) The styles are parsed in the order as listed, so arguments from a lower line in the table will -override _named_- or -append to _listed_- ones from above.
 
 Also note the limitation of [GET beeing **only** allowed for get... methods](#get-methods-can-be-triggered-cross-site).
 
 ### Content types
 To specify what you **send**, set the `Content-Type` header to 
  - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
- - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Fixes the above.
+ - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Better. Fixes the above.
  - `text/plain` - For the one case, see table above.
+ - `application/x-www-form-urlencoded` - For classic html `<form method="post">`.
  - _Any other_ - Can be consumed by a `Buffer` parameter (TODO).
 
 To specify what you want to **receive** in the response, Set the `Accept` header to
@@ -163,7 +165,7 @@ Parameter values will be **reasonably** auto converted to the actual declared ty
 - **JSON**'s unsupported `undefined` (in arrays), `BigInt` and `Date` values will auto convert.   
 _Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `RestService.autoConvertValueForParameter_fromJson` method to improve it._
 
-_Restfuncs won't try to convert ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._ 
+_Restfuncs won't try to convert to ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._ 
 
 _Note for the security cautious of you: After all this "wild" parameter collection and auto conversion, the actual call-ready parameters will be security-checked again in a [second stage](#runtime-arguments-typechecking-shielding-against-evil-input)._ 
  
