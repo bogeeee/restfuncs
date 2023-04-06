@@ -339,7 +339,7 @@ export class RestService {
     public autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
         if(source === "string") {
             if(typeof value !== "string") {
-                throw new RestError(`${parameter.name} parameter should be a string`)
+                throw new Error(`${parameter.name} parameter should be a string`)
             }
             return this.autoConvertValueForParameter_fromString(value, parameter);
         }
@@ -421,21 +421,25 @@ export class RestService {
     public autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
         // *** Help us make this method convert to nested dates like myFunc(i: {someDate: Date})
         // *** You can use [this nice little playground](https://typescript-rtti.org) to quickly see how the ReflectedMethodParameter works ;)
+        try {
+            // null -> undefined
+            if (value === null && !parameter.type.matchesValue(null) && (parameter.isOptional || parameter.type.matchesValue(undefined))) { // undefined values were passed as null (i.e. an parameter array [undefined] would JSON.stringify to [null] TODO: whe should only check this if we came from an array to lessen magic / improve security
+                return undefined;
+            }
 
-        // null -> undefined
-        if(value === null && !parameter.type.matchesValue(null) && (parameter.isOptional || parameter.type.matchesValue(undefined) )) { // undefined values were passed as null (i.e. an parameter array [undefined] would JSON.stringify to [null] TODO: whe should only check this if we came from an array to lessen magic / improve security
-            return undefined;
+            if (parameter.type.isClass(BigInt) && typeof value === "number") {
+                return BigInt(value);
+            }
+
+            if (parameter.type.isClass(Date) && typeof value === "string") {
+                return new Date(value);
+            }
+
+            return value;
         }
-
-        if (parameter.type.isClass(BigInt) && typeof value === "number") {
-            return BigInt(value);
+        catch (e) {
+            throw new RestError(`Error converting value ${diagnisis_shortenValue(value)} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a RestError cause we probably don't need to reveal the stacktrace here / keep the message simple
         }
-
-        if(parameter.type.isClass(Date) && typeof value === "string") {
-            return new Date(value);
-        }
-
-        return value;
     }
 
 

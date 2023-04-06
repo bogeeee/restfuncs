@@ -91,7 +91,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
         const options:RestfuncsOptions = arg2 || {};
 
         if(typeof (options) !== "object") {
-            throw new RestError("Invalid argument")
+            throw new Error("Invalid argument")
         }
 
         const app = express();
@@ -112,7 +112,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
         const options:RestfuncsOptions = arg1 || {};
 
         if(typeof (options) !== "object") {
-            throw new RestError("Invalid argument")
+            throw new Error("Invalid argument")
         }
 
         return createRestFuncsExpressRouter(service, options);
