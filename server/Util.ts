@@ -1,5 +1,6 @@
 import escapeHtml from "escape-html";
 import {RestError} from "./index";
+import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -163,4 +164,17 @@ export function fixErrorStack(error: Error) {
     }
 
     error.stack = error.stack.replace(RESTERRORSTACKLINE,"") // Remove "at new Resterror..." line
+}
+
+export function diagnisis_shortenValue(value: any) : string {
+    if(value === undefined) {
+        return "undefined";
+    }
+
+    value = brilloutJsonStringify(value);
+    const MAX = 50;
+    if(value.length > MAX) {
+        return value.substring(0, MAX) + "..."
+    }
+    return value;
 }

@@ -2,7 +2,7 @@ import {Request, Response} from "express";
 import _ from "underscore";
 import {RestError, RestfuncsOptions} from "./index";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
-import {Camelize, enhanceViaProxyDuringCall} from "./Util";
+import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall} from "./Util";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -62,6 +62,14 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     argsStack.reverse();
 
     const errors: string[] = [];
+    function validateAndCollectErrors(parameter: ReflectedMethodParameter, arg: any) {
+        const collectedErrorsForThisParam: Error[] = [];
+        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
+        if (!ok || collectedErrorsForThisParam.length > 0) {
+            errors.push(`Invalid value for parameter ${parameter.name}: ${diagnisis_shortenValue(arg)}${collectedErrorsForThisParam.length > 0?`. Reason: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`:""}`);
+        }
+    }
+
     for(const i in reflectedMethod.parameters) {
         const parameter = reflectedMethod.parameters[i];
         if(parameter.isOmitted) {
@@ -70,12 +78,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
         if(parameter.isRest) {
             argsStack.reverse();
 
-            // Validate argsStack against parameter.type:
-            const collectedErrorsForThisParam: Error[] = [];
-            const ok = parameter.type.matchesValue(argsStack, collectedErrorsForThisParam); // Check value
-            if(!ok || collectedErrorsForThisParam.length > 0) {
-                errors.push(`Invalid value for parameter ${parameter.name}: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`);
-            }
+            validateAndCollectErrors(parameter, argsStack);
 
             argsStack = [];
             continue;
@@ -91,12 +94,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
             continue;
         }
 
-        // Validate arg against parameter.type:
-        const collectedErrorsForThisParam: Error[] = [];
-        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
-        if(!ok || collectedErrorsForThisParam.length > 0) {
-            errors.push(`Invalid value for parameter ${parameter.name}` + (collectedErrorsForThisParam.length > 0?`: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`:""));
-        }
+        validateAndCollectErrors(parameter, arg);
     }
 
     if(argsStack.length > 0) {
