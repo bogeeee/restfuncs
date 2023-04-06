@@ -165,7 +165,7 @@ _Note that it currently doesn't support nested properties like `myFunc(i: {someD
 
 _Restfuncs won't try to convert ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._ 
 
-
+_Note for the security cautious of you: After all this "wild" parameter collection and auto conversion, the actual call-ready parameters will be security-checked again in a [second stage](#runtime-arguments-typechecking-shielding-against-evil-input)._ 
  
 
 ## Mangle with raw request and response
