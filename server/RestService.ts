@@ -379,7 +379,11 @@ export class RestService {
                 if (value === "NaN") {
                     return Number.NaN
                 }
-                return Number(value);
+                const result = Number(value);
+                if(Number.isNaN(result)) { // Invalid values were converted to NaN but we don't want that.
+                    return value;
+                }
+                return result;
             }
 
             if (parameter.type.isClass(BigInt)) {
