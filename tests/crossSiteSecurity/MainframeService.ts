@@ -1,4 +1,4 @@
-import {RestService} from "restfuncs-server";
+import {RestError, RestService} from "restfuncs-server";
 import _ from "underscore";
 
 class NotLoggedInError extends RestError {
@@ -33,6 +33,10 @@ export class MainframeService extends RestService {
     }
 
     async multiplyBy10(value: number) {
-        return value * 10
+        return `Logged in as ${this.session.logonUser}. Result is: ${value * 10}`;
+    }
+
+    async getConcat(a: string, b: number) {
+        return `Logged in as ${this.session.logonUser}. Result is: ${a + b}`;
     }
 }

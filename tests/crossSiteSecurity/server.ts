@@ -4,7 +4,7 @@ import {restfuncs} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
-import {StatelessService} from "./StatelessService";
+import {StatelessService} from "./StatelessService.js";
 
 (async () => {
     {

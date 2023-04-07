@@ -72,6 +72,7 @@ export async function runAlltests() {
     const statelessService = new RestfuncsClient<StatelessService>( `http://localhost:${mainSitePort}/statelessService`).proxy
     const allowedStatelessService = new RestfuncsClient<StatelessService>( `http://localhost:${mainSitePort}/allowedStatelessService`).proxy
 
+    // TODO: set .withCredentials flag: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials
 
     await assertFailsXS("call test() on normal service", async () => {
         if(await statelessService.test() !== "ok") {
