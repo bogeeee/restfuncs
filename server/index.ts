@@ -10,6 +10,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import {checkParameterTypes, isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
 import _ from "underscore";
 import URL from "url"
+import busboy from "busboy";
 
 export {RestService} from "./RestService";
 
@@ -62,6 +63,14 @@ export type RestfuncsOptions = {
      * Make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.
      */
     allowGET?: true|false|"all"
+
+    /**
+     * Enable/disable file uploads through http multipart
+     * If not needed, you may disable this to have one less http parser library (busboy) involved (security).
+     *
+     * undefined (default) = auto detect if really needed by scanning for functions that have Buffer parameters
+     */
+    enableMultipartFileUploads?: boolean
 }
 
 /**
@@ -174,6 +183,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
 function createRestFuncsExpressRouter(restServiceObj: object, options: RestfuncsOptions): Router {    ;
     const restService = RestService.initializeRestService(restServiceObj, options);
 
+    const enableMultipartFileUploads = options.enableMultipartFileUploads || (options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(restService) || restService.mayNeedFileUploadSupport()))
 
     const router = express.Router();
 
@@ -224,7 +234,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 
-            const collectedParams = collectParamsFromRequest(restService, methodName, req);
+            const collectedParams = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
 
             let session = null;
             // @ts-ignore
@@ -281,7 +291,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
  * @param req
  * @return evil parameters
  */
-function collectParamsFromRequest(restService: RestService, methodName: string, req: Request): any[] {
+function collectParamsFromRequest(restService: RestService, methodName: string, req: Request, enableMultipartFileUploads: boolean): any[] {
     // Determine path tokens:
     const url = URL.parse(req.url);
     const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -398,7 +408,10 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
             convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
         }
         else if(contentType == "multipart/form-data") {
-            throw new Error("TODO");
+            if(!enableMultipartFileUploads) {
+                throw new RestError("Please set enableMultipartFileUploads=true in the RestfuncsOptions.")
+            }
+            let bb = busboy({ headers: req.headers });
         }
         else if(contentType == "application/octet-stream") { // Stream ?
             convertAndAddParams([req.body], null); // Pass it to the Buffer parameter

@@ -446,7 +446,43 @@ export class RestService {
         }
     }
 
+    /**
+     * Lists (potentially) callable methods
+     * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
+     */
+    public listCallableMethods() {
+        const protoRestService = new (class extends RestService{})();
 
+        return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
+            if (protoRestService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
+                return false;
+            }
+
+            try {
+                checkMethodAccessibility(<ReflectedMethod>reflectedMethod);
+                return true;
+            }
+            catch (e) {
+            }
+            return false;
+        })
+    }
+
+    public mayNeedFileUploadSupport() {
+        // Check if this service has methods that accept buffer
+
+        const someBuffer = new Buffer(0);
+        return _.find(this.listCallableMethods(), reflectMethod => {
+            return _.find(reflectMethod.parameters, param => {
+                if(param.type.isAny()) {
+                    return false;
+                }
+
+                return param.type.matchesValue(someBuffer) ||
+                    (param.isRest && param.type.matchesValue([someBuffer]))
+            }) !== undefined;
+        }) !== undefined;
+    }
 
     /**
      * Internal

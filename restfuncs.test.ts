@@ -415,10 +415,62 @@ test('various call styles', async () => {
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
+    });
+})
+
+test('Http multipart file uploads', async () => {
+
+    await runRawFetchTests(new class {
+        uploadFile(file_name_0: string, file_name_1: string, upload_file_0: Buffer, upload_file_1: Buffer) {
+            return [file_name_0, file_name_1, upload_file_0.toString(), upload_file_1.toString()]
+        }
+
+    }, async (baseUrl) => {
+
+        async function fetchJson(input: RequestInfo, init?: RequestInit) {
+            const response = await fetch(input, {
+                method: "POST",
+                headers: {"Content-Type": "multipart/form-data; boundary=-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k"}, // Default to unset
+                ...init
+            });
+            // Error handling:
+            if (response.status !== 200) {
+                throw new Error("server error: " + await response.text())
+            }
+
+            return JSON.parse(await response.text());
+        }
+
+        const body = ['-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k',
+            'Content-Disposition: form-data; name="file_name_0"',
+            '',
+            'super alpha file',
+            '-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k',
+            'Content-Disposition: form-data; name="file_name_1"',
+            '',
+            'super beta file',
+            '-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k',
+            'Content-Disposition: form-data; '
+            + 'name="upload_file_0"; filename="1k_a.dat"',
+            'Content-Type: application/octet-stream',
+            '',
+            'A'.repeat(1023),
+            '-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k',
+            'Content-Disposition: form-data; '
+            + 'name="upload_file_1"; filename="1k_b.dat"',
+            'Content-Type: application/octet-stream',
+            '',
+            'B'.repeat(1023),
+            '-----------------------------paZqsnEHRufoShdX6fh0lUhXBP4k--'
+        ].join('\r\n')
+
+        expect(await fetchJson(`${baseUrl}/uploadFile`, {body})).toStrictEqual(['super alpha file', 'super beta file', 'A'.repeat(1023), 'B'.repeat(1023)]);
 
 
-
-        // TODO
+        // TODO: pause and resume streams
+        // TODO: send an incomplete body. Method should complete but (async) stream read events should fail.
+        // TODO: files in content body are in diffrent order than parameters. This should set all streams in an error state.
+        // TODO: try to pull-read files out of order (in the user method). This should deadlock
     });
 })
 
@@ -668,7 +720,6 @@ test('Intercept with doFetch (client side)', async () => {
     }
 });
 
-
 test('validateAndDoCall security', async () => {
    const service = new class extends RestService {
        x = "string";
@@ -701,4 +752,41 @@ test('validateAndDoCall security', async () => {
         // @ts-ignore
         await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","myMethod", ["a","b"], invalidEnhancementProps, {}),);
     }
+});
+
+test('listCallableMethods', () => {
+   class A extends RestService {
+       methodA() {}
+       methodB(x: string) {}
+   }
+
+   const a = new A;
+   expect(a.listCallableMethods().length).toBe(2);
+   expect(a.listCallableMethods()[0].name).toBe("methodA");
+
+   class B {
+       methodC() {}
+   }
+
+    const b = RestService.initializeRestService(new B(), {});
+    expect(b.listCallableMethods().length).toBe(1);
+
+});
+
+test('mayNeedFileUploadSupport', () => {
+    expect(new class extends RestService {
+        methodA() {}
+        methodB(x: string) {}
+        methodC(x: any) {}
+        methodD(x: string | number) {}
+    }().mayNeedFileUploadSupport()).toBeFalsy()
+
+    expect(new class extends RestService {
+        methodA(b: Buffer) {}
+    }().mayNeedFileUploadSupport()).toBeTruthy()
+
+    expect(new class extends RestService {
+        methodA(...b: Buffer[]) {}
+    }().mayNeedFileUploadSupport()).toBeTruthy()
+
 });
