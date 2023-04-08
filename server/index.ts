@@ -66,12 +66,11 @@ export type RestfuncsOptions = {
 
     /**
      * SECURITY WARNING:
-     * This is very risky as Form posts can be easily used for CSRF attacks.
-     * A form post disregards CORS checking + even disregards the same-site cooke attribute !
+     * Simple requests like html form posts disregard CORS checking and disregard the same-site cooke attribute !
      * Enable this only for development.
      * default: false
      */
-    allowInsecureFormPosts?: boolean
+    allowSimpleRequests?: boolean
 
     /**
      * Enable/disable file uploads through http multipart
@@ -232,17 +231,15 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError("Unhandled http method: " + req.method)
             }
 
-            // Block html <form> posts:
+            // Block simple (no CORS checking / no samesite-cookie regarding) requests:
             const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
-            const WHITELISTED_CONTENT_TYPES = ["application/json", "application/brillout-json"]
-            if(!options.allowInsecureFormPosts && req.method === "POST" && contentType && !_(WHITELISTED_CONTENT_TYPES).contains(contentType)) { // Reqest may have come from a html <form> post ?
-                const diagnosis_hint = "Also see allowInsecureFormPosts in the RestfuncsOptions (risky / dev only / read description !).";
-                // DAMN !, html <form method="post">s straightly take over samesite cookies + are not CORS checked !!! https://docs.spring.io/spring-security/reference/features/exploits/csrf.html#csrf-when-json
+            if(!options.allowSimpleRequests && isSimpleRequest(req)) { //
+                const diagnosis_hint = "Also see allowSimpleRequests in the RestfuncsOptions (risky / dev only / read description !).";
                 if(contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
                     throw new RestError(`Sorry, form posts are forbidden as they could be used as an CSRF exploit. ${diagnosis_hint}`) //
                 }
                 else { // MAYBE from html for (less often used enctype="text/plain" or other browser's implementations)
-                    throw new RestError(`Only these content types are allowed for POST for security reasons: <empty> or ${WHITELISTED_CONTENT_TYPES.join(" or ")}. ${diagnosis_hint}`) //
+                    throw new RestError(`Simple requests (${req.method} with ${contentType} ) are not allowed for security reasons. ${diagnosis_hint}`) //
                 }
 
                 // TODO: Allow only with a CSRF token
@@ -681,4 +678,19 @@ export class RestError extends Error {
 function isRestError(error: Error) {
     // @ts-ignore
     return error.isRestError
+}
+
+/**
+ * Return If req might be a **simple** request.
+ * https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests
+ *
+ * Not all headers are checked, so rather returns true / triggers security alarm.
+ *
+ * @param req
+ */
+function isSimpleRequest(req: Request) {
+    const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
+    return (req.method === "GET" || req.method === "HEAD" || req.method === "POST") &&
+    (contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain")
+
 }

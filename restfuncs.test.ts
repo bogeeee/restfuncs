@@ -415,7 +415,7 @@ test('various call styles', async () => {
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
-    }, "/api", {allowInsecureFormPosts : true});
+    }, "/api", {allowSimpleRequests : true});
 })
 
 test('Http multipart file uploads', async () => {
@@ -471,7 +471,7 @@ test('Http multipart file uploads', async () => {
         // TODO: send an incomplete body. Method should complete but (async) stream read events should fail.
         // TODO: files in content body are in diffrent order than parameters. This should set all streams in an error state.
         // TODO: try to pull-read files out of order (in the user method). This should deadlock
-    }, "/api", {allowInsecureFormPosts: true, checkArguments: true});
+    }, "/api", {allowSimpleRequests: true, checkArguments: true});
 })
 
 const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [undefined], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''", "äö\r\n\uFFC0", "\u0000\uFFFFFF", new Date()];
