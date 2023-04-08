@@ -65,6 +65,15 @@ export type RestfuncsOptions = {
     allowGET?: true|false|"all"
 
     /**
+     * SECURITY WARNING:
+     * This is very risky as Form posts can be easily used for CSRF attacks.
+     * A form post disregards CORS checking + even disregards the same-site cooke attribute !
+     * Enable this only for development.
+     * default: false
+     */
+    allowInsecureFormPosts?: boolean
+
+    /**
      * Enable/disable file uploads through http multipart
      * If not needed, you may disable this to have one less http parser library (busboy) involved (security).
      *
@@ -222,6 +231,23 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE") {
                 throw new RestError("Unhandled http method: " + req.method)
             }
+
+            // Block html <form> posts:
+            const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
+            const WHITELISTED_CONTENT_TYPES = ["application/json", "application/brillout-json"]
+            if(!options.allowInsecureFormPosts && req.method === "POST" && contentType && !_(WHITELISTED_CONTENT_TYPES).contains(contentType)) { // Reqest may have come from a html <form> post ?
+                const diagnosis_hint = "Also see allowInsecureFormPosts in the RestfuncsOptions (risky / dev only / read description !).";
+                // DAMN !, html <form method="post">s straightly take over samesite cookies + are not CORS checked !!! https://docs.spring.io/spring-security/reference/features/exploits/csrf.html#csrf-when-json
+                if(contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
+                    throw new RestError(`Sorry, form posts are forbidden as they could be used as an CSRF exploit. ${diagnosis_hint}`) //
+                }
+                else { // MAYBE from html for (less often used enctype="text/plain" or other browser's implementations)
+                    throw new RestError(`Only these content types are allowed for POST for security reasons: <empty> or ${WHITELISTED_CONTENT_TYPES.join(" or ")}. ${diagnosis_hint}`) //
+                }
+
+                // TODO: Allow only with a CSRF token
+            }
+
 
             // retrieve method name:
             const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
