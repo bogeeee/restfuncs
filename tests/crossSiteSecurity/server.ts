@@ -4,7 +4,7 @@ import {restfuncs} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
-import {StatelessService} from "./StatelessService.js";
+import {TestsService} from "./TestsService.js";
 
 (async () => {
     {
@@ -25,8 +25,8 @@ import {StatelessService} from "./StatelessService.js";
 
         // Remote service(s):
         app.use("/mainframeAPI", restfuncs(new MainframeService(), {checkArguments}))
-        app.use("/statelessService", restfuncs(new StatelessService(), {checkArguments}))
-        app.use("/allowedStatelessService", restfuncs(new StatelessService(), {checkArguments}))
+        app.use("/testsService", restfuncs(new TestsService(), {checkArguments}))
+        app.use("/allowedTestsService", restfuncs(new TestsService(), {checkArguments}))
 
         // Client web:
         if (process.env.NODE_ENV === 'development') {

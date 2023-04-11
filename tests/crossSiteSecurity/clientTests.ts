@@ -1,5 +1,5 @@
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client"
-import {StatelessService} from "./StatelessService";
+import {TestsService} from "./TestsService";
 import {MainframeService} from "./MainframeService";
 
 export const mainSitePort = 3000;
@@ -69,26 +69,26 @@ async function assertFailsXS(description: string, fn:() => Promise<void>) {
 export async function runAlltests() {
     failed = false;
 
-    const statelessService = new RestfuncsClient<StatelessService>( `http://localhost:${mainSitePort}/statelessService`).proxy
-    const allowedStatelessService = new RestfuncsClient<StatelessService>( `http://localhost:${mainSitePort}/allowedStatelessService`).proxy
+    const service = new RestfuncsClient<TestsService>( `http://localhost:${mainSitePort}/testsService`).proxy
+    const corsAllowedService = new RestfuncsClient<TestsService>( `http://localhost:${mainSitePort}/allowedTestsService`).proxy
 
     // TODO: set .withCredentials flag: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials
 
     await assertFailsXS("call test() on normal service", async () => {
-        if(await statelessService.test() !== "ok") {
+        if(await service.test() !== "ok") {
             throw "...";
         }
     });
 
     await assertWorksXS("call test() on allowed service", async () => {
-        if(await allowedStatelessService.test() !== "ok") {
+        if(await corsAllowedService.test() !== "ok") {
             throw "..."
         }
     });
 
 
     await assertFailsXS("call GET method on normal service", async () => {
-        if(await statelessService.getTest() !== "ok") {
+        if(await service.getTest() !== "ok") {
             throw "unexpected result";
         }
     });
