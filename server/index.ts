@@ -52,6 +52,27 @@ export type RestfuncsOptions = {
     exposeErrors?: true|"messagesOnly"|"RestErrorsOnly"|false
 
     /**
+     * Web browser security: Which origins are allowed to make calls ?
+     *
+     * These origins will share the credentials (cookies, basic auth, ...) and therefore the same session !
+     *
+     * Change this option if you:
+     *  - Host the backend and frontend on different (sub-) domains.
+     *  - Provide authentication methods to other web applications.
+     *  - Consume authentication responses from 3rd party authentication providers. I.e. form- posted SAML responses.
+     *  - Provide service methods to other web applications.
+     *  - Have a reverse proxy in front of this web app and the same-origin check fails for legacy *simple* requests (i.e. form posts). Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table
+     *
+     * Values:
+     * - undefined (default): Same-origin only
+     * - string[]: List the allowed origins: http[s]://host[:port]
+     * - "all": No restrictions
+     * - function: A function (origin, destination) that returns true if it should be allowed. Args are in for form: http[s]://host[:port]
+     *
+     */
+    allowedOrigins?: "all" | string[] | ( (origin?: string, destination?: string) => boolean )
+
+    /**
      * Whether methods can be called via http GET
      *
      * "all": All methods allowed (may be useful during development)
@@ -64,13 +85,6 @@ export type RestfuncsOptions = {
      */
     allowGET?: true|false|"all"
 
-    /**
-     * SECURITY WARNING:
-     * Simple requests like html form posts disregard CORS checking and disregard the same-site cooke attribute !
-     * Enable this only for development.
-     * default: false
-     */
-    allowSimpleRequests?: boolean
 
     /**
      * Enable/disable file uploads through http multipart
@@ -189,6 +203,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
 function createRestFuncsExpressRouter(restServiceObj: object, options: RestfuncsOptions): Router {    ;
+    checkOptionsValidity(options)
     const restService = RestService.initializeRestService(restServiceObj, options);
 
     const enableMultipartFileUploads = options.enableMultipartFileUploads || (options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(restService) || restService.mayNeedFileUploadSupport()))
@@ -220,29 +235,67 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             });
         }
 
+
         try {
             // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
             resp.header("Expires","-1");
             resp.header("Pragma", "no-cache");
 
             resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
+            resp.header("Access-Control-Expose-Headers", "restfuncs-protocol")
 
-            if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE") {
+            if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE" && req.method !== "OPTIONS") {
                 throw new RestError("Unhandled http method: " + req.method)
             }
 
-            // Block simple (no CORS checking / no samesite-cookie regarding) requests:
-            const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
-            if(!options.allowSimpleRequests && isSimpleRequest(req)) { //
-                const diagnosis_hint = "Also see allowSimpleRequests in the RestfuncsOptions (risky / dev only / read description !).";
-                if(contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
-                    throw new RestError(`Sorry, form posts are forbidden as they could be used as an CSRF exploit. ${diagnosis_hint}`) //
+            const originAllowed = originIsAllowed(req, options);
+            const diagnosis_originNotAllowedMessage = () => `Request is not allowed from ${getOrigin(req)} to ${getDestination(req)}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${getDestination(req)}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
+            // Check the origin of preflights:
+            if(req.method === "OPTIONS") {
+                if(originAllowed) {
+                    if(req.header("Access-Control-Request-Method")) { // Request is a  CORS preflight (we don't care which actual method) ?
+                        resp.header("Access-Control-Allow-Origin", getOrigin(req))
+                        resp.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
+                        resp.header("Access-Control-Allow-Headers", "content-type, accept");
+                        resp.header("Access-Control-Allow-Credentials", "true")
+
+                        resp.header("Vary", "Origin")
+                        //resp.header("Access-Control-Max-Age", "3600") // Stick with the defaults / pros + cons not researched
+
+                        resp.status(204);
+                    }
                 }
-                else { // MAYBE from html for (less often used enctype="text/plain" or other browser's implementations)
-                    throw new RestError(`Simple requests (${req.method} with ${contentType} ) are not allowed for security reasons. ${diagnosis_hint}`) //
+                else {
+                    throw new RestError(diagnosis_originNotAllowedMessage(), {httpStatusCode: 204});
                 }
 
-                // TODO: Allow only with a CSRF token
+                resp.end();
+                return;
+            }
+
+            if(originAllowed) {
+                // A cross-site request (after successfull preflight) needs to see those headers AGAIN:
+                resp.header("Access-Control-Allow-Origin", getOrigin(req));
+                resp.header("Access-Control-Allow-Credentials", "true")
+            }
+            else { // Not allowed ?
+                if (isSimpleRequest(req)) {
+                    // Simple requests have not been preflighted by the browser and could be cross-site (even ignoring same-site cookie)
+
+                    // Special error message(s):
+                    const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
+                    if (contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
+                    } else { // MAYBE from html for (less often used enctype="text/plain" or other browser's implementations)
+                        throw new RestError(`${diagnosis_originNotAllowedMessage()}. \nAlso if this request did not come from a (non-CORS-regarding) "simple" form post, you may flag this by setting the 'IsComplex' header to 'true' and this error will go away.`);
+                    }
+
+                    throw new RestError(`${diagnosis_originNotAllowedMessage()}`);
+                }
+                else { // Complex request ?
+                    // The browser has made its preflight and regards the (missing) Access-Control-* settings itsself. We don't need to explicitly block those requests.
+                    // Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
+                    // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
+                }
             }
 
 
@@ -691,6 +744,92 @@ function isRestError(error: Error) {
 function isSimpleRequest(req: Request) {
     const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
     return (req.method === "GET" || req.method === "HEAD" || req.method === "POST") &&
-    (contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain")
+    (contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain") && req.header("IsComplex") !== "true"
 
+}
+
+
+/**
+ *
+ * @param req
+ * @return proto://host[:port] of the origin
+ */
+function getOrigin(req: Request) : string | undefined {
+    if(req.header("Origin")) {
+        return req.header("Origin")
+    }
+
+    const referer = req.header("Referer");
+    if(referer) {
+        const refererUrl = URL.parse(referer);
+        if(refererUrl.protocol && refererUrl.host) {
+            return refererUrl.protocol + "://" + refererUrl.host;
+        }
+    }
+}
+
+/**
+ *
+ * @param req
+ * @return proto://host[:port] of the destination
+ */
+function getDestination(req: Request) : string | undefined {
+    if(!req.protocol || !req.hostname) {
+        return undefined;
+    }
+
+    return req.protocol + "://" + req.hostname;
+}
+
+/**
+ *
+ * @param req
+ * @param options
+ * @return if origin and destination are allowed by the "allowedOrigins" option
+ */
+function originIsAllowed(req: Request, options: RestfuncsOptions): boolean {
+    const origin = getOrigin(req);
+    const destination = getDestination(req);
+
+    if(!options.allowedOrigins) { // Only same origin allowed ?
+        return destination !== undefined && origin !== undefined && (origin === destination)
+    }
+    else if(_.isArray(options.allowedOrigins)) {
+        if(destination !== undefined && origin !== undefined) {
+            return _(options.allowedOrigins).contains(origin);
+        }
+    }
+    else if(typeof options.allowedOrigins === "function") {
+        return options.allowedOrigins(origin, destination);
+    }
+    else if(options.allowedOrigins === "all") {
+        return true;
+    }
+    else {
+        throw new Error("Invalid value for allowedOrigins: " + options.allowedOrigins)
+    }
+
+    return false;
+}
+
+/**
+ * Pre checks some of the fields to give meaningful errors in advance.
+ * @param options
+ */
+function checkOptionsValidity(options: RestfuncsOptions) {
+    function checkAllowedOrigins() {
+        if (options.allowedOrigins === undefined) {
+        } else if (_.isArray(options.allowedOrigins)) {
+            options.allowedOrigins.forEach( (value) => {
+                if(!/^http(s)?:\/\/[^\/]*$/.test(value)) {
+                    throw new Error(`Invalid entry in allowedOrigins: '${value}'. Make sure it matches http[s]://host[:port]`)
+                }
+            })
+        } else if (typeof options.allowedOrigins === "function") {
+        } else if (options.allowedOrigins === "all") {
+        } else {
+            throw new Error("Invalid value for allowedOrigins: " + options.allowedOrigins)
+        }
+    }
+    checkAllowedOrigins();
 }

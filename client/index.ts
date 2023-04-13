@@ -117,6 +117,7 @@ export class RestfuncsClient<Service> {
             headers: {
                 'Content-Type': 'application/brillout-json',
                 'Accept': "application/brillout-json"
+                // Make sure you list these headers under Access-Control-Allow-Headers in server/index.js
             },
             redirect: "follow",
             credentials: "include"
