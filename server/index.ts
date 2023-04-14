@@ -65,7 +65,7 @@ export type RestfuncsOptions = {
      *
      * Values:
      * - undefined (default): Same-origin only
-     * - string[]: List the allowed origins: http[s]://host[:port]
+     * - string[]: List the allowed origins: http[s]://host[:port]. Same-origin is always implicitly allowed
      * - "all": No restrictions
      * - function: A function (origin, destination) that returns true if it should be allowed. Args are in for form: http[s]://host[:port]
      *
@@ -791,12 +791,16 @@ function originIsAllowed(req: Request, options: RestfuncsOptions): boolean {
     const origin = getOrigin(req);
     const destination = getDestination(req);
 
+    function isSameOrigin() {
+        return destination !== undefined && origin !== undefined && (origin === destination);
+    }
+
     if(!options.allowedOrigins) { // Only same origin allowed ?
-        return destination !== undefined && origin !== undefined && (origin === destination)
+        return isSameOrigin()
     }
     else if(_.isArray(options.allowedOrigins)) {
         if(destination !== undefined && origin !== undefined) {
-            return _(options.allowedOrigins).contains(origin);
+            return isSameOrigin() || _(options.allowedOrigins).contains(origin);
         }
     }
     else if(typeof options.allowedOrigins === "function") {
