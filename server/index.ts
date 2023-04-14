@@ -763,7 +763,7 @@ function getOrigin(req: Request) : string | undefined {
     if(referer) {
         const refererUrl = URL.parse(referer);
         if(refererUrl.protocol && refererUrl.host) {
-            return refererUrl.protocol + "://" + refererUrl.host;
+            return refererUrl.protocol + "//" + refererUrl.host;
         }
     }
 }
