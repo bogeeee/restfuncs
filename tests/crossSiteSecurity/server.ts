@@ -26,7 +26,7 @@ import {TestsService} from "./TestsService.js";
         // Remote service(s):
         app.use("/mainframeAPI", restfuncs(new MainframeService(), {checkArguments}))
         app.use("/testsService", restfuncs(new TestsService(), {checkArguments}))
-        app.use("/allowedTestsService", restfuncs(new TestsService(), {checkArguments}))
+        app.use("/allowedTestsService", restfuncs(new TestsService(), {checkArguments, allowedOrigins: ["http://localhost:3666"]}))
 
         // Client web:
         if (process.env.NODE_ENV === 'development') {

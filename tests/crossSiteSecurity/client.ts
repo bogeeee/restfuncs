@@ -1,6 +1,6 @@
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client"
 import {MainframeService} from "./MainframeService.js"
-import {isMainSite, mainSitePort, runAlltests} from "./clientTests"; // Import to have types
+import {isMainSite, mainSiteUrl , runAlltests} from "./clientTests"; // Import to have types
 
 /**
  * This example subclasses the RestfuncsClient so you have a reusable client class for all your services (if you have multiple).
@@ -33,7 +33,7 @@ class RestfuncsClientWithLogin<S> extends RestfuncsClient<S> {
     }
 }
 
-const mainframeService = new RestfuncsClientWithLogin<MainframeService>( `http://localhost:${mainSitePort}/mainframeAPI`).proxy // This is the way to use a subclassed RestfuncsClient
+const mainframeService = new RestfuncsClientWithLogin<MainframeService>( `${mainSiteUrl}/mainframeAPI`).proxy // This is the way to use a subclassed RestfuncsClient
 
 // Click handler for multiply button:
 document.getElementById("multiplyButton").onclick = async function() {
@@ -49,4 +49,6 @@ document.getElementById("statusSite").textContent = `On ${isMainSite?" main site
     document.getElementById("status").textContent = `Running tests (see console)`
     const ok = await runAlltests();
     document.getElementById("status").textContent = `${ok?"All tests ok":"Tests failed, see console (ignore intended network/fetch errors"}`;
+
+    document.title = `${isMainSite?'Main':'Cross'}: ${ok?'ok':'fail'}`
 })()

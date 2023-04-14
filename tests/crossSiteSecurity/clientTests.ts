@@ -2,8 +2,8 @@ import {RestfuncsClient, restfuncsClient} from "restfuncs-client"
 import {TestsService} from "./TestsService";
 import {MainframeService} from "./MainframeService";
 
-export const mainSitePort = 3000;
-export const isMainSite = Number(window.location.port) === mainSitePort;
+export const mainSiteUrl = "http://localhost:3000";
+export const isMainSite = window.location.href.startsWith(mainSiteUrl);
 let failed = false;
 
 async function assertRuns(fn: () => Promise<void>) {
@@ -28,7 +28,7 @@ async function assertWorksXS(description: string, fn: () => Promise<void>) {
     }
     catch (e) {
         failed = true;
-        console.log(`!!!...unexpectedly failed ${isMainSite?"": "cross site "}`)
+        console.log(`...!!! unexpectedly failed ${isMainSite?"": "cross site. See the following error:"}`)
         console.error(e);
     }
 
@@ -48,7 +48,7 @@ async function assertFailsXS(description: string, fn:() => Promise<void>) {
         }
         catch (e) {
             failed = true;
-            console.log(`!!!...failed on main site`)
+            console.log(`...!!! failed on main site. See the following error:`)
             console.error(e);
         }
     }
@@ -59,38 +59,37 @@ async function assertFailsXS(description: string, fn:() => Promise<void>) {
         }
         catch (e) {
             failed = true;
-            console.log(`!!!...runs cross site but was expected to fail`)
+            console.log(`...!!! runs cross site but was expected to fail`)
         }
     }
 
 }
 
+function assertEquals(actual, expected) {
+    if(actual !== expected) {
+        throw new Error(`Assertion failed: actual: ${actual}, expected: ${expected}`);
+    }
+}
 
 export async function runAlltests() {
     failed = false;
 
-    const service = new RestfuncsClient<TestsService>( `http://localhost:${mainSitePort}/testsService`).proxy
-    const corsAllowedService = new RestfuncsClient<TestsService>( `http://localhost:${mainSitePort}/allowedTestsService`).proxy
+    const service = new RestfuncsClient<TestsService>( `${mainSiteUrl}/testsService`).proxy
+    const corsAllowedService = new RestfuncsClient<TestsService>( `${mainSiteUrl}/allowedTestsService`).proxy
 
     // TODO: set .withCredentials flag: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials
 
     await assertFailsXS("call test() on normal service", async () => {
-        if(await service.test() !== "ok") {
-            throw "...";
-        }
+        assertEquals(await service.test(), "ok")
     });
 
     await assertWorksXS("call test() on allowed service", async () => {
-        if(await corsAllowedService.test() !== "ok") {
-            throw "..."
-        }
+        assertEquals(await corsAllowedService.test(), "ok")
     });
 
-
+    // TODO: better tests for GET method
     await assertFailsXS("call GET method on normal service", async () => {
-        if(await service.getTest() !== "ok") {
-            throw "unexpected result";
-        }
+        assertEquals(await service.getTest(),"ok") // Does not use GET. TODO: improve
     });
 
     return !failed;
