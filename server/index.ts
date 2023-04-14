@@ -771,14 +771,32 @@ function getOrigin(req: Request) : string | undefined {
 /**
  *
  * @param req
- * @return proto://host[:port] of the destination
+ * @return proto://host[:port] of the destination. Or undefined if not (reliably) determined
  */
 function getDestination(req: Request) : string | undefined {
-    if(!req.protocol || !req.hostname) {
+    /**
+     * In express 4.x req.host is deprecated but req.hostName only gives the name without the port, so we have to work around as good as we can
+     */
+    function getHost() {
+        // @ts-ignore
+        if(!req.app) {
+            return undefined;
+        }
+
+        if(req.app.enabled('trust proxy')) {
+            return undefined; // We can't reliably determine the port
+        }
+
+        return req.header('Host');
+    }
+
+    const host = getHost();
+
+    if(!req.protocol || !host) {
         return undefined;
     }
 
-    return req.protocol + "://" + req.hostname;
+    return req.protocol + "://" + host;
 }
 
 /**
@@ -799,9 +817,7 @@ function originIsAllowed(req: Request, options: RestfuncsOptions): boolean {
         return isSameOrigin()
     }
     else if(_.isArray(options.allowedOrigins)) {
-        if(destination !== undefined && origin !== undefined) {
-            return isSameOrigin() || _(options.allowedOrigins).contains(origin);
-        }
+        return isSameOrigin() || (origin !== undefined && _(options.allowedOrigins).contains(origin));
     }
     else if(typeof options.allowedOrigins === "function") {
         return options.allowedOrigins(origin, destination);
