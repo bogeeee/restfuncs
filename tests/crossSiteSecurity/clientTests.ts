@@ -65,21 +65,75 @@ async function assertFailsXS(description: string, fn:() => Promise<void>) {
 
 }
 
-function assertEquals(actual, expected) {
+function assertEquals<T>(actual: T, expected: T) {
     if(actual !== expected) {
         throw new Error(`Assertion failed: actual: ${actual}, expected: ${expected}`);
     }
 }
 
+function makeSimpleXhrRequest(method: string, url: string, body = ""): Promise<string> {
+
+
+    return new Promise((resolve, reject)=> {
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open(method, url, true);
+            xhr.setRequestHeader("Content-Type", "text/plain");
+            xhr.withCredentials = false;
+            xhr.onreadystatechange = function (this: XMLHttpRequest, ev: Event) {
+                if (this.readyState == 4) {
+                    if(this.status === 200) {
+                        resolve("")
+                    }
+                    else {
+                        reject(this.responseText)
+                    }
+                }
+            };
+            xhr.send(body);
+        }
+        catch (e) {
+            reject(e);
+        }
+    })
+
+
+
+}
+
 export async function runAlltests() {
     failed = false;
+
+    if(!isMainSite) {
+        // cheap prevention of race condition if both browser windows reload at the same time:
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit
+    }
 
     const service = new RestfuncsClient<TestsService>( `${mainSiteUrl}/testsService`).proxy
     const corsAllowedService = new RestfuncsClient<TestsService>( `${mainSiteUrl}/allowedTestsService`).proxy
 
+    /**
+     * tests if runner successfully was able to spend money on bob's cookie-logged-in session.
+     * @param runner
+     */
+    async function checkIfSpendsMoney(runner: () => Promise<void>) {
+        await corsAllowedService.logon("bob"); // Logs in and give me some money
+        assertEquals(await corsAllowedService.getBalance("bob"), 5000)
+        let caught: any;
+        try {
+            await runner()
+        }
+        catch (e) {
+            caught = e;
+        }
+        if(await corsAllowedService.getBalance("bob") !== 0) {
+            throw new Error(`Money was not spent: ${caught?.message || caught || ""}`, {cause: caught});
+        }
+    }
+
     // TODO: set .withCredentials flag: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials
 
-    await assertFailsXS("call test() on normal service", async () => {
+    await assertFailsXS("call test() on restricted service", async () => {
         assertEquals(await service.test(), "ok")
     });
 
@@ -90,6 +144,25 @@ export async function runAlltests() {
     // TODO: better tests for GET method
     await assertFailsXS("call GET method on normal service", async () => {
         assertEquals(await service.getTest(),"ok") // Does not use GET. TODO: improve
+    });
+
+
+    await assertFailsXS("Spend money on restricted service", async() => checkIfSpendsMoney(async () => {
+        await service.spendMoney();
+    }));
+
+    await assertWorksXS("Spend money on allowed service", async() => checkIfSpendsMoney(async () => {
+        await corsAllowedService.spendMoney();
+    }));
+
+    await assertFailsXS("Simple request", async () => {
+        await makeSimpleXhrRequest("GET", `${mainSiteUrl}/testsService/getIsSimpleRequest`)
+        assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+    });
+
+    await assertWorksXS("Simple request", async () => {
+        await makeSimpleXhrRequest("GET", `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`)
+        assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
     });
 
     return !failed;

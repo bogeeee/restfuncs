@@ -1,16 +1,22 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs} from "restfuncs-server"
+import {restfuncs, RestfuncsOptions} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
 import {TestsService} from "./TestsService.js";
 
+
 (async () => {
     {
         // *** Main site: ****
         const port = 3000 // Adjust this in clientTests.ts also
-        const checkArguments = (process.env.NODE_ENV === 'development' ? undefined : true) // Strictly require parameter checking for production
+        const commonOptions: RestfuncsOptions = {
+            checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production
+            exposeErrors: true,
+            logErrors: false
+        }
+
 
         const app = express()
 
@@ -24,9 +30,9 @@ import {TestsService} from "./TestsService.js";
         }));
 
         // Remote service(s):
-        app.use("/mainframeAPI", restfuncs(new MainframeService(), {checkArguments}))
-        app.use("/testsService", restfuncs(new TestsService(), {checkArguments}))
-        app.use("/allowedTestsService", restfuncs(new TestsService(), {checkArguments, allowedOrigins: ["http://localhost:3666"]}))
+        app.use("/mainframeAPI", restfuncs(new MainframeService(), commonOptions))
+        app.use("/testsService", restfuncs(new TestsService(), commonOptions))
+        app.use("/allowedTestsService", restfuncs(new TestsService(), {...commonOptions, allowedOrigins: ["http://localhost:3666"]}))
 
         // Client web:
         if (process.env.NODE_ENV === 'development') {
