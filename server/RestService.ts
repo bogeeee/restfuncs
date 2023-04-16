@@ -149,13 +149,12 @@ export class RestService {
 
     /**
      * Security checks the method name and args and executes the methods call.
-     * @param httpMethod Http method that was used for the call. For websockets, you must make sure that you
      * @param evil_methodName
      * @param evil_args
      * @param enhancementProps These fields will be temporarily added to this during the call.
      * @param options
      */
-    public async validateAndDoCall(httpMethod: string, evil_methodName: string, evil_args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
+    public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<this>, options: RestfuncsOptions): Promise<any> {
 
         // typing was only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -177,18 +176,6 @@ export class RestService {
         const method = this[methodName];
         if(typeof method != "function") {
             throw new RestError(`${methodName} is not a function`)
-        }
-
-        if (httpMethod === "GET") {
-            if (this.denyMethodByGet(methodName)) {
-                throw new RestError(`${methodName} is not allowed to be called by http GET. See https://github.com/bogeeee/restfuncs#get-methods-can-be-triggered-cross-site`)
-            }
-        }
-        else if(httpMethod === "POST" || httpMethod === "PUT" || httpMethod === "DELETE") {
-            // allow
-        }
-        else {
-            throw new RestError(`http ${httpMethod} not allowed`)
         }
 
         // Make sure that args is an array:
@@ -276,10 +263,10 @@ export class RestService {
     /**
      * You can override this as part of the API
      * @param methodName method/function name
-     * @see RestfuncsOptions#allowGET This setting still has precedence.
+     * @see RestfuncsOptions.allowGettersFromAllOrigins
      */
-    public denyMethodByGet(methodName: string) {
-        return !methodName.startsWith("get");
+    public methodIsGetter(methodName: string) {
+        return methodName.startsWith("get");
     }
 
     /**

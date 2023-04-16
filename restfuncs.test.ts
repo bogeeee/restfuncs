@@ -25,7 +25,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options: Partial<RestfuncsOptions> = {}) {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true, ...options}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false, allowGettersFromAllOrigins: true, logErrors: false, exposeErrors: true, ...options}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -281,7 +281,7 @@ test('auto convert parameters', async () => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
-                headers: {"Content-Type": "", "Accept": "application/brillout-json"},
+                headers: {"Content-Type": "application/json", "Accept": "application/brillout-json"},
                 ...init
             });
             // Error handling:
@@ -728,29 +728,29 @@ test('validateAndDoCall security', async () => {
        }
    }
 
-    expect(await service.validateAndDoCall("POST","myMethod", ["a","b"], {req: "test", resp: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
+    expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", resp: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
 
     // Malformed method name:
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","validateAndDoCall", [], {}, {}),"reserved name");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST",null, [], {}, {}),"methodName not set");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","", [], {}, {}),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("validateAndDoCall", [], {}, {}),"reserved name");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall(null, [], {}, {}),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("", [], {}, {}),"methodName not set");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST",{}, [], {}, {}),"not a string");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","x", [], {}, {}),"not a function");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","nonExistant", [], {}, {}),"does not exist");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall({}, [], {}, {}),"not a string");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("x", [], {}, {}),"not a function");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("nonExistant", [], {}, {}),"does not exist");
 
     // malformed args:
-   await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","myMethod", null, {}, {}),"not an array");
+   await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", null, {}, {}),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","myMethod", "", {}, {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", "", {}, {}),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","myMethod", {}, {}, {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", {}, {}, {}),"not an array");
     // Further rtti argschecking is done in runtime-typechecking.test.ts
 
     // malformed enhancementProps:
     for(const invalidEnhancementProps of [null, undefined, "", { unallowed: true}, { x: "anotherstring"}, { myFunc(){}}]) {
         // @ts-ignore
-        await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("POST","myMethod", ["a","b"], invalidEnhancementProps, {}),);
+        await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", ["a","b"], invalidEnhancementProps, {}),);
     }
 });
 

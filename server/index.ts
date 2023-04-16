@@ -74,17 +74,20 @@ export type RestfuncsOptions = {
     allowedOrigins?: "all" | string[] | ( (origin?: string, destination?: string) => boolean )
 
     /**
-     * Whether methods can be called via http GET
+     * Whether get... methods are allowed via *simple* http GET without the {@see RestfuncsOptions#allowedOrigins} check.
      *
-     * "all": All methods allowed (may be useful during development)
-     * true (default): Only methods, starting with 'get', are allowed. I.e. getUser
-     * false: No methods allowed
+     * get... means: Methods that start with "get". I.e. getForumPost(...).
+     * Enable this i.e. if you have methods that serve a html page and they should be available by top level navigation / or an email link (as these don't send an origin header)
      *
-     * SECURITY WARNING:
-     * Those allowed methods can be triggered cross site, even in the context of the logged on user!
-     * Make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.
+     * SECURITY EXPLANATION/WARNING:
+     * These calls use credentials (cookies, basic auth, ...), meaning they execute in session context.
+     * But they still can be allowed because a browsers script won't be able to read the result of such calls from a non-allowed origin.
+     * You just have to MAKE SURE that ALL those methods are [SAFE](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform *read-only* operations only !
      */
-    allowGET?: true|false|"all"
+    allowGettersFromAllOrigins?: boolean
+
+
+    //allowTopLevelNavigationGET?: boolean // DON'T allow: We can't see know if this really came from a top level navigation ! It can be easily faked by referrerpolicy="no-referrer"
 
 
     /**
@@ -274,32 +277,6 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 return;
             }
 
-            if(originAllowed) {
-                // A cross-site request (after successfull preflight) needs to see those headers AGAIN:
-                resp.header("Access-Control-Allow-Origin", getOrigin(req));
-                resp.header("Access-Control-Allow-Credentials", "true")
-            }
-            else { // Not allowed ?
-                if (isSimpleRequest(req)) {
-                    // Simple requests have not been preflighted by the browser and could be cross-site (even ignoring same-site cookie)
-
-                    // Special error message(s):
-                    const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
-                    if (contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
-                    } else { // MAYBE from html for (less often used enctype="text/plain" or other browser's implementations)
-                        throw new RestError(`${diagnosis_originNotAllowedMessage()}. \nAlso if this request did not come from a (non-CORS-regarding) "simple" form post, you may flag this by setting the 'IsComplex' header to 'true' and this error will go away.`);
-                    }
-
-                    throw new RestError(`${diagnosis_originNotAllowedMessage()}`);
-                }
-                else { // Complex request ?
-                    // The browser has made its preflight and regards the (missing) Access-Control-* settings itsself. We don't need to explicitly block those requests.
-                    // Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
-                    // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
-                }
-            }
-
-
             // retrieve method name:
             const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
             let methodNameFromPath = fixedPath.split("/")[0];
@@ -311,6 +288,48 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 
+            if(originAllowed) {
+                // A cross-site request (after successfull preflight) needs to see those headers AGAIN:
+                resp.header("Access-Control-Allow-Origin", getOrigin(req));
+                resp.header("Access-Control-Allow-Credentials", "true")
+            }
+            else { // Not allowed ?
+                if (isSimpleRequest(req)) {
+                    // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
+
+                    if(options.allowGettersFromAllOrigins && req.method === "GET" && restService.methodIsGetter(methodName)) { // Exception is made for GET get... method
+
+                    }
+                    else {
+                        // ** throw error **
+                        // Special error message(s):
+                        const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
+                        if (contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
+                        }
+                        else if(req.method === "GET" && getOrigin(req) === undefined && _(acceptedResponseContentTypes).contains("text/html") ) { // Top level navigation in web browser ?
+                            throw new RestError(`Get requests from top level navigations (=having no origin) are not allowed. You may allow these with the allowGETFromAllOrigins flag in the RestfuncsOptions (read security info in the jsdoc).`);
+                        }
+                        else if(req.method === "GET" && getOrigin(req) === undefined) { // Crafted http request (maybe from in web browser)?
+                            throw new RestError(`${diagnosis_originNotAllowedMessage()}. \nAlso when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        }
+                        else if (contentType == "text/plain") { // MAYBE from html form
+                            throw new RestError(`${diagnosis_originNotAllowedMessage()}. \nAlso when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        }
+                        else if(req.method !== "GET" && getOrigin(req) === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
+                            throw new RestError(`You have to specify a Content-Type header.`);
+                        }
+                        // Generic error message:
+                        throw new RestError(`${diagnosis_originNotAllowedMessage()}`);
+                    }
+                }
+                else { // Complex request ?
+                    // The browser has made its preflight and regards the (missing) Access-Control-* settings itsself. We don't need to explicitly block those requests.
+                    // Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
+                    // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
+                }
+            }
+
+
             const collectedParams = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
 
             let session = null;
@@ -320,7 +339,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
             }
 
-            let result = await restService.validateAndDoCall(req.method, methodName, collectedParams, {req, resp, session}, options);
+            let result = await restService.validateAndDoCall(methodName, collectedParams, {req, resp, session}, options);
             sendResult(result);
         }
         catch (caught) {
