@@ -23,6 +23,7 @@ export type RestfuncsOptions = {
     path?: string
 
     /**
+     * TODO: use global disableSecurity option
      * Enable checking your func's arguments at runtime (shielding).
      *
      * To make it work, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input
@@ -249,7 +250,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
             const originAllowed = originIsAllowed(req, options);
-            const diagnosis_originNotAllowedMessage = () => `Request is not allowed from ${getOrigin(req)} to ${getDestination(req)}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${getDestination(req)}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
+            const diagnosis_originNotAllowedMessage = () => `Request is not allowed from ${getOrigin(req) || "<unknown / no headers present>"} to ${getDestination(req)}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${getDestination(req)}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
             // Check the origin of preflights:
             if(req.method === "OPTIONS") {
                 if(originAllowed) {
