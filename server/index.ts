@@ -744,7 +744,8 @@ function isRestError(error: Error) {
 function isSimpleRequest(req: Request) {
     const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
     return (req.method === "GET" || req.method === "HEAD" || req.method === "POST") &&
-    (contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain") && req.header("IsComplex") !== "true"
+        (!contentType || contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain") &&
+        req.header("IsComplex") !== "true"
 
 }
 
