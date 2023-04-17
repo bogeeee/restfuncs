@@ -1,4 +1,4 @@
-import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, RestService} from "restfuncs-server";
+import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, RestService, safe} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -25,7 +25,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options: Partial<RestfuncsOptions> = {}) {
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false, allowGettersFromAllOrigins: true, logErrors: false, exposeErrors: true, ...options}));
+    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true, ...options}));
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -236,25 +236,100 @@ test('Exceptions', async () => {
     });
 });
 
-test('GET methods security', async () => {
+test('Safe methods security', async () => {
 
-    let getTestTriggered = false;
-    let postTestTriggered = false;
+    let wasCalled = false; // TODO: We could simply check if methods returned successfully as the non-browser client shouldn't restrict reading the result. But now to lazy to change that.
 
-    await runRawFetchTests({
-        getTest() {
-            getTestTriggered = true;
+    class BaseService {
+        unsafeFromBase() {
+            wasCalled = true;
             return "ok";
-        },
-        postTest() {
-            postTestTriggered = true;
-        },
-    }, async (baseUrl) => {
-        await fetch(`${baseUrl}/getTest`, {method: "GET"});
-        expect(getTestTriggered).toBeTruthy();
+        }
 
-        await fetch(`${baseUrl}/postTest`, {method: "GET"});
-        expect(postTestTriggered).toBeFalsy();
+        @safe()
+        safeFromBase() {
+            wasCalled = true;
+            return "ok";
+        }
+
+        @safe()
+        overwriteMe1() {
+            wasCalled = true;
+            return "ok";
+        }
+
+        @safe()
+        overwriteMe2() {
+            wasCalled = true;
+            return "ok";
+        }
+    }
+
+    class Service extends BaseService{
+        unsafeTest() {
+            wasCalled = true;
+            return "ok";
+        }
+
+        @safe()
+        safeTest() {
+            wasCalled = true;
+            return "ok";
+        }
+
+        @safe()
+        overwriteMe1() {
+            wasCalled = true;
+            return "ok";
+        }
+
+        // forgot the @safe annotation -> should not execute the call
+        overwriteMe2() {
+            wasCalled = true;
+            return "ok";
+        }
+    }
+
+    await runRawFetchTests(new Service() , async (baseUrl) => {
+        async function checkFunctionWasCalled(functionName, expected: boolean) {
+            wasCalled = false;
+            await fetch(`${baseUrl}/${functionName}`, {method: "GET"});
+            expect(wasCalled).toStrictEqual(expected);
+        }
+
+        await checkFunctionWasCalled("unsafeTest", false);
+        await checkFunctionWasCalled("safeTest", true);
+
+        await checkFunctionWasCalled("unsafeFromBase", false);
+        await checkFunctionWasCalled("safeFromBase", true);
+
+        await checkFunctionWasCalled("overwriteMe1", true);
+        await checkFunctionWasCalled("overwriteMe2", false);
+
+
+        // Mixins:
+        function mixin(service: object) {
+            return RestService.initializeRestService(service, {checkArguments: false,})
+        }
+        expect(mixin(new Service()).methodIsSafe("getIndex")).toBeTruthy()
+        expect(mixin(new Service()).methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(mixin({}).methodIsSafe("getIndex")).toBeTruthy()
+
+        // Mixin with overwrite and @safe:
+        class ServiceA {
+            @safe()
+            getIndex() {
+            }
+        }
+        expect(mixin(new ServiceA).methodIsSafe("getIndex")).toBeTruthy()
+
+        // Mixin with overwrite but no @safe:
+        class ServiceB {
+            getIndex() {
+            }
+        }
+        expect(mixin(new ServiceB).methodIsSafe("getIndex")).toBeFalsy()
+
     });
 })
 

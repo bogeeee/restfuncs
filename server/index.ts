@@ -12,7 +12,7 @@ import _ from "underscore";
 import URL from "url"
 import busboy from "busboy";
 
-export {RestService} from "./RestService";
+export {RestService, safe} from "./RestService";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -53,38 +53,27 @@ export type RestfuncsOptions = {
     exposeErrors?: true|"messagesOnly"|"RestErrorsOnly"|false
 
     /**
-     * Web browser security: Which origins are allowed to make calls ?
+     * Web browser security: <strong>Which origins are allowed to make calls ?</strong>
      *
-     * These origins will share the credentials (cookies, basic auth, ...) and therefore the same session !
+     * These origins will share the credentials (cookies, basic auth, ...) and therefore the user's session !
      *
      * Change this option if you:
      *  - Host the backend and frontend on different (sub-) domains.
      *  - Provide authentication methods to other web applications.
      *  - Consume authentication responses from 3rd party authentication providers. I.e. form- posted SAML responses.
-     *  - Provide service methods to other web applications.
-     *  - Have a reverse proxy in front of this web app and the same-origin check fails for legacy *simple* requests (i.e. form posts). Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table
+     *  - Provide client side service methods to other web applications (that need the current user's session).
+     *  - Have a reverse proxy in front of this web app and you get an error cause the same-origin check fails for simple, non preflighted, requests like form posts. Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table (currently this does not work properly with express 4.x)
      *
      * Values:
      * - undefined (default): Same-origin only
      * - string[]: List the allowed origins: http[s]://host[:port]. Same-origin is always implicitly allowed
      * - "all": No restrictions
-     * - function: A function (origin, destination) that returns true if it should be allowed. Args are in for form: http[s]://host[:port]
+     * - function: A function (origin, destination) that returns true if it should be allowed. Args are in the form: http[s]://host[:port]
+     *
+     * <i>Technically, functions, which you flagged as {@link safe}, are still allowed to be called by [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) GET requests without an origin check.</i>
      *
      */
     allowedOrigins?: "all" | string[] | ( (origin?: string, destination?: string) => boolean )
-
-    /**
-     * Whether get... methods are allowed via *simple* http GET without the {@see RestfuncsOptions#allowedOrigins} check.
-     *
-     * get... means: Methods that start with "get". I.e. getForumPost(...).
-     * Enable this i.e. if you have methods that serve a html page and they should be available by top level navigation / or an email link (as these don't send an origin header)
-     *
-     * SECURITY EXPLANATION/WARNING:
-     * These calls use credentials (cookies, basic auth, ...), meaning they execute in session context.
-     * But they still can be allowed because a browsers script won't be able to read the result of such calls from a non-allowed origin.
-     * You just have to MAKE SURE that ALL those methods are [SAFE](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform *read-only* operations only !
-     */
-    allowGettersFromAllOrigins?: boolean
 
 
     //allowTopLevelNavigationGET?: boolean // DON'T allow: We can't see know if this really came from a top level navigation ! It can be easily faked by referrerpolicy="no-referrer"
@@ -297,7 +286,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 if (isSimpleRequest(req)) {
                     // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
 
-                    if(options.allowGettersFromAllOrigins && req.method === "GET" && restService.methodIsGetter(methodName)) { // Exception is made for GET get... method
+                    if(req.method === "GET" && restService.methodIsSafe(methodName)) { // Exception is made for GET get... method
 
                     }
                     else {
@@ -754,8 +743,7 @@ function isRestError(error: Error) {
 }
 
 /**
- * Return If req might be a **simple** request.
- * https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests
+ * Return If req might be a [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) request.
  *
  * Not all headers are checked, so rather returns true / triggers security alarm.
  *

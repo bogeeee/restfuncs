@@ -116,6 +116,12 @@ export class RestService {
     [index: string]: any
 
     /**
+     * Lists the methods that are flagged as @safe
+     * filled on annotation loading: for each concrete subclass such a static field is created
+     */
+    static safeMethods?: Set<string>
+
+    /**
      * The currently running (express) request. See https://expressjs.com/en/4x/api.html#req
      *
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
@@ -145,6 +151,14 @@ export class RestService {
      */
     // @ts-ignore
     protected session: {} | null = {};
+
+    /**
+     * @return The / index- / home page
+     */
+    @safe()
+    getIndex() {
+        // TODO: implement
+    }
 
 
     /**
@@ -264,9 +278,19 @@ export class RestService {
      * You can override this as part of the API
      * @param methodName method/function name
      * @see RestfuncsOptions.allowGettersFromAllOrigins
+     * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only !
      */
-    public methodIsGetter(methodName: string) {
-        return methodName.startsWith("get");
+    public methodIsSafe(methodName: string) {
+
+        if(this[methodName] === RestService.prototype[methodName]) { // Method was unmodifiedly taken from the RestService mixin. I.e. "getIndex". See RestService.initializeRestService(). ?
+            return methodIsMarkedSafeAtActualImplementationLevel(RestService, methodName); // Look at RestService level
+        }
+
+        if(!this.constructor) { // No class ?
+            return false; // Non-classes can't have @decorators.
+        }
+
+        return methodIsMarkedSafeAtActualImplementationLevel(this.constructor, methodName);
     }
 
     /**
@@ -524,4 +548,91 @@ export class RestService {
     public _diagnosisWhyIsRTTINotAvailable() {
         return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
     }
+}
+
+/**
+ *
+ * Flag your function with this decorator as [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), if you are sure it essentially performs only *read* operations.
+ *
+ * This flag is needed to allow for some cases where cross site security can't be checked otherwise. i.e:
+ *   - A function that serves a html page so it should be accessible by top level navigation (i.e from a bookmark or an email link) as these don't send an origin header.
+ *   - functions that serve an image publicly to all origins.
+ *
+ *
+ * @example
+ * <pre>
+ *     import {safe} from "restfuncs-server";
+ *
+ *     @safe
+ *     function getUserStatusPage() {
+ *         //... perform non-state-changing operations only
+ *         // TODO set content type header
+ *         return `<html>
+ *             isLoggedOn: ${isLoggedOn},
+ *             yourLibraryKey: ${escapeHtml(xy)} // You can still send sensitive information because a browser script from a non allowed origins can't extract the contents of simple/non-preflighted GET requests
+ *         </html>`;
+ *     }
+ * </pre>
+ */
+export function safe() {
+    return function (target: any, methodName: string, descriptor: PropertyDescriptor) {
+        const constructor = target.constructor;
+        if(!Object.getOwnPropertyDescriptor(constructor,"safeMethods")?.value) { // constructor does not have it's OWN .safeMethods initialized yet ?
+            constructor.safeMethods = new Set<string>();
+        }
+
+        constructor.safeMethods.add(methodName);
+    };
+}
+
+/**
+ * Meaning, if an overwritten method does not also explicitly have @safe, it's not considered safe
+ * @param classConstructor
+ * @param methodName
+ * @return true if the method was decorated @safe at this
+ */
+function methodIsMarkedSafeAtActualImplementationLevel(classConstructor: Function, methodName: string): boolean {
+    if(!classConstructor.prototype) { // Don't know / unhandled
+        return false;
+    }
+
+    if(classConstructor.prototype.hasOwnProperty(methodName)) { // Method defined at this level ?
+        // Check that is was decorated @safe at this level:
+        // @ts-ignore
+        const safeMethods = <Set<string>> classConstructor?.safeMethods;
+
+        return safeMethods !== undefined && safeMethods.has(methodName);
+    }
+
+    // Check at parent level
+    const baseConstructor = Object.getPrototypeOf(classConstructor);
+    if(baseConstructor) {
+        return methodIsMarkedSafeAtActualImplementationLevel(baseConstructor, methodName);
+    }
+
+    return false;
+}
+
+/**
+ * To hin with error messages
+ * @param constructor
+ * @param methodName
+ */
+function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function, methodName: string): boolean {
+    if(!constructor) {
+        return false;
+    }
+
+    // @ts-ignore
+    const safeMethods = <Set<string>> constructor?.safeMethods;
+
+    return safeMethods !== undefined && safeMethods.has(methodName);
+
+    // Check at parent level
+    const baseConstructor = Object.getPrototypeOf(constructor);
+    if(baseConstructor) {
+        return diagnosis_methodWasDeclaredSafeAtAnyLevel(baseConstructor, methodName);
+    }
+
+    return false;
 }
