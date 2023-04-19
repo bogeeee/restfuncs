@@ -122,6 +122,11 @@ export class RestService {
     static safeMethods?: Set<string>
 
     /**
+     * Those methods on RestService are allowed to be called
+     */
+    static whitelistedMethodNames = new Set(["getIndex"])
+
+    /**
      * The currently running (express) request. See https://expressjs.com/en/4x/api.html#req
      *
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
@@ -181,7 +186,7 @@ export class RestService {
         if(typeof methodName !== "string") {
             throw new RestError(`methodName is not a string`)
         }
-        if(new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) { // property exists in an empty service ?
+        if( (new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) && !RestService.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
             throw new RestError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if(this[methodName] === undefined) {
