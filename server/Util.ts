@@ -104,21 +104,16 @@ export type ErrorWithExtendedInfo = Error & { cause?: Error, fileName?: string, 
 export function errorToHtml(e: any): string {
     // Handle other types:
     if(!e || typeof e !== "object") {
-        return escapeHtml(String(e));
+        return `<pre>${escapeHtml(String(e))}</pre>`;
     }
     if(!e.message) { // e is not an ErrorWithExtendedInfo ?
-        return escapeHtml(JSON.stringify(e));
+        return `<pre>${escapeHtml(JSON.stringify(e))}</pre>`;
     }
     e = <ErrorWithExtendedInfo> e;
 
-    function textToHtml(value: string) {
-        return value.split("\n").map(v => escapeHtml(v)).join("<br/>\n");
-    }
-
-
     let title= (e.name ? `${e.name}: `: "") + (e.message || String(e))
 
-    return `<b>${textToHtml( title)}</b>` +
+    return `<b><pre>${escapeHtml( title)}</pre></b>` +
         (e.stack ? `\n<pre>${escapeHtml(e.stack)}</pre>` : '') +
         (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (e.columnNumber ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
