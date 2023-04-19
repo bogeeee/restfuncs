@@ -215,6 +215,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
         function sendResult(result: any) {
             acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
                 if (accept == "application/brillout-json") { // The better json ?
+                    resp.contentType("application/brillout-json")
                     resp.send(brilloutJsonStringify(result));
                 }
                 else if(accept == "application/json") {
@@ -348,7 +349,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                         resp.send(`<!DOCTYPE html><html>${errorToHtml(error)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
                     }
                     else if(accept.startsWith("text/")) {
-                        resp.contentType(`${accept}; charset=utf-8`)
+                        resp.contentType(`text/plain; charset=utf-8`)
                         resp.send(errorToString(error))
                     }
                     else {
