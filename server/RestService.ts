@@ -623,7 +623,7 @@ function methodIsMarkedSafeAtActualImplementationLevel(classConstructor: Functio
  * @param constructor
  * @param methodName
  */
-function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function, methodName: string): boolean {
+export function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function | undefined, methodName: string): boolean {
     if(!constructor) {
         return false;
     }
@@ -631,7 +631,9 @@ function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function, method
     // @ts-ignore
     const safeMethods = <Set<string>> constructor?.safeMethods;
 
-    return safeMethods !== undefined && safeMethods.has(methodName);
+    if(safeMethods !== undefined && safeMethods.has(methodName)) {
+        return true;
+    }
 
     // Check at parent level
     const baseConstructor = Object.getPrototypeOf(constructor);

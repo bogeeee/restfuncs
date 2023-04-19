@@ -7,7 +7,13 @@ import crypto from "node:crypto";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {checkParameterTypes, isTypeInfoAvailable, ParameterSource, RestService} from "./RestService";
+import {
+    checkParameterTypes,
+    diagnosis_methodWasDeclaredSafeAtAnyLevel,
+    isTypeInfoAvailable,
+    ParameterSource,
+    RestService
+} from "./RestService";
 import _ from "underscore";
 import URL from "url"
 import busboy from "busboy";
@@ -297,7 +303,9 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                         if (contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
                         }
                         else if(req.method === "GET" && getOrigin(req) === undefined && _(acceptedResponseContentTypes).contains("text/html") ) { // Top level navigation in web browser ?
-                            throw new RestError(`Get requests from top level navigations (=having no origin) are not allowed. You may allow these with the allowGETFromAllOrigins flag in the RestfuncsOptions (read security info in the jsdoc).`);
+                            const subImplementationNotSafeHint = diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, methodName)?`\n\nNOTE: '${methodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`:""
+                            const markAsSafeHint = `If you want to allow '${methodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${methodName}(...) {\n    //... must perform non-state-changing operations only\n}${subImplementationNotSafeHint}`
+                            throw new RestError(`Get requests from top level navigations (=having no origin) are not allowed for '${methodName}' because that method is not considered safe. \n${markAsSafeHint}`);
                         }
                         else if(req.method === "GET" && getOrigin(req) === undefined) { // Crafted http request (maybe from in web browser)?
                             throw new RestError(`${diagnosis_originNotAllowedMessage()}. \nAlso when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
