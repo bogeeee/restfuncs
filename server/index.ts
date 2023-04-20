@@ -1,9 +1,18 @@
 import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
-import {cloneError, ERROR_PROPERTIES, errorToHtml, errorToString, ErrorWithExtendedInfo, fixErrorStack} from "./Util";
+import {
+    cloneError,
+    diagnisis_shortenValue,
+    ERROR_PROPERTIES,
+    errorToHtml,
+    errorToString,
+    ErrorWithExtendedInfo,
+    fixErrorStack
+} from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
+import {Writable, Readable, Transform, PassThrough} from "node:stream"
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
@@ -218,21 +227,75 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
         /**
          * Http-sends the result, depending on the requested content type:
          */
-        function sendResult(result: any) {
-            acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
-                if (accept == "application/brillout-json") { // The better json ?
-                    resp.contentType("application/brillout-json")
-                    resp.send(brilloutJsonStringify(result));
+        function sendResult(result: any, diagnosis_methodName?: string) {
+            // Determine contentTypeFromCall: The content type that was explicitly set during the call via resp.contentType(...):
+            const contentTypeHeader = resp.getHeader("Content-Type");
+            if(typeof contentTypeHeader == "number" || _.isArray(contentTypeHeader)) {
+                throw new Error("Unexpected content type header. Should be a single string");
+            }
+            const [contentTypeFromCall, contentTypeOptionsFromCall] = parseContentTypeHeader(contentTypeHeader);
+
+            if(contentTypeFromCall == "application/brillout-json") {
+                resp.send(brilloutJsonStringify(result));
+            }
+            else if(contentTypeFromCall == "application/json") {
+                resp.json(result);
+            }
+            else if(contentTypeFromCall) { // Other ?
+                if(typeof result === "string") {
+                    resp.send(result);
                 }
-                else if(accept == "application/json") {
-                    result = result!==undefined?result:null; // Json does not support undefined
-                    resp.json(result);
+                else if(result instanceof Readable) {
+                    if(result.errored) {
+                        throw result.errored;
+                    }
+                    result.on("error", (err) => {
+                        resp.end(logAndGetErrorLineForPasteIntoStreams(err, options,req));
+                    })
+                    result.pipe(resp);
+                }
+                else if(result instanceof ReadableStream) {
+                    throw new RestError("ReadableStream not supported. Please use Readable instead")
+                }
+                else if(result instanceof ReadableStreamDefaultReader) {
+                    throw new RestError("ReadableStreamDefaultReader not supported. Please use Readable instead")
+                }
+                else if(result instanceof Buffer) {
+                    throw new RestError("Buffer not supported. Please use Readable instead")
                 }
                 else {
-                    return false; // not handled ?
+                    throw new RestError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)
                 }
-                return true; // it was handled
-            });
+            }
+            else { // Content type was not explicitly set in the call ?
+                if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
+                    throw new RestError("If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.resp?.contentType(...); ");
+                }
+
+                // Send what best matches the Accept header (defaults to json):
+                acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
+                    if (accept == "application/brillout-json") { // The better json ?
+                        resp.contentType("application/brillout-json")
+                        resp.send(brilloutJsonStringify(result));
+                    }
+                    else if(accept == "application/json") {
+                        result = result!==undefined?result:null; // Json does not support undefined
+                        resp.json(result);
+                    }
+                    else if(accept == "text/html") {
+                        if(diagnosis_looksLikeHTML(result)) {
+                            throw new RestError("If you return html, you must explicitly set the content type. I.e. via: this.resp?.contentType(\"text/html; charset=utf-8\"); ");
+                        }
+                        return false;
+                    }
+                    else {
+                        return false; // not handled ?
+                    }
+                    return true; // it was handled
+                });
+
+
+            }
         }
 
 
@@ -338,7 +401,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
             let result = await restService.validateAndDoCall(methodName, collectedParams, {req, resp, session}, options);
-            sendResult(result);
+            sendResult(result, methodName);
         }
         catch (caught) {
             if(caught instanceof Error) {
@@ -702,9 +765,49 @@ function logAndConcealError(error: Error, options: RestfuncsOptions, req: Reques
     }
 }
 
+/**
+ * Eventually logs the error and returns a line that is safe for pasting into a stream, meaning it contains no craftable content.
+ * @param error
+ * @param options
+ */
+function logAndGetErrorLineForPasteIntoStreams(error: Error, options: RestfuncsOptions, req: Request) {
+
+    // TODO: if(options.disableSecurity) { return full message }
+
+    if(options.logErrors) {
+        fixErrorStack(error)
+        const errorExt: ErrorWithExtendedInfo = cloneError(error);
+
+        const errorId = crypto.randomBytes(6).toString("hex");
+        const logMessage = `${errorId?`[${errorId}]: `:""}${errorToString(errorExt)}`;
+
+        if(typeof options.logErrors === "function") {
+            options.logErrors(logMessage, req)
+        }
+        else {
+            console.error(logMessage);
+        }
+
+        return `Error in stream. See [${errorId}] in the server log.`
+    }
+    else {
+        return `Error in stream. Please enable logErrors in the RestfuncsOptions if you want to see it in the logs.`
+    }
+
+
+
+}
+
 const FAST_JSON_DETECTOR_REGEXP = /^([0-9\[{]|-[0-9]|true|false|null)/;
 export function diagnosis_looksLikeJSON(value : string) {
     return FAST_JSON_DETECTOR_REGEXP.test(value);
+}
+
+export function diagnosis_looksLikeHTML(value : string) {
+    if(typeof value !== "string") {
+        return false;
+    }
+    return value.startsWith("<!DOCTYPE html") || value.startsWith("<html") || value.startsWith("<HTML")
 }
 
 export type RestErrorOptions = ErrorOptions & {

@@ -166,10 +166,35 @@ export function diagnisis_shortenValue(value: any) : string {
         return "undefined";
     }
 
-    value = brilloutJsonStringify(value);
-    const MAX = 50;
-    if(value.length > MAX) {
-        return value.substring(0, MAX) + "..."
+    let objPrefix = "";
+    if(typeof value == "object" && value.constructor?.name) {
+        objPrefix = `class ${value.constructor?.name} `;
     }
-    return value;
+
+
+
+    function shorten(value: string) {
+        const MAX = 50;
+        if (value.length > MAX) {
+            return value.substring(0, MAX) + "..."
+        }
+        return value;
+    }
+
+    try {
+        return shorten(objPrefix + brilloutJsonStringify(value));
+    }
+    catch (e) {
+    }
+
+    if(typeof value == "string") {
+        return shorten(value)
+    }
+    else if(typeof value == "object") {
+        return `${objPrefix}{...}`;
+    }
+    else {
+        return "unknown"
+    }
+
 }

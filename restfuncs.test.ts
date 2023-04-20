@@ -3,6 +3,7 @@ import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
+import {Readable} from "node:stream";
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
@@ -40,10 +41,15 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
     }
 }
 
-async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {
+async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<any>, expected?: string | RegExp | Error | jest.Constructable) {
     let caught = null;
     try {
-        const result = await f();
+        if(typeof f === "function") {
+            await f();
+        }
+        else {
+            await f;
+        }
     }
     catch (e) {
         caught = e;
@@ -490,6 +496,135 @@ test('various call styles', async () => {
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
+    }, "/api", {allowedOrigins: "all"});
+})
+
+test('Result Content-Type', async () => {
+
+    await runRawFetchTests(new class extends RestService{
+        getString() {
+            return "test";
+        }
+
+        getHtml() {
+            this.resp.contentType("text/html; charset=utf-8");
+            return "<html/>";
+        }
+
+        getHtmlWithoutExplicitContentType() {
+            return "<html/>";
+        }
+
+
+        getTextPlain() {
+            this.resp.contentType("text/plain; charset=utf-8");
+            return "plain text";
+        }
+
+        returnNonStringAsHtml() {
+            this.resp.contentType("text/html; charset=utf-8");
+            return {};
+        }
+    }, async (baseUrl) => {
+
+        async function doFetch(input: RequestInfo, init?: RequestInit) {
+            const response = await fetch(input, {
+                headers: {"Content-Type": "application/json"},
+                method: "GET",
+                ...init
+            });
+            // Error handling:
+            if (response.status !== 200) {
+                throw new Error("server error: " + await response.text())
+            }
+            return [await response.text(), response.headers.get("Content-Type")];
+        }
+
+        expect(await doFetch(`${baseUrl}/getString`, {})).toStrictEqual(['"test"', "application/json; charset=utf-8"]); // no Accept header set
+        await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/getHtmlWithoutExplicitContentType`, {headers: {"Accept": "text/html"}}), "must explicitly set the content type"); // content type was not explicitly specified in getString method but for text/html you have to do so (XSS)
+        expect(await doFetch(`${baseUrl}/getHtml`, {})).toStrictEqual(['<html/>', "text/html; charset=utf-8"]); // no Accept header set
+        expect(await doFetch(`${baseUrl}/getHtml`, {headers: {"Accept": "text/html"}})).toStrictEqual(['<html/>', "text/html; charset=utf-8"]);
+        expect(await doFetch(`${baseUrl}/getHtml`, {headers: {"Accept": "some/thing"}})).toStrictEqual(['<html/>', "text/html; charset=utf-8"]);
+
+        expect(await doFetch(`${baseUrl}/getTextPlain`, {headers: {"Accept": "application/json"}})).toStrictEqual(['plain text', "text/plain; charset=utf-8"]); // text/plain even if accept header was set to json
+
+        await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/returnNonStringAsHtml`, {}), "must return a result of type string or Reader")
+
+        const chromesAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
+
+
+    }, "/api", {allowedOrigins: "all"});
+})
+
+test('Http stream and buffer results', async () => {
+
+    await runRawFetchTests(new class extends RestService{
+        readableResult() {
+            this.resp.contentType("text/plain; charset=utf-8");
+            const readable = new Readable({
+                read(size: number) {
+                }})
+
+
+            readable.push("test");
+            readable.push("test2");
+            readable.push(null);
+            return readable
+        }
+
+        readableResultWithError() {
+            this.resp.contentType("text/html; charset=utf-8");
+            const readable = new Readable({
+                read(size: number) {
+                }})
+
+            setTimeout(() => {
+                readable.push("test...");
+                readable.destroy(new Error("myError"))
+            })
+
+            return readable
+        }
+
+        readableResultWithEarlyError() {
+            this.resp.contentType("text/html; charset=utf-8");
+            const readable = new Readable({
+                read(size: number) {
+                }})
+
+
+            readable.push("test");
+            readable.destroy(new Error("myError"))
+            return readable
+        }
+    }, async (baseUrl) => {
+
+        async function doFetch(input: RequestInfo, init?: RequestInit) {
+            return new Promise<string>((resolve, reject) => {
+                (async () => {
+
+                    const response = await fetch(input, {
+                        headers: {"Content-Type": "application/json"},
+                        method: "GET",
+                        ...init
+                    });
+                    // Error handling:
+                    if (response.status !== 200) {
+                        throw new Error("server error: " + await response.text())
+                    }
+                    return await response.text()
+                })().then(resolve, reject);
+
+                setTimeout(() => { reject(new Error("timeout")) }, 1000)
+            })
+
+        }
+
+        expect(await doFetch(`${baseUrl}/readableResult`)).toStrictEqual("testtest2");
+        //await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/readableResultWithEarlyError`), "myError"); // Commented out because it produces a global unhandled error message. Nontheless this test line works as expected
+        expect((await doFetch(`${baseUrl}/readableResultWithError`) ).startsWith("test...Error")).toBeTruthy();
+
+
     }, "/api", {allowedOrigins: "all"});
 })
 
