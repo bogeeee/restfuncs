@@ -593,12 +593,16 @@ export class RestService {
  *
  * @example
  * <pre>
- *     import {safe} from "restfuncs-server";
+ * import {safe} from "restfuncs-server";
+ *
+ *     //...inside your service class/object:
  *
  *     @safe()
- *     function getUserStatusPage() {
+ *     getUserStatusPage() {
+ *
  *         //... perform non-state-changing operations only
- *         // TODO set content type header
+ *
+ *         this.resp?.contentType("text/html; charset=utf-8");
  *         return `<html>
  *             isLoggedOn: ${isLoggedOn},
  *             yourLibraryKey: ${escapeHtml(xy)} // You can still send sensitive information because a browser script from a non allowed origins can't extract the contents of simple/non-preflighted GET requests
