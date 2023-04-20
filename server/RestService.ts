@@ -163,7 +163,29 @@ export class RestService {
      */
     @safe()
     getIndex() {
-        // TODO: implement
+        let className: string | undefined = this.constructor?.name;
+        className = className === "Object"?undefined:className;
+        const title = className?`Index of class ${className}`:`Index of {}`
+
+        const example = 'import {safe} from "restfuncs-server"; // dont forget that import\n\n' +
+            (className?`class ${className} {`:'    //...inside your service class/object: ') +' \n\n' +
+            '    @safe()\n' +
+            '    getIndex() {\n\n' +
+            '        //... must perform non-state-changing operations only !\n\n' +
+            '        this.resp?.contentType("text/html; charset=utf-8");\n' +
+            '        return "<!DOCTYPE html><html><body>I\'m aliiife !</body></html>"\n' +
+            '    }\n\n' +
+            '    // ...'
+
+
+        this.resp?.contentType("text/html; charset=utf-8");
+        return "<!DOCTYPE html>" +
+            "<html>" +
+            `    <head><title>${escapeHtml(title)}</title></head>` +
+            `    <body><h1>${escapeHtml(title)}</h1>` +
+            `    This service serves several API methods. You can also fill this index page with life by overwriting the getIndex method.<h3>Example</h3><pre>${escapeHtml(example)}</pre>` +
+            `    <br/><i>Powered by <a href="https://www.npmjs.com/package/restfuncs">Restfuncs</a></i>` +
+            "</body></html>"
     }
 
 
