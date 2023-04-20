@@ -41,7 +41,7 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
             }
 
             // get a property that should be enhanced ?
-            if (enhancementProps[p] !== undefined) {
+            if (enhancementProps[p] !== undefined && {}[p] === undefined) { // In enhancement props but exclude standard props from objects like 'constructor'
                 if (callHasEnded) {
                     throw new Error(`Cannot access .${p} after the call to ${diagnosis_funcName}(...) has ended.`);
                 }
