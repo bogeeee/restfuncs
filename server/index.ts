@@ -261,7 +261,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     throw new RestError("ReadableStreamDefaultReader not supported. Please use Readable instead")
                 }
                 else if(result instanceof Buffer) {
-                    throw new RestError("Buffer not supported. Please use Readable instead")
+                    resp.send(result);
                 }
                 else {
                     throw new RestError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)

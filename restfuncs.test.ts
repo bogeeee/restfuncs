@@ -548,7 +548,7 @@ test('Result Content-Type', async () => {
 
         expect(await doFetch(`${baseUrl}/getTextPlain`, {headers: {"Accept": "application/json"}})).toStrictEqual(['plain text', "text/plain; charset=utf-8"]); // text/plain even if accept header was set to json
 
-        await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/returnNonStringAsHtml`, {}), "must return a result of type string or Reader")
+        await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/returnNonStringAsHtml`, {}), "must return a result of type")
 
         const chromesAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
 
@@ -597,6 +597,11 @@ test('Http stream and buffer results', async () => {
             readable.destroy(new Error("myError"))
             return readable
         }
+
+        bufferResult() {
+            this.resp.contentType("text/plain; charset=utf-8");
+            return new Buffer("resultöä", "utf8");
+        }
     }, async (baseUrl) => {
 
         async function doFetch(input: RequestInfo, init?: RequestInit) {
@@ -623,6 +628,8 @@ test('Http stream and buffer results', async () => {
         expect(await doFetch(`${baseUrl}/readableResult`)).toStrictEqual("testtest2");
         //await expectAsyncFunctionToThrow(doFetch(`${baseUrl}/readableResultWithEarlyError`), "myError"); // Commented out because it produces a global unhandled error message. Nontheless this test line works as expected
         expect((await doFetch(`${baseUrl}/readableResultWithError`) ).startsWith("test...Error")).toBeTruthy();
+
+        expect(await doFetch(`${baseUrl}/bufferResult`)).toStrictEqual("resultöä");
 
 
     }, "/api", {allowedOrigins: "all"});
