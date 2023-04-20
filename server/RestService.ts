@@ -568,7 +568,7 @@ export class RestService {
  * <pre>
  *     import {safe} from "restfuncs-server";
  *
- *     @safe
+ *     @safe()
  *     function getUserStatusPage() {
  *         //... perform non-state-changing operations only
  *         // TODO set content type header

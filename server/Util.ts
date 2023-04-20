@@ -167,7 +167,7 @@ export function diagnisis_shortenValue(value: any) : string {
     }
 
     let objPrefix = "";
-    if(typeof value == "object" && value.constructor?.name) {
+    if(typeof value == "object" && value.constructor?.name && value.constructor?.name !== "Object") {
         objPrefix = `class ${value.constructor?.name} `;
     }
 

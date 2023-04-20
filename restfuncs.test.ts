@@ -782,7 +782,7 @@ test('Reserved names', async () => {
     await runClientServerTests(new class extends RestService{
 
     },async apiProxy => {
-        for(const forbiddenName of ["req", "resp", "session"]) {
+        for(const forbiddenName of ["req", "resp", "session", "doCall","methodIsSafe"]) {
             // @ts-ignore
             await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
         }
