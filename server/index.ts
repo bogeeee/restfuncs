@@ -341,11 +341,12 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             // retrieve method name:
             const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
             let methodNameFromPath = fixedPath.split("/")[0];
-            if(!methodNameFromPath) {
-                throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
-            }
+
             const methodName = restService.getMethodNameForCall(req.method, methodNameFromPath);
             if(!methodName) {
+                if(!methodNameFromPath) {
+                    throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
+                }
                 throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 

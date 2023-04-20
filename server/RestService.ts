@@ -3,6 +3,7 @@ import _ from "underscore";
 import {RestError, RestfuncsOptions} from "./index";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall} from "./Util";
+import escapeHtml from "escape-html";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -314,6 +315,10 @@ export class RestService {
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
     public getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
+        if(path === "") {
+            path = "index";
+        }
+
         if (this.hasMethod(path)) { // Direct hit
             return path; // We are done and don't lose performance on other checks
         }
