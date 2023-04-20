@@ -228,10 +228,12 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
          * Http-sends the result, depending on the requested content type:
          */
         function sendResult(result: any, diagnosis_methodName?: string) {
+            const contextPrefix = diagnosis_methodName ? `${diagnosis_methodName}: ` : ""; // Reads better. I.e. the user doesnt see on first glance that the error came from the getIndex method
+
             // Determine contentTypeFromCall: The content type that was explicitly set during the call via resp.contentType(...):
             const contentTypeHeader = resp.getHeader("Content-Type");
             if(typeof contentTypeHeader == "number" || _.isArray(contentTypeHeader)) {
-                throw new Error("Unexpected content type header. Should be a single string");
+                throw new Error(`${contextPrefix}Unexpected content type header. Should be a single string`);
             }
             const [contentTypeFromCall, contentTypeOptionsFromCall] = parseContentTypeHeader(contentTypeHeader);
 
@@ -255,10 +257,10 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     result.pipe(resp);
                 }
                 else if(result instanceof ReadableStream) {
-                    throw new RestError("ReadableStream not supported. Please use Readable instead")
+                    throw new RestError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`)
                 }
                 else if(result instanceof ReadableStreamDefaultReader) {
-                    throw new RestError("ReadableStreamDefaultReader not supported. Please use Readable instead")
+                    throw new RestError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`)
                 }
                 else if(result instanceof Buffer) {
                     resp.send(result);
@@ -269,7 +271,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
             else { // Content type was not explicitly set in the call ?
                 if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
-                    throw new RestError("If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.resp?.contentType(...); ");
+                    throw new RestError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.resp?.contentType(...); `);
                 }
 
                 // Send what best matches the Accept header (defaults to json):
@@ -284,7 +286,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     }
                     else if(accept == "text/html") {
                         if(diagnosis_looksLikeHTML(result)) {
-                            throw new RestError("If you return html, you must explicitly set the content type. I.e. via: this.resp?.contentType(\"text/html; charset=utf-8\"); ");
+                            throw new RestError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.resp?.contentType(\"text/html; charset=utf-8\"); `);
                         }
                         return false;
                     }
