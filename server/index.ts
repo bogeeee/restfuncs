@@ -355,12 +355,12 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 resp.header("Access-Control-Allow-Origin", getOrigin(req));
                 resp.header("Access-Control-Allow-Credentials", "true")
             }
-            else { // Not allowed ?
+            else { // Not allowed or origin is unknown?
                 if (isSimpleRequest(req)) {
                     // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
 
                     if(req.method === "GET" && restService.methodIsSafe(methodName)) { // Exception is made for GET get... method
-
+                        // TODO: if(!browserSupportsCORS(req)) { throw new RestError() } // In that case the browser probably also does bot block reads from simple requests
                     }
                     else {
                         // ** throw error **
@@ -387,6 +387,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     }
                 }
                 else { // Complex request ?
+                    // TODO: if(browserSupportsCORS(req)) { // Whitelist the browsers that support CORS
                     // The browser has made its preflight and regards the (missing) Access-Control-* settings itsself. We don't need to explicitly block those requests.
                     // Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
                     // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)

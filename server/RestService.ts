@@ -183,7 +183,7 @@ export class RestService {
             "<html>" +
             `    <head><title>${escapeHtml(title)}</title></head>` +
             `    <body><h1>${escapeHtml(title)}</h1>` +
-            `    This service serves several API methods. You can also fill this index page with life by overwriting the getIndex method.<h3>Example</h3><pre>${escapeHtml(example)}</pre>` +
+            `    This service serves several API methods. You can also fill this index page with life (for simple purposes) by overwriting the getIndex method.<h3>Example</h3><pre>${escapeHtml(example)}</pre>` +
             `    <br/><i>Powered by <a href="https://www.npmjs.com/package/restfuncs">Restfuncs</a></i>` +
             "</body></html>"
     }
