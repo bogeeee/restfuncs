@@ -1,4 +1,5 @@
-import {RestService} from "restfuncs-server";
+import {RestService, safe} from "restfuncs-server";
+import {Writable, Readable, Transform, Stream} from "node:stream"
 import _ from "underscore";
 
 const bankAccounts: Record<string, number> = {};
@@ -7,6 +8,10 @@ export class TestsService extends RestService {
     session: {
         user?: string
     } = {}
+
+    unsafeMethod() {
+        return "test"
+    }
 
     async logon(user: string) {
         this.session.user = user;
@@ -23,6 +28,16 @@ export class TestsService extends RestService {
         bankAccounts[this.session.user] = 0;
     }
 
+
+    @safe()
+    async spendMoneyAccidentlyMarkedAsSafe() {
+        if(!this.session.user) {
+            throw new Error("Not logged it");
+        }
+
+        bankAccounts[this.session.user] = 0;
+    }
+
     async getBalance(user: string) {
         return bankAccounts[this.session.user];
     }
@@ -32,12 +47,6 @@ export class TestsService extends RestService {
         return "ok";
     }
 
-    /**
-     *
-     */
-    async getTest() {
-       return "ok"
-    }
 
     static lastCallWasSimpleRequest = false;
 

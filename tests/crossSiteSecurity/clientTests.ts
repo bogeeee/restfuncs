@@ -20,7 +20,34 @@ async function assertFails(fn: () => Promise<void>) {
     }
 }
 
-async function assertWorksXS(description: string, fn: () => Promise<void>) {
+
+/**
+ * Assert that it should fail same-site and also cross site
+ *
+ * function will report one failed test instead of throwing an Error
+ * @param description
+ * @param fn
+ */
+async function testAssertFailsSSAndXS(description: string, fn:() => Promise<void>) {
+    console.log(description + "...");
+    try {
+        await assertFails(fn);
+        console.log(`...expectedly fails`)
+    }
+    catch (e) {
+        failed = true;
+        console.log(`...!!! runs but was expected to fail`)
+    }
+
+}
+
+/**
+ * Assert that it should work same-site and also cross site
+ * function will report one failed test instead of throwing an Error
+ * @param description
+ * @param fn
+ */
+async function testAssertWorksSSAndXS(description: string, fn: () => Promise<void>) {
     console.log(description + "...");
     try {
         await assertRuns(fn);
@@ -35,11 +62,13 @@ async function assertWorksXS(description: string, fn: () => Promise<void>) {
 }
 
 /**
- * Assert that it should work on the main site but fail cross-site
+ * Assert that it should work same-site but fail cross-site
+ *
+ * function will report one failed test instead of throwing an Error
  * @param description
  * @param fn
  */
-async function assertFailsXS(description: string, fn:() => Promise<void>) {
+async function testAssertWorksSSAndFailsXS(description: string, fn:() => Promise<void>) {
     console.log(description + "...");
     if(isMainSite) {
         try {
@@ -131,61 +160,56 @@ export async function runAlltests() {
         }
     }
 
-    // TODO: set .withCredentials flag: https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/withCredentials
-
-    await assertFailsXS("call test() on restricted service", async () => {
+    await testAssertWorksSSAndFailsXS("call test() on restricted service", async () => {
         assertEquals(await service.test(), "ok")
     });
 
-    await assertWorksXS("call test() on allowed service", async () => {
+    await testAssertWorksSSAndXS("call test() on allowed service", async () => {
         assertEquals(await corsAllowedService.test(), "ok")
     });
 
-    // TODO: better tests for GET method
-    await assertFailsXS("call GET method on normal service", async () => {
-        assertEquals(await service.getTest(),"ok") // Does not use GET. TODO: improve
-    });
+    // Simple requests:
+    for(const method of ["GET", "POST"]) {
+        await testAssertFailsSSAndXS(`Simple request on unsafe method (${method})`, async () => checkIfSpendsMoney(async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/unsafeMethod`)
+        }));
+
+        await testAssertWorksSSAndXS(`Simple request on safe method (${method})`, async () => checkIfSpendsMoney(async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoneyAccidentlyMarkedAsSafe`)
+        }));
+    }
 
 
-    await assertFailsXS("Spend money on restricted service", async() => checkIfSpendsMoney(async () => {
+    await testAssertWorksSSAndFailsXS("Spend money on restricted service", async() => checkIfSpendsMoney(async () => {
         await service.spendMoney();
     }));
 
-    await assertWorksXS("Spend money on allowed service", async() => checkIfSpendsMoney(async () => {
+    await testAssertWorksSSAndXS("Spend money on allowed service", async() => checkIfSpendsMoney(async () => {
         await corsAllowedService.spendMoney();
     }));
 
 
+    // Test if we can spend money throug simple request (if they might get called but result can't be read)
     for(const method of ["GET", "POST"]){
         // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
-        await assertFailsXS(`Simple request (${method})`, async () => {
+        await testAssertWorksSSAndFailsXS(`Simple request (${method})`, async () => {
             await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/getIsSimpleRequest`)
             assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
         });
-        await assertWorksXS(`Simple request (${method})`, async () => {
+        await testAssertWorksSSAndXS(`Simple request (${method})`, async () => {
             await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`, "xyz")
             assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
         });
 
         //
-        await assertFailsXS(`Spend money on restricted service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
+        await testAssertWorksSSAndFailsXS(`Spend money on restricted service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
             await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/spendMoney`)
         }));
 
-        await assertWorksXS(`Spend money on allowed service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
+        await testAssertWorksSSAndXS(`Spend money on allowed service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
             await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoney`)
         }));
     }
-
-/*
-    await assertFailsXS(`Simple request on non @safe method`, async() => checkIfSpendsMoney(async () => {
-        await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/unsafeMethod`)
-    }));
-
-    await assertFailsXS(`Simple request on non @safe method on allowed service`, async() => checkIfSpendsMoney(async () => {
-        await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/unsafeMethod`)
-    }));
-*/
 
 
     return !failed;

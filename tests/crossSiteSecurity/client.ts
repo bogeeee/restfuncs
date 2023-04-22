@@ -48,7 +48,7 @@ document.getElementById("statusSite").textContent = `On ${isMainSite?" main site
 (async ()=> {
     document.getElementById("status").textContent = `Running tests (see console)`
     const ok = await runAlltests();
-    document.getElementById("status").textContent = `${ok?"All tests ok":"Tests failed, see console (ignore intended network/fetch errors"}`;
+    document.getElementById("status").textContent = `${ok?"All tests ok":"Tests failed, see console (ignore intended network/fetch errors, look for '...!!!')"}`;
 
     document.title = `${isMainSite?'Main':'Cross'}: ${ok?'ok':'fail'}`
 })()
