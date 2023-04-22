@@ -79,7 +79,7 @@ function makeSimpleXhrRequest(method: string, url: string, body = ""): Promise<s
             const xhr = new XMLHttpRequest();
             xhr.open(method, url, true);
             xhr.setRequestHeader("Content-Type", "text/plain");
-            xhr.withCredentials = false;
+            xhr.withCredentials = true;
             xhr.onreadystatechange = function (this: XMLHttpRequest, ev: Event) {
                 if (this.readyState == 4) {
                     if(this.status === 200) {
@@ -155,15 +155,38 @@ export async function runAlltests() {
         await corsAllowedService.spendMoney();
     }));
 
-    await assertFailsXS("Simple request", async () => {
-        await makeSimpleXhrRequest("GET", `${mainSiteUrl}/testsService/getIsSimpleRequest`)
-        assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
-    });
 
-    await assertWorksXS("Simple request", async () => {
-        await makeSimpleXhrRequest("GET", `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`)
-        assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
-    });
+    for(const method of ["GET", "POST"]){
+        // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
+        await assertFailsXS(`Simple request (${method})`, async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/getIsSimpleRequest`)
+            assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+        });
+        await assertWorksXS(`Simple request (${method})`, async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`, "xyz")
+            assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+        });
+
+        //
+        await assertFailsXS(`Spend money on restricted service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/spendMoney`)
+        }));
+
+        await assertWorksXS(`Spend money on allowed service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
+            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoney`)
+        }));
+    }
+
+/*
+    await assertFailsXS(`Simple request on non @safe method`, async() => checkIfSpendsMoney(async () => {
+        await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/unsafeMethod`)
+    }));
+
+    await assertFailsXS(`Simple request on non @safe method on allowed service`, async() => checkIfSpendsMoney(async () => {
+        await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/unsafeMethod`)
+    }));
+*/
+
 
     return !failed;
 }

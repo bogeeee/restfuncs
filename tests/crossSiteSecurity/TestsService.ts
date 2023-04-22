@@ -1,6 +1,5 @@
 import {RestService} from "restfuncs-server";
 import _ from "underscore";
-import {Request} from "express";
 
 const bankAccounts: Record<string, number> = {};
 
@@ -67,7 +66,7 @@ export class TestsService extends RestService {
  *  Copied from server/index.ts
  * @param req
  */
-function isSimpleRequest(req: Request) {
+function isSimpleRequest(req: any) {
     /**
      *
      * @param contentType I.e. text/plain;charset=UTF-8
