@@ -1,5 +1,6 @@
 import {RestService, safe} from "restfuncs-server";
 import {Writable, Readable, Transform, Stream} from "node:stream"
+import fs from "node:fs"
 import _ from "underscore";
 
 const bankAccounts: Record<string, number> = {};
@@ -58,7 +59,10 @@ export class TestsService extends RestService {
         return isSimpleRequest(this.req)
     }
 
-
+    getTestImage() {
+        this.resp?.contentType("image/x-png")
+        return fs.createReadStream("teeest.png")
+    }
 
     protected async doCall(funcName: string, args: any[]): Promise<any> {
         try {

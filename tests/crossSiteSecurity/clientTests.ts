@@ -211,6 +211,10 @@ export async function runAlltests() {
         }));
     }
 
+    // CORS read proof:
+    // Session between non-client and restfuncs-client requests should not be sharable
+
+
 
     return !failed;
 }

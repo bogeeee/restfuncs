@@ -71,7 +71,29 @@ import {TestsService} from "./TestsService.js";
         }
 
         app.listen(port)
-        console.log("Foreign site app running on: http://localhost:" + port)
+        console.log("Foreign site app (some services CORS allowed to it) running on: http://localhost:" + port)
+    }
+
+    // ***** Evil site2: ****
+    {
+        const port = 3667
+        const app = express()
+        // Client web:
+        if (process.env.NODE_ENV === 'development') {
+            // Serve client web through vite dev server:
+            const viteDevServer = await vite.createServer({
+                server: {
+                    middlewareMode: 'html'
+                },
+                base: "/",
+            });
+            app.use(viteDevServer.middlewares)
+        } else {
+            app.use(express.static('dist/web')) // Serve pre-built web (npm run build)
+        }
+
+        app.listen(port)
+        console.log("Evil site app (no services CORS allowed to it) running on: http://localhost:" + port)
     }
 
 })()
