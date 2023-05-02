@@ -93,6 +93,44 @@ export type RestfuncsOptions = {
 
     //allowTopLevelNavigationGET?: boolean // DON'T allow: We can't see know if this really came from a top level navigation ! It can be easily faked by referrerpolicy="no-referrer"
 
+    //sessionCSRFProtection <- not here, at each session
+
+
+    /**
+     * <p>
+     * When sharing resources across origins, browsers make a CORS preflight http request (OPTIONS header) to check if that url from is allowed allowed from that origin.
+     * If not, the (actual) request will not executed (with another CORS header check is the result is allowed to be read).
+     * </p>
+     * <p>
+     * All this works fine, but strictly speaking, according to the CORS spec. The preflights are only there to see if the CORS protocol is understood.
+     * This means, for state-changing requests, we can't rely on the browser making preflights and if the result arrives at the browser, telling it not to be read, it's already too late. The method has been executed and could abused as a CSRF.
+     * </p>
+     *
+     * </p>
+     * To still allow interoperability, you can:
+     * - if the method is read only, see {@link safe()}.
+     * - implement the access token logic yourself, see {@link RestService.proofRead()}
+     * - disable this feature and trust on browsers to make preflights and bail if they fail.
+     *
+     * Note: For client developers with tokenized modes: You may wonder wonder why some requests will still pass without token checks. They may be already considered safe according the the origin/referrer headers or for @safe methods.
+     * If you want this stricter while developing your clients and raise early errors, enable the {@link devForceSessionCSRFProtection} and {@link devForceTokenCheck} developlment options.
+     *
+     * Default: true
+     */
+    csrfProtection?: CSRFProtectionMode
+
+    /**
+     * For "readToken" mode only:
+     * <p>Many requests are usually allowed to go through without requiring the read token. I.e if host/origin/referer headers are present or if no session is accessed at all.
+     *     </p>
+     * <p>
+     * Here you can force the check for every request (except {@link safe() safe methods}), so you'll <strong>see early in the development if the token was not properly passed</strong>.
+     * </p>
+     */
+    devForceTokenCheck?: boolean
+
+
+
 
     /**
      * Enable/disable file uploads through http multipart
@@ -159,6 +197,161 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
 }
 
 export default restfuncs
+
+type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
+
+
+type SessionProtectionHeader = {
+    /**
+     *
+     */
+    _protection?: CSRFProtectionMode
+
+    /**
+     * When corsWithReadProof, this read proof must be shown for each session access
+     *
+     * RestService base url -> token
+     */
+    _readTokens?: Record<string,string>
+
+    /**
+     * One for each service
+     *
+     * RestService base url -> token
+     */
+    _csrfTokens?: Record<string,string>
+};
+
+/**
+ * Checks that session is in a valid state
+ * @param session
+ */
+function checkSessionProtectionIsValid(session: Record<string, any>) {
+    if(session._protection === "corsReadToken") {
+        if(!session._readTokens || session._csrfTokens) {
+            throw new Error("Illegal state");
+        }
+
+    }
+    else if(session._protection === "csrfToken") {
+        if(session._readTokens || !session._csrfTokens) {
+            throw new Error("Illegal state");
+        }
+    }
+    else if(session._protection === "preflight" || session._protection === undefined) {
+        if(session._readTokens || session._csrfTokens) {
+            throw new Error("Illegal state");
+        }
+    }
+    else {
+        throw new Error("Illegal state");
+    }
+}
+
+function createCsrfProtectedSessionProxy(session: Record<string, any> & SessionProtectionHeader, req: Request, isForSafeMethod = false) {
+
+
+    function requestIsFromRestfuncsClient() {
+        return req.header("restfuncs-client-version") !== undefined
+    }
+
+    /**
+     * Checks if reads+write are allowed and throws an error
+     * For writes, the prooftype must be specified before you call this
+     */
+    function checkAccess(isRead: boolean) {
+        checkSessionProtectionIsValid(session)
+
+        if(isRead && isForSafeMethod) {
+            return; // Allow cause they don't change the state
+        }
+
+        if(session._protection === undefined) {
+            if(isRead) {
+                return; // allow reads. Session is still empty
+            }
+            throw new Error("_proofType should be initialized first")
+        }
+        else if(session._protection === "preflight") {
+            if(requestIsFromRestfuncsClient()) {
+                throw new RestError("The session was already written to by a non-Restfuncs client (which did not prove that it can make CORS reads). You can't access it via Restfuncs client then.")
+            }
+            return
+        }
+        else if(session._protection === "corsReadToken") { // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
+            const corsReadProofFromRequest = req.header("corsReadProofFromRequest");
+            if(!corsReadProofFromRequest) {
+                throw new RestError("The session was already written to by a Restfuncs client. To access values of it, you must also proof that you can read the result of HTTP requests by calling proofRead() and send the returned {corsReadProof} token in your next requests (as a header).")
+            }
+
+            if(corsReadProofFromRequest !== session._corsReadProofToken) {
+                throw new RestError("Wrong corsReadProof. Maybe the session timed out and another session was created in the meanwhile. Please re-fetch that token.")
+            }
+            return;
+        }
+
+        throw new Error("Illegal _proofType value")
+    }
+
+    return new Proxy(session, {
+        get(target: Record<string, any>, p: string | symbol, receiver: any): any {
+            // Reject symbols (don't know what it means but we only want strings as property names):
+            if (typeof p != "string") {
+                throw new RestError(`Unhandled : ${String(p)}`)
+            }
+
+
+            checkAccess(true); // If you first wonder, why need we a read proof for read access? But this read may get the userId and call makes WRITES to the DB with it afterwards.
+
+            return target[p];
+        },
+        set(target: Record<string, any>, p: string | symbol, newValue: any, receiver: any): boolean {
+            // Reject symbols (don't know what it means but we only want strings as property names):
+            if (typeof p != "string") {
+                throw new RestError(`Unhandled : ${String(p)}`)
+            }
+
+            if(isForSafeMethod) {
+                throw new Error("Must not make writes to the session from an @safe() method you naughty coder !!!")
+            }
+
+            // if browser allows writes without reads, an attacker could create a new session and login his user
+
+            if(session._protection === undefined) { // New / undecided session ?
+                // Specify the proofType:
+                if(requestIsFromRestfuncsClient()) {
+                    session._protection = "corsReadToken"
+                    session._corsReadProofToken = crypto.randomBytes(32).toString("hex")
+                }
+                else {
+                    session._protection = "preflight";
+                }
+
+                checkSessionProtectionIsValid(session);
+            }
+
+            checkAccess(false);
+
+            target[p] = newValue;
+
+            return true;
+        },
+        deleteProperty(target: Record<string, any>, p: string | symbol): boolean {
+            checkAccess(false);
+            throw new Error("deleteProperty not implemented.");
+        },
+        has(target: Record<string, any>, p: string | symbol): boolean {
+            checkAccess(true);
+            throw new Error("has (property) not implemented.");
+        },
+        ownKeys(target: Record<string, any>): ArrayLike<string | symbol> {
+            checkAccess(true);
+            throw new Error("ownKeys not implemented.");
+        }
+
+    });
+
+}
 
 /**
  * Creates a proxy for the session object that sees the values from the prototype and only writes values to req.session on modification.
@@ -313,6 +506,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError("Unhandled http method: " + req.method)
             }
 
+            let allowSessionAccess = false;
             const originAllowed = originIsAllowed(req, options);
             const diagnosis_originNotAllowedMessage = () => `Request is not allowed from ${getOrigin(req) || "<unknown / no headers present>"} to ${getDestination(req)}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${getDestination(req)}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
             // Answer preflights:
@@ -354,25 +548,29 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 // Send CORS headers (like preflight)
                 resp.header("Access-Control-Allow-Origin", getOrigin(req));
                 resp.header("Access-Control-Allow-Credentials", "true")
+                allowSessionAccess = true;
             }
-            else { // Not allowed or origin is unknown?
+            else { // Not allowed or origin is unknown or browser knows better ?
+                if(false) { // TODO x-forwarded-by header == getDestination(req)
+                    // hints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
+                }
+
+
                 if(false) { // is getReadToken ?
                     // allow
                 }
-                else if(false) { // is Basic auth ? TODO
-                    // TODO: immediately check tokens (depending on options)
-                }
-                else if(false) { // is client cert ? TODO
-                    // TODO: immediately check tokens (depending on options)
+                else if(options.csrfProtection === "corsReadToken" || options.csrfProtection === "csrfToken") {
+                    // TODO: immediately check tokens because an explicit setting here means: Client-Cert and Basic-Auth must be protected.
                 }
 
                 if (isSimpleRequest(req)) {
                     // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
 
-                    if(req.method === "GET" && restService.methodIsSafe(methodName)) { // Exception is made for GET get... method
+                    if(req.method === "GET" && restService.methodIsSafe(methodName)) { // Exception is made for GET to a @safe method
                         // TODO: if(!browserSupportsCORS(req)) { throw new RestError() } // In that case the browser probably also does bot block reads from simple requests
 
                         // allow request
+                        allowSessionAccess = true;
                     }
                     else {
                         // ** throw error **
@@ -421,7 +619,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             // @ts-ignore
             const reqSession = req.session as Record<string,any>|undefined;
             if(reqSession !== undefined) { // Express runs a session handler ?
-                session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the sessions's saveUninitialized=true / data protection friendlyness
+                session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
             }
 
             let result = await restService.validateAndDoCall(methodName, collectedParams, {req, resp, session}, options);

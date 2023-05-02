@@ -6,6 +6,11 @@ const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
 
 /**
+ * Redundant type exists on server
+ */
+type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
+
+/**
  * Thrown when there was an Error/exception thrown on the server during method call.
  */
 export class ServerError extends Error {
@@ -53,6 +58,13 @@ export class RestfuncsClient<Service> {
      * HTTP Method for sending all requests
      */
     public method = "POST";
+
+    /**
+     * The csrf protection mode which is required from the server.
+     *
+     * This indicates to the server, that <strong>this client's</strong> session, the client-certificate and basic auth must be protected like specified.
+     */
+    csrfProtection: CSRFProtectionMode = "corsReadToken"
 
     /**
      * The proxy that is handed out, where the calls are made on

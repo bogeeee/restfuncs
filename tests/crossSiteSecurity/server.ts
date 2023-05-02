@@ -33,6 +33,8 @@ import {TestsService} from "./TestsService.js";
         app.use("/mainframeAPI", restfuncs(new MainframeService(), commonOptions))
         app.use("/testsService", restfuncs(new TestsService(), commonOptions))
         app.use("/allowedTestsService", restfuncs(new TestsService(), {...commonOptions, allowedOrigins: ["http://localhost:3666"]}))
+        app.use("/testsService_forceTokenCheck", restfuncs(new TestsService(), {...commonOptions, devForceTokenCheck: true}))
+        app.use("/allowedTestsService_forceTokenCheck", restfuncs(new TestsService(), {...commonOptions, allowedOrigins: ["http://localhost:3666"], devForceTokenCheck: true}))
 
         // Client web:
         if (process.env.NODE_ENV === 'development') {

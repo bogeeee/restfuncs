@@ -138,81 +138,97 @@ export async function runAlltests() {
         await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit
     }
 
-    const service = new RestfuncsClient<TestsService>( `${mainSiteUrl}/testsService`).proxy
-    const corsAllowedService = new RestfuncsClient<TestsService>( `${mainSiteUrl}/allowedTestsService`).proxy
+    // With "preflight" security:
+    {
+        const service = new RestfuncsClient<TestsService>(`${mainSiteUrl}/testsService`, {sessionCSRFProtection: "preflight"}).proxy
+        const corsAllowedService = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService`, {sessionCSRFProtection: "preflight"}).proxy
 
-    /**
-     * tests if runner successfully was able to spend money on bob's cookie-logged-in session.
-     * @param runner
-     */
-    async function checkIfSpendsMoney(runner: () => Promise<void>) {
-        await corsAllowedService.logon("bob"); // Logs in and give me some money
-        assertEquals(await corsAllowedService.getBalance("bob"), 5000)
-        let caught: any;
-        try {
-            await runner()
+        /**
+         * tests if runner successfully was able to spend money on bob's cookie-logged-in session.
+         * @param runner
+         */
+        async function checkIfSpendsMoney(runner: () => Promise<void>) {
+            await corsAllowedService.logon("bob"); // Logs in and give me some money
+            assertEquals(await corsAllowedService.getBalance("bob"), 5000)
+            let caught: any;
+            try {
+                await runner()
+            } catch (e) {
+                caught = e;
+            }
+            if (await corsAllowedService.getBalance("bob") !== 0) {
+                throw new Error(`Money was not spent: ${caught?.message || caught || ""}`, {cause: caught});
+            }
         }
-        catch (e) {
-            caught = e;
-        }
-        if(await corsAllowedService.getBalance("bob") !== 0) {
-            throw new Error(`Money was not spent: ${caught?.message || caught || ""}`, {cause: caught});
-        }
-    }
 
-    await testAssertWorksSSAndFailsXS("call test() on restricted service", async () => {
-        assertEquals(await service.test(), "ok")
-    });
-
-    await testAssertWorksSSAndXS("call test() on allowed service", async () => {
-        assertEquals(await corsAllowedService.test(), "ok")
-    });
-
-    // Simple requests:
-    for(const method of ["GET", "POST"]) {
-        await testAssertFailsSSAndXS(`Simple request on unsafe method (${method})`, async () => checkIfSpendsMoney(async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/unsafeMethod`)
-        }));
-
-        await testAssertWorksSSAndXS(`Simple request on safe method (${method})`, async () => checkIfSpendsMoney(async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoneyAccidentlyMarkedAsSafe`)
-        }));
-    }
-
-
-    await testAssertWorksSSAndFailsXS("Spend money on restricted service", async() => checkIfSpendsMoney(async () => {
-        await service.spendMoney();
-    }));
-
-    await testAssertWorksSSAndXS("Spend money on allowed service", async() => checkIfSpendsMoney(async () => {
-        await corsAllowedService.spendMoney();
-    }));
-
-
-    // Test if we can spend money throug simple request (if they might get called but result can't be read)
-    for(const method of ["GET", "POST"]){
-        // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
-        await testAssertWorksSSAndFailsXS(`Simple request (${method})`, async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/getIsSimpleRequest`)
-            assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
-        });
-        await testAssertWorksSSAndXS(`Simple request (${method})`, async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`, "xyz")
-            assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+        await testAssertWorksSSAndFailsXS("call test() on restricted service", async () => {
+            assertEquals(await service.test(), "ok")
         });
 
-        //
-        await testAssertWorksSSAndFailsXS(`Spend money on restricted service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/spendMoney`)
+        await testAssertWorksSSAndXS("call test() on allowed service", async () => {
+            assertEquals(await corsAllowedService.test(), "ok")
+        });
+
+        // Simple requests:
+        for (const method of ["GET", "POST"]) {
+            await testAssertFailsSSAndXS(`Simple request on unsafe method (${method})`, async () => checkIfSpendsMoney(async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/unsafeMethod`)
+            }));
+
+            await testAssertWorksSSAndXS(`Simple request on safe method (${method})`, async () => checkIfSpendsMoney(async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoneyAccidentlyMarkedAsSafe`)
+            }));
+        }
+
+
+        await testAssertWorksSSAndFailsXS("Spend money on restricted service", async () => checkIfSpendsMoney(async () => {
+            await service.spendMoney();
         }));
 
-        await testAssertWorksSSAndXS(`Spend money on allowed service with simple request (${method})`, async() => checkIfSpendsMoney(async () => {
-            await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoney`)
+        await testAssertWorksSSAndXS("Spend money on allowed service", async () => checkIfSpendsMoney(async () => {
+            await corsAllowedService.spendMoney();
         }));
+
+
+        // Test if we can spend money throug simple request (if they might get called but result can't be read)
+        for (const method of ["GET", "POST"]) {
+            // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
+            await testAssertWorksSSAndFailsXS(`Simple request (${method})`, async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/getIsSimpleRequest`)
+                assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+            });
+            await testAssertWorksSSAndXS(`Simple request (${method})`, async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/getIsSimpleRequest`, "xyz")
+                assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+            });
+
+            //
+            await testAssertWorksSSAndFailsXS(`Spend money on restricted service with simple request (${method})`, async () => checkIfSpendsMoney(async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/spendMoney`)
+            }));
+
+            await testAssertWorksSSAndXS(`Spend money on allowed service with simple request (${method})`, async () => checkIfSpendsMoney(async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/allowedTestsService/spendMoney`)
+            }));
+        }
     }
 
-    // CORS read proof:
-    // Session between non-client and restfuncs-client requests should not be sharable
+    // With default ("readproof") security:
+    {
+        const service = new RestfuncsClient<TestsService>(`${mainSiteUrl}/testsService`, {}).proxy
+        const corsAllowedService = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService`, {}).proxy
+
+
+        for(const method of ["GET", "POST"]) {
+            // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
+            await testAssertWorksSSAndXS(`Requests from different session protection modes, (${method})`, async () => {
+
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/testsService/getIsSimpleRequest`)
+                assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
+            });
+        }
+    }
+
 
 
 
