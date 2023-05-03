@@ -192,7 +192,7 @@ export class RestService {
      * Returns a token which proves that your browser allows requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link RestfuncsOptions.allowedOrigins}
      * The created read token is stored in the session (so it can be matched with later requests)
      */
-    @safe()
+    //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     getReadToken() {
         // TODO: crate token if needed an store it in the session. Check and initialize the _protection field.
         // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
