@@ -110,11 +110,27 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
+
+type ObjectButNotAFunction = {[index: string | number | symbol]: any} & ({ bind?: never } | { call?: never }); // https://stackoverflow.com/questions/52692606/how-to-declare-a-type-in-typescript-that-only-includes-objects-and-not-functions
+
+const t: ObjectButNotAFunction = {x: "test"}
+
+/**
+ * Matches all types but excludes functions that are not async.
+ *
+ * This is to remind the developer to <strong>flag remote methods as async</strong>.
+ * Otherwise they can't be called by the restfuncs client and you get annoying runtime errors.
+ * 
+ * // @ts-ignore it for all your non-remote methods
+ */
+type RemoteMethodsMustBeAsync = string | number | boolean | null | undefined | symbol | bigint | any[] | ObjectButNotAFunction | ((...args: any[]) => Promise<any>)
+
+
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
 export class RestService {
-    [index: string]: any
+    [index: string]: RemoteMethodsMustBeAsync
 
     /**
      * Lists the methods that are flagged as @safe
@@ -268,19 +284,24 @@ export class RestService {
      * @param funcName name of the function to be called
      * @param args args of the function to be called
      */
-    protected async doCall(funcName: string, args: any[]) {
+    protected async doCall(funcName: string, args: any[]): Promise<any> {
+        // @ts-ignore
         return await this[funcName](...args) // Call the original function
     }
 
 
     /**
      * You can override this as part of the API
+     * <p>
+     * <i>//@ts-ignore the RemoteMethodsMustBeAsync error then.</i>
+     * </p>
      * @param query i.e. book=1984&author=George%20Orwell&keyWithoutValue
      * @return I.e. {
      *      result: {book: "1984", author="George Orwell", keyWithoutValue:"true"}
      *      containsStringValuesOnly: true // decides, which of the autoConvertValueForParameter_... methods is used.
      * }
      */
+    // @ts-ignore
     parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
         // Query is a list i.e: "a,b,c" ?
         if(query.indexOf(",") > query.indexOf("=")) { // , before = means, we assume it is a comma separated list
@@ -313,12 +334,16 @@ export class RestService {
     }
 
     /**
-     * You can override this as part of the API
+     * You can override this as part of the API.
+     * <p>
+     * <i>//@ts-ignore the RemoteMethodsMustBeAsync error then.</i>
+     * </p>
      * @param methodName method/function name
      * @see RestfuncsOptions.allowGettersFromAllOrigins
      * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only !
      */
-    public methodIsSafe(methodName: string) {
+    // @ts-ignore: RemoteMethodsMustBeAsync
+    public methodIsSafe(methodName: string): boolean {
 
         if(this[methodName] === RestService.prototype[methodName]) { // Method was unmodifiedly taken from the RestService mixin. I.e. "getIndex". See RestService.initializeRestService(). ?
             return methodIsMarkedSafeAtActualImplementationLevel(RestService, methodName); // Look at RestService level
@@ -332,20 +357,29 @@ export class RestService {
     }
 
     /**
-     * You can override this as part of the API
+     * You can override this as part of the API.
+     * <p>
+     * <i>//@ts-ignore the RemoteMethodsMustBeAsync error then.</i>
+     * </p>
      * @param methodName
      */
-    public hasMethod(methodName: string) {
+    // @ts-ignore: RemoteMethodsMustBeAsync
+    public hasMethod(methodName: string): boolean {
+        // @ts-ignore
         return this[methodName] && (typeof this[methodName] === "function");
     }
 
     /**
      * Retrieves, which method should be picked. I.e GET user -> getUser
      *
-     * You can override this as part of the API
+     * You can override this as part of the API.
+     * <p>
+     * <i>//@ts-ignore the RemoteMethodsMustBeAsync error then.</i>
+     * </p>
      * @param httpMethod
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
+    // @ts-ignore: RemoteMethodsMustBeAsync
     public getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
         if(path === "") {
             path = "index";
@@ -503,7 +537,8 @@ export class RestService {
      * Lists (potentially) callable methods
      * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
      */
-    public listCallableMethods() {
+    // @ts-ignore: RemoteMethodsMustBeAsync
+    public listCallableMethods(): ReflectedMethod<Function>[] {
         const protoRestService = new (class extends RestService{})();
 
         return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
@@ -521,6 +556,7 @@ export class RestService {
         })
     }
 
+    // @ts-ignore: RemoteMethodsMustBeAsync
     public mayNeedFileUploadSupport() {
         // Check if this service has methods that accept buffer
 
@@ -587,6 +623,7 @@ export class RestService {
         return restService;
     }
 
+    // @ts-ignore: RemoteMethodsMustBeAsync
     public _diagnosisWhyIsRTTINotAvailable() {
         return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
     }

@@ -563,6 +563,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
             }
 
+            // @ts-ignore
             let result = await restService.validateAndDoCall(methodName, collectedParams, {req, resp, session}, options);
             sendResult(result, methodName);
         }
