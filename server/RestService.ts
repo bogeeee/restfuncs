@@ -162,7 +162,7 @@ export class RestService {
      * @return The / index- / home page
      */
     @safe()
-    getIndex() {
+    async getIndex() {
         let className: string | undefined = this.constructor?.name;
         className = className === "Object"?undefined:className;
         const title = className?`Index of class ${className}`:`Index of {}`
@@ -193,7 +193,7 @@ export class RestService {
      * The created read token is stored in the session (so it can be matched with later requests)
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
-    getReadToken() {
+    async getReadToken() {
         // TODO: crate token if needed an store it in the session. Check and initialize the _protection field.
         // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
     }

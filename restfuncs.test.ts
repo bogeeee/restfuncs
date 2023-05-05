@@ -502,26 +502,26 @@ test('various call styles', async () => {
 test('Result Content-Type', async () => {
 
     await runRawFetchTests(new class extends RestService{
-        getString() {
+        async getString() {
             return "test";
         }
 
-        getHtml() {
+        async getHtml() {
             this.resp.contentType("text/html; charset=utf-8");
             return "<html/>";
         }
 
-        getHtmlWithoutExplicitContentType() {
+        async getHtmlWithoutExplicitContentType() {
             return "<html/>";
         }
 
 
-        getTextPlain() {
+        async getTextPlain() {
             this.resp.contentType("text/plain; charset=utf-8");
             return "plain text";
         }
 
-        returnNonStringAsHtml() {
+        async returnNonStringAsHtml() {
             this.resp.contentType("text/html; charset=utf-8");
             return {};
         }
@@ -559,7 +559,7 @@ test('Result Content-Type', async () => {
 test('Http stream and buffer results', async () => {
 
     await runRawFetchTests(new class extends RestService{
-        readableResult() {
+        async readableResult() {
             this.resp.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
@@ -572,7 +572,7 @@ test('Http stream and buffer results', async () => {
             return readable
         }
 
-        readableResultWithError() {
+        async readableResultWithError() {
             this.resp.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
@@ -586,7 +586,7 @@ test('Http stream and buffer results', async () => {
             return readable
         }
 
-        readableResultWithEarlyError() {
+        async readableResultWithEarlyError() {
             this.resp.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
@@ -598,7 +598,7 @@ test('Http stream and buffer results', async () => {
             return readable
         }
 
-        bufferResult() {
+        async bufferResult() {
             this.resp.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
@@ -809,7 +809,7 @@ test("Access 'this' on server service", async () => {
             val: null
         }
 
-        storeValue(value) {
+        async storeValue(value) {
             this.myServiceFields.val = value;
         }
 
@@ -830,7 +830,7 @@ test('Sessions', async () => {
             someObject: {x:0}
         }
 
-        checkInitialSessionValues() {
+        async checkInitialSessionValues() {
             expect(this.session.counter).toBe(0);
             expect(this.session.val).toBe(null);
             expect(this.session.someObject).toStrictEqual({x:0});
@@ -845,7 +845,7 @@ test('Sessions', async () => {
             expect(this.session.counter).toBe(null);
         }
 
-        storeValueInSession(value) {
+        async storeValueInSession(value) {
             this.session.val = value;
         }
 
@@ -973,8 +973,8 @@ test('validateAndDoCall security', async () => {
 
 test('listCallableMethods', () => {
    class A extends RestService {
-       methodA() {}
-       methodB(x: string) {}
+       async methodA() {}
+       async methodB(x: string) {}
    }
 
    const a = new A;
@@ -992,18 +992,18 @@ test('listCallableMethods', () => {
 
 test('mayNeedFileUploadSupport', () => {
     expect(new class extends RestService {
-        methodA() {}
-        methodB(x: string) {}
-        methodC(x: any) {}
-        methodD(x: string | number) {}
+        async methodA() {}
+        async methodB(x: string) {}
+        async methodC(x: any) {}
+        async methodD(x: string | number) {}
     }().mayNeedFileUploadSupport()).toBeFalsy()
 
     expect(new class extends RestService {
-        methodA(b: Buffer) {}
+        async methodA(b: Buffer) {}
     }().mayNeedFileUploadSupport()).toBeTruthy()
 
     expect(new class extends RestService {
-        methodA(...b: Buffer[]) {}
+        async methodA(...b: Buffer[]) {}
     }().mayNeedFileUploadSupport()).toBeTruthy()
 
 });
