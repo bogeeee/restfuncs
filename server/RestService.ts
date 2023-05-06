@@ -198,6 +198,12 @@ export class RestService {
         // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
     }
 
+    getCsrfToken(): string {
+        // TODO: crate token if needed an store it in the session. Check and initialize the _protection field.
+        // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
+        throw new Error("TODO")
+    }
+
 
     /**
      * Security checks the method name and args and executes the methods call.

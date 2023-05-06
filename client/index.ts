@@ -41,9 +41,11 @@ async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
 /**
  * A method that's called here (on .proxy) get's send as a REST call to the server.
  *
- * Usage:
- * const remote = new RestfuncsClient<MyService>(url).proxy
+ * @example Usage
+ * <pre>
+ * const remote = new RestfuncsClient<MyService>("/api").proxy
  * await remote.myMethod()
+ * </pre>
  * @see restfuncsClient
  */
 export class RestfuncsClient<Service> {
@@ -70,6 +72,10 @@ export class RestfuncsClient<Service> {
      * The proxy that is handed out, where the calls are made on
      */
     public proxy: Service
+
+    protected _corsReadToken?: string
+
+    public csrfToken?: string
 
     private async outer_doCall(funcName: string, args: any[]) {
         // Create a simulated environment, to make user's doCall super convenient:
