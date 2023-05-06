@@ -117,6 +117,12 @@ export class RestService {
     [index: string]: any
 
     /**
+     * Uniquely identify this service. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
+     * Normally the class name is used and not a random ID, cause we want to allow for multi-server environments with client handover
+     */
+    id: string = RestService.generatedId(this)
+
+    /**
      * Lists the methods that are flagged as @safe
      * filled on annotation loading: for each concrete subclass such a static field is created
      */
@@ -550,7 +556,7 @@ export class RestService {
     _sessionPrototype?: object;
 
     /**
-     * Internal: Must be called by every adapter (i.e. express) before the service is used.
+     * Internal: Must be called by every adapter (i.e. express router) before the service is used.
      * @param restServiceObj
      * @param options
      */
@@ -575,6 +581,12 @@ export class RestService {
 
         const restService = <RestService> restServiceObj;
 
+        // ID:
+        if(restService.id === "RestService") { // We still have the plain dump base id ?
+            restService.id = this.generatedId(restServiceObj); // Generate a better one
+        }
+        restService.checkIfIdIsUnique();
+
         restService._sessionPrototype = restService.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
         // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
         // @ts-ignore
@@ -595,6 +607,73 @@ export class RestService {
 
     public _diagnosisWhyIsRTTINotAvailable() {
         return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
+    }
+
+    /**
+     * Registry to make ensure that IDs are unique
+     * @private
+     */
+    private static idToRestService = new Map<string, RestService>()
+
+    /**
+     * ..., therefore, ids are registered within here.
+     * @private
+     */
+    private checkIfIdIsUnique() {
+        if(!this.id) {
+            throw new Error("id not set. Please specify an id property on your service.")
+        }
+
+        const registered = RestService.idToRestService.get(this.id);
+        if(registered === this) {
+            return;
+        }
+
+        if(registered !== undefined ) { // Duplicate ?
+            if(this.constructor?.name === this.id) {
+                throw new Error(`A \`class ${this.id}\` is used twice as a service. Please set the 'id' property in your instances to make them unique.`)
+            }
+
+            throw new Error(`Please add an id property to your service object to make it unique. Current (generated) id is not unique: '${this.id}'`)
+        }
+
+        RestService.idToRestService.set(this.id, this);
+    }
+
+    /**
+     * Returns an id for this Service.
+     *
+     * It's not checked for uniqueness.
+     * @see checkIfIdIsUnique
+     * @private
+     */
+    public static generatedId(restService: object): string {
+        const className = restService.constructor?.name
+        if(className && className !== "Object") {
+            return className;
+        }
+
+        // TODO: create a hash instead, that's better and shorter (imagine JWT sessions with limited size)
+        // generate an id of the first function names that are found.
+        const MAX_LENGTH = 40;
+        let result = "Obj";
+        for(const k of Object.getOwnPropertyNames(restService)) {
+            // @ts-ignore
+            if(typeof k === "string" && typeof restService[k] == "function") {
+                result+="_" + k;
+                if(result.length >= MAX_LENGTH) {
+                    return result.substring(0, MAX_LENGTH);
+                }
+            }
+        }
+
+        // not enough info found ? I.e. the object was enhanced during typescript-rtti compile
+        const prototype = Object.getPrototypeOf(restService);
+        if(prototype) {
+            return this.generatedId(prototype); // Take the prototy
+        }
+
+        return result;
     }
 }
 

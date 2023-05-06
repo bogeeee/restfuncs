@@ -8,6 +8,9 @@ import {reflect} from "typescript-rtti";
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
+    // @ts-ignore
+    RestService.idToRestService = new Map<string, RestService>() // Reset id registry
+
     const app = express();
     app.use(path, restfuncs(serverAPI, {checkArguments: true, logErrors: false, exposeErrors: true}));
     const server = app.listen();

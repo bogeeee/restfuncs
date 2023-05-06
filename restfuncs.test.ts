@@ -6,7 +6,14 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import {Readable} from "node:stream";
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
+function resetGlobalState() {
+    // @ts-ignore
+    RestService.idToRestService = new Map<string, RestService>() // Reset id registry
+}
+
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
+    resetGlobalState();
+
     const app = express();
     app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true}));
     const server = app.listen();
@@ -25,6 +32,8 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
 }
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options: Partial<RestfuncsOptions> = {}) {
+    resetGlobalState();
+
     const app = express();
     app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true, ...options}));
     const server = app.listen();
@@ -108,6 +117,8 @@ test('Most simple example (standalone http server)', async () => {
 })
 
 test('Proper example with express and type support', async () => {
+    resetGlobalState()
+
     class GreeterService extends RestService {
 
         async greet(name: string) {
@@ -314,12 +325,14 @@ test('Safe methods security', async () => {
 
 
         // Mixins:
-        function mixin(service: object) {
+        function mixin(service: object, id?: string) {
+            // @ts-ignore
+            if(id) service.id = id;
             return RestService.initializeRestService(service, {checkArguments: false,})
         }
-        expect(mixin(new Service()).methodIsSafe("getIndex")).toBeTruthy()
-        expect(mixin(new Service()).methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-        expect(mixin({}).methodIsSafe("getIndex")).toBeTruthy()
+        expect(mixin(new Service(), "service1").methodIsSafe("getIndex")).toBeTruthy()
+        expect(mixin(new Service(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(mixin({}, "service3").methodIsSafe("getIndex")).toBeTruthy()
 
         // Mixin with overwrite and @safe:
         class ServiceA {
@@ -773,6 +786,28 @@ test('parseQuery', () => {
 
 });
 
+test('registerIds', () => {
+    // Make your services need unique ids
+    RestService.initializeRestService({id: "a"}, {checkArguments: false})
+    expect( () => RestService.initializeRestService({id: "a"}, {})).toThrow("not unique");
+
+    class MyService extends RestService {
+    }
+
+    // Use same class twice:
+    RestService.initializeRestService(new MyService(), {})
+    expect( () => RestService.initializeRestService(new MyService(), {checkArguments: false})).toThrow("used twice");
+
+    // Use object without methods twice:
+    RestService.initializeRestService({a: false}, {})
+    expect( () => RestService.initializeRestService({b: false}, {checkArguments: false})).toThrow("not unique");
+
+
+    // This should work
+    RestService.initializeRestService({myFunc1() {}}, {checkArguments: false})
+    RestService.initializeRestService({myFunc2() {}}, {checkArguments: false})
+});
+
 test('diagnosis_looksLikeJson', () => {
     expect(diagnosis_looksLikeJSON("test")).toBeFalsy();
     expect(diagnosis_looksLikeJSON("test123")).toBeFalsy();
@@ -875,6 +910,8 @@ test('Sessions', async () => {
 
 
 test('Intercept with doCall (client side)', async () => {
+    resetGlobalState();
+
     class Service extends RestService{
         getSomething(something: any) {
             return something;
@@ -905,6 +942,8 @@ test('Intercept with doCall (client side)', async () => {
 });
 
 test('Intercept with doFetch (client side)', async () => {
+    resetGlobalState()
+
     class Service extends RestService{
         getSomething(something: any) {
             return something;
