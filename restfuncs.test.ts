@@ -495,6 +495,8 @@ test('various call styles', async () => {
         expect(await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: '"b"'})).toStrictEqual(["a", "b"]); // JSON string sin body
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: 'b'})}); // as plain string - this should not be accepted cause it's too much magic and could lead to unwanted { injections as a security risk
         expect(await fetchJson(`${baseUrl}/getBook?a`, {method: "POST", body: 'b', headers: {"Content-Type": "text/plain"}})).toStrictEqual(["a", "b"]); // Now with text/plain this should work
+        expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b`, {method: "POST", body: '', headers: {"Content-Type": "text/plain"}})).toStrictEqual(["a", "b"]); // Empty body should not cause an error
+        expect(await fetchJson(`${baseUrl}/getBook?a,b`, {method: "POST", body: '', headers: {"Content-Type": "text/plain"}})).toStrictEqual(["a", "b"]); // Empty body should not cause an error
 
         // With Buffer in parameters:
         expect(await fetchJson(`${baseUrl}/withBuffer?b=b&c=c`, {method: "POST", body: 'a'})).toStrictEqual(["a", "b","c"]);

@@ -773,20 +773,23 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
         else if(contentType == "text/plain") {
             const encoding = fixTextEncoding(contentTypeAttributes["encoding"] || "utf8");
             const rawBodyText = req.body.toString(encoding);
-            try {
-                convertAndAddParams(rawBodyText, null); // no conversion
-                // Do a full check to provoke error for, see catch
-                if(reflectedMethod) {
-                    checkParameterTypes(reflectedMethod, result.methodArguments);
-                }
+            if(rawBodyText === "") {
+                // This means most likely the user didn't want to pass a parameter. The case that the last, not yet defined, param is a string + the api allows to pass an explicit empty string to it and do meaningfull stuff is very rare
             }
-            catch (e) {
-                // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
-                if(e instanceof Error && diagnosis_looksLikeJSON(rawBodyText)) {
-                    throw new RestError(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
-                }
-                else {
-                    throw e;
+            else {
+                try {
+                    convertAndAddParams(rawBodyText, null); // no conversion
+                    // Do a full check to provoke error for, see catch
+                    if (reflectedMethod) {
+                        checkParameterTypes(reflectedMethod, result.methodArguments);
+                    }
+                } catch (e) {
+                    // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
+                    if (e instanceof Error && diagnosis_looksLikeJSON(rawBodyText)) {
+                        throw new RestError(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
+                    } else {
+                        throw e;
+                    }
                 }
             }
         }
