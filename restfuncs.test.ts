@@ -472,12 +472,12 @@ test('various call styles', async () => {
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "GET"})).toStrictEqual([null, null]);
         expect(await fetchJson(`${baseUrl}/getBook/a`, {method: "GET"})).toStrictEqual(["a", null]); // list arguments in the path
         expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]); // Arguments (named) in the qerystring
-        expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b&csrfProtection=preflight`, {method: "GET"})).toStrictEqual(["a", "b"]); // ... + a meta parameter
+        expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b&csrfProtectionMode=preflight`, {method: "GET"})).toStrictEqual(["a", "b"]); // ... + a meta parameter
         expect(await fetchJson(`${baseUrl}/getBook?a,b`, {method: "GET"})).toStrictEqual(["a", "b"]); // List the arguments (unnamed) in the querystring
         expect(await fetchJson(`${baseUrl}/book/a?authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]);
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST"})).toStrictEqual([null, null]); //
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", null]); //
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a", "csrfProtection": "preflight"}'})).toStrictEqual(["a", null]); // ... + a meta parameter
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a", "csrfProtectionMode": "preflight"}'})).toStrictEqual(["a", null]); // ... + a meta parameter
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '["a"]'})).toStrictEqual(["a", null]); //
 
 
@@ -503,7 +503,7 @@ test('various call styles', async () => {
 
         // Classic form post:
         expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: 'name=a&authorFilter=b', headers: {"Content-Type": "application/x-www-form-urlencoded"}})).toStrictEqual(["a", "b"]);
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: 'name=a&authorFilter=b&csrfProtection=preflight', headers: {"Content-Type": "application/x-www-form-urlencoded"}})).toStrictEqual(["a", "b"]); // ... + a meta parameter
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: 'name=a&authorFilter=b&csrfProtectionMode=preflight', headers: {"Content-Type": "application/x-www-form-urlencoded"}})).toStrictEqual(["a", "b"]); // ... + a meta parameter
         expect(await fetchJson(`${baseUrl}/getBook?authorFilter=fromQuery`, {method: "POST", body: 'name=a&authorFilter=b', headers: {"Content-Type": "application/x-www-form-urlencoded"}})).toStrictEqual(["a", "b"]);
         expect(await fetchJson(`${baseUrl}/getBook?name=a`, {method: "POST", body: 'authorFilter=George%20Orwell', headers: {"Content-Type": "application/x-www-form-urlencoded"}})).toStrictEqual(["a", "George Orwell"]); // mixed
 

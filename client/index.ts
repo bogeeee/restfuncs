@@ -66,7 +66,7 @@ export class RestfuncsClient<Service> {
      *
      * This indicates to the server, that <strong>this client's</strong> session, the client-certificate and basic auth must be protected like specified.
      */
-    csrfProtection: CSRFProtectionMode = "corsReadToken"
+    csrfProtectionMode: CSRFProtectionMode = "corsReadToken"
 
     /**
      * The proxy that is handed out, where the calls are made on

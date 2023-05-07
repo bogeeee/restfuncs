@@ -119,7 +119,7 @@ export type RestfuncsOptions = {
      *
      * Default: true
      */
-    csrfProtection?: CSRFProtectionMode
+    csrfProtectionMode?: CSRFProtectionMode
 
     /**
      * For "readToken" mode only:
@@ -201,7 +201,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
 export default restfuncs
 
 type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
-const metaParameterNames = new Set<string>(["csrfProtection","corsReadToken","csrfToken"])
+const metaParameterNames = new Set<string>(["csrfProtectionMode","corsReadToken","csrfToken"])
 
 type SessionProtectionHeader = {
     /**
@@ -559,7 +559,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             const errorHints: string[] = [];
             const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
-            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtection, options.allowedOrigins, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]})) {
+            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]})) {
                 throw new RestError(`Not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
             }
 
@@ -1181,14 +1181,14 @@ type SecurityRelevantRequestFields = {
  *
  * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the csrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
  * @param reqFields
- * @param csrfProtection this mode is to be enforced
+ * @param csrfProtectionMode this mode is to be enforced
  * @param allowedOrigins from the options
  * @param restService
  * @param error_hints error hints will be added here
  * @param diagnosis
  */
-function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, csrfProtection: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}): boolean {
-    // note that this this called from 2 places: On the beginning of a request. And on session value access where it then has an overwritten/ DEFINED options.csrfProtection set.
+function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, csrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}): boolean {
+    // note that this this called from 2 places: On the beginning of a request. And on session value access where it then has an overwritten/ DEFINED options.csrfProtectionMode set.
 
     /**
      * is the corsReadToken or csrfToken valid ?
@@ -1201,15 +1201,15 @@ function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFie
     }
 
     // Check protection mode compatibility:
-    if(csrfProtection !== undefined) { // csrfProtection is enforced ?
+    if(csrfProtectionMode !== undefined) { // csrfProtectionMode is enforced ?
         const clientProtectionMode = undefined // TODO
-        if (clientProtectionMode !== csrfProtection) { // Client and server want different protection modes  ?
+        if (clientProtectionMode !== csrfProtectionMode) { // Client and server want different protection modes  ?
             error_hints.push(`The server requires x , while your request y ...`)
             return false;
         }
     }
 
-    if(csrfProtection === "csrfToken") {
+    if(csrfProtectionMode === "csrfToken") {
         return tokenValid(); // Strict check already here.
     }
 
@@ -1232,7 +1232,7 @@ function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFie
         return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
     }
 
-    if(csrfProtection === "corsReadToken") {
+    if(csrfProtectionMode === "corsReadToken") {
         if(tokenValid()) {  // Read was proven ?
             return true;
         }
@@ -1275,7 +1275,7 @@ function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFie
             return true;
         }
 
-        if(csrfProtection === undefined || csrfProtection === "preflight") {
+        if(csrfProtectionMode === undefined || csrfProtectionMode === "preflight") {
             return true; // Trust the browser that it would bail after a negative preflight
         }
     }
