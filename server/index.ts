@@ -31,6 +31,8 @@ export {RestService, safe} from "./RestService";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
+
+type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, destination?: string) => boolean);
 export type RestfuncsOptions = {
     /**
      * Only for standalone server
@@ -88,7 +90,7 @@ export type RestfuncsOptions = {
      * <i>Technically, functions, which you flagged as {@link safe}, are still allowed to be called by [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) GET requests without an origin check.</i>
      *
      */
-    allowedOrigins?: "all" | string[] | ( (origin?: string, destination?: string) => boolean )
+    allowedOrigins?: AllowedOriginsOptions
 
 
     //allowTopLevelNavigationGET?: boolean // DON'T allow: We can't see know if this really came from a top level navigation ! It can be easily faked by referrerpolicy="no-referrer"
@@ -509,12 +511,13 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
             let allowSessionAccess = false;
-            const originAllowed = originIsAllowed(req, options);
+            const origin = getOrigin(req);
+            const originAllowed = originIsAllowed({origin, destination: getDestination(req), allowedOrigins: options.allowedOrigins});
             // Answer preflights:
             if(req.method === "OPTIONS") {
                 if(originAllowed) {
                     if(req.header("Access-Control-Request-Method")) { // Request is a  CORS preflight (we don't care which actual method) ?
-                        resp.header("Access-Control-Allow-Origin", getOrigin(req))
+                        resp.header("Access-Control-Allow-Origin", origin)
                         resp.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
                         resp.header("Access-Control-Allow-Headers", "content-type, accept");
                         resp.header("Access-Control-Allow-Credentials", "true")
@@ -526,7 +529,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     }
                 }
                 else {
-                    throw new RestError(diagnosis_originNotAllowedMessage(req), {httpStatusCode: 204});
+                    throw new RestError(diagnosis_originNotAllowedMessage({origin, destination: getDestination(req), allowedOrigins: options.allowedOrigins}), {httpStatusCode: 204});
                 }
 
                 resp.end();
@@ -536,7 +539,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             // Add cors header:
             if(originAllowed) {
                 // Send CORS headers (like preflight)
-                resp.header("Access-Control-Allow-Origin", getOrigin(req));
+                resp.header("Access-Control-Allow-Origin", origin);
                 resp.header("Access-Control-Allow-Credentials", "true")
             }
 
@@ -555,7 +558,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             cleanupStreamsAfterRequest = c;
 
             const errorHints: string[] = [];
-            if(!requestIsAllowedToRunCredentialed(methodName, req, options, restService, errorHints)) {
+            const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
+            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtection, options.allowedOrigins, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]})) {
                 throw new RestError(`Not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
             }
 
@@ -1112,53 +1116,78 @@ function getDestination(req: Request) : string | undefined {
 
 /**
  *
- * @param req
- * @param options
+ * @param params: pre-computed origin and destination
  * @return if origin and destination are allowed by the "allowedOrigins" option
  */
-function originIsAllowed(req: Request, options: RestfuncsOptions): boolean {
-    const origin = getOrigin(req);
-    const destination = getDestination(req);
-
+function originIsAllowed(params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}): boolean {
     function isSameOrigin() {
-        return destination !== undefined && origin !== undefined && (origin === destination);
+        return params.destination !== undefined && params.origin !== undefined && (params.origin === params.destination);
     }
 
-    if(!options.allowedOrigins) { // Only same origin allowed ?
+    if(!params.allowedOrigins) { // Only same origin allowed ?
         return isSameOrigin()
     }
-    else if(_.isArray(options.allowedOrigins)) {
-        return isSameOrigin() || (origin !== undefined && _(options.allowedOrigins).contains(origin));
+    else if(_.isArray(params.allowedOrigins)) {
+        return isSameOrigin() || (origin !== undefined && _(params.allowedOrigins).contains(origin));
     }
-    else if(typeof options.allowedOrigins === "function") {
-        return options.allowedOrigins(origin, destination);
+    else if(typeof params.allowedOrigins === "function") {
+        return params.allowedOrigins(params.origin, params.destination);
     }
-    else if(options.allowedOrigins === "all") {
+    else if(params.allowedOrigins === "all") {
         return true;
     }
     else {
-        throw new Error("Invalid value for allowedOrigins: " + options.allowedOrigins)
+        throw new Error("Invalid value for allowedOrigins: " + params.allowedOrigins)
     }
 
     return false;
 }
 
 
-function browserSupportsCORS(req: Request, error_hints?: string[]) {
+function browserSupportsCORS(req: { }, error_hints?: string[]) {
     return true; // TODO
 }
+
+type SecurityRelevantRequestFields = {
+    httpMethod: string,
+    /**
+     * The service method name that's about to be called
+     */
+    serviceMethodName: string,
+    /**
+     * Computed origin
+     * @see getOrigin
+     */
+    origin?: string,
+    /**
+     * Computed destination
+     * @see getDestination
+     */
+    destination?: string,
+
+    corsReadToken?: string,
+    csrfToken?: string,
+    /**
+     * Computed result from
+     * @see couldBeSimpleRequest
+     */
+    couldBeSimpleRequest?: boolean
+};
 
 /**
  * Returns if the specified request to the specified service's method is allowed to access the session or run using the request's client-cert / basic auth
  *
  * Meaning it passes all the CSRF prevention requirements
- * @param methodName The service's method name that's (about to be) called
- * @param req
- * @param options Controls how restrictive the checks should be / which origins are allowed.
+ *
+ * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the csrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
+ * @param reqFields
+ * @param csrfProtection this mode is to be enforced
+ * @param allowedOrigins from the options
  * @param restService
  * @param error_hints error hints will be added here
+ * @param diagnosis
  */
-function requestIsAllowedToRunCredentialed(methodName: string, req: Request, options: RestfuncsOptions, restService: RestService, error_hints: string[]): boolean {
+function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, csrfProtection: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}): boolean {
     // note that this this called from 2 places: On the beginning of a request. And on session value access where it then has an overwritten/ DEFINED options.csrfProtection set.
 
     /**
@@ -1172,24 +1201,24 @@ function requestIsAllowedToRunCredentialed(methodName: string, req: Request, opt
     }
 
     // Check protection mode compatibility:
-    if(options.csrfProtection !== undefined) { // csrfProtection is enforced ?
+    if(csrfProtection !== undefined) { // csrfProtection is enforced ?
         const clientProtectionMode = undefined // TODO
-        if (clientProtectionMode !== options.csrfProtection) { // Client and server want different protection modes  ?
+        if (clientProtectionMode !== csrfProtection) { // Client and server want different protection modes  ?
             error_hints.push(`The server requires x , while your request y ...`)
             return false;
         }
     }
 
-    if(options.csrfProtection === "csrfToken") {
+    if(csrfProtection === "csrfToken") {
         return tokenValid(); // Strict check already here.
     }
 
-    if(originIsAllowed(req, options)) {
+    if(originIsAllowed({...reqFields, allowedOrigins})) {
         return true
     }
 
     // diagnosis:
-    error_hints.push(diagnosis_originNotAllowedMessage(req)) // TODO: add hints into originIsAllowed function
+    error_hints.push(diagnosis_originNotAllowedMessage({...reqFields, allowedOrigins})) // TODO: add hints into originIsAllowed function
     if(false) { // TODO x-forwarded-by header == getDestination(req)
         // error_hints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
     }
@@ -1199,46 +1228,41 @@ function requestIsAllowedToRunCredentialed(methodName: string, req: Request, opt
     // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
     // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
-    if(!browserSupportsCORS(req, error_hints)) {
+    if(!browserSupportsCORS(reqFields, error_hints)) {
         return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
     }
 
-    if(options.csrfProtection === "corsReadToken") {
+    if(csrfProtection === "corsReadToken") {
         if(tokenValid()) {  // Read was proven ?
             return true;
         }
     }
 
-    if (couldBeSimpleRequest(req)) { // Simple request (or a false positive non-simple request)
+    if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
         // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
-        if(req.method === "GET" && restService.methodIsSafe(methodName)) {
+        if(reqFields.httpMethod === "GET" && restService.methodIsSafe(reqFields.serviceMethodName)) {
             return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
         }
         else {
             // Block
 
-            // Add special error_hints:
-            let diagnosis_acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || [])];
-            diagnosis_acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
 
-
-            const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
-            if (contentType == "application/x-www-form-urlencoded" || contentType == "multipart/form-data") { // SURELY came from html form ?
+            if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
             }
-            else if(req.method === "GET" && getOrigin(req) === undefined && _(diagnosis_acceptedResponseContentTypes).contains("text/html") ) { // Top level navigation in web browser ?
-                error_hints.push(`GET requests to '${methodName}' from top level navigations (=having no origin)  are not allowed because '${methodName}' is not considered safe.`);
-                error_hints.push(`If you want to allow '${methodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${methodName}(...) {\n    //... must perform non-state-changing operations only\n}`)
-                if(diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, methodName)) {
-                    error_hints.push(`NOTE: '${methodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
+            else if(reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html") ) { // Top level navigation in web browser ?
+                error_hints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
+                error_hints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`)
+                if(diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, reqFields.serviceMethodName)) {
+                    error_hints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
                 }
             }
-            else if(req.method === "GET" && getOrigin(req) === undefined) { // Crafted http request (maybe from in web browser)?
+            else if(reqFields.httpMethod === "GET" && reqFields.origin === undefined) { // Crafted http request (maybe from in web browser)?
                 error_hints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
             }
-            else if (contentType == "text/plain") { // MAYBE from html form
+            else if (diagnosis.contentType == "text/plain") { // MAYBE from html form
                 error_hints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
             }
-            else if(req.method !== "GET" && getOrigin(req) === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
+            else if(reqFields.httpMethod !== "GET" && reqFields.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
                 error_hints.push(`You have to specify a Content-Type header.`);
             }
             return false; // Block
@@ -1247,11 +1271,11 @@ function requestIsAllowedToRunCredentialed(methodName: string, req: Request, opt
     else { // Surely a non-simple request ?
         // *** here we are only secured by the browser's preflight ! ***
 
-        if(methodName === "getCorsReadToken") {
+        if(reqFields.serviceMethodName === "getCorsReadToken") {
             return true;
         }
 
-        if(options.csrfProtection === undefined || options.csrfProtection === "preflight") {
+        if(csrfProtection === undefined || csrfProtection === "preflight") {
             return true; // Trust the browser that it would bail after a negative preflight
         }
     }
@@ -1259,7 +1283,7 @@ function requestIsAllowedToRunCredentialed(methodName: string, req: Request, opt
     return false;
 }
 
-const diagnosis_originNotAllowedMessage = (req: Request) => `Request is not allowed from ${getOrigin(req) || "<unknown / no headers present>"} to ${getDestination(req)}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${getDestination(req)}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
+const diagnosis_originNotAllowedMessage = (params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}) => `Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
 
 /**
  * Pre checks some of the fields to give meaningful errors in advance.
