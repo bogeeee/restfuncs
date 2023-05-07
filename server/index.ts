@@ -199,7 +199,7 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
 export default restfuncs
 
 type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
-
+const metaParameterNames = new Set<string>(["csrfProtection","corsReadToken","csrfToken"])
 
 type SessionProtectionHeader = {
     /**
@@ -417,6 +417,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
         let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json" // TODO: add options
         acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
 
+        let cleanupStreamsAfterRequest: (() => void) | undefined = undefined
+
         /**
          * Http-sends the result, depending on the requested content type:
          */
@@ -549,10 +551,11 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 
-            const collectedParams = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
+            const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
+            cleanupStreamsAfterRequest = c;
 
             const errorHints: string[] = [];
-            if(!methodIsAllowedCredentialed(methodName, req, options, restService, errorHints)) {
+            if(!requestIsAllowedToRunCredentialed(methodName, req, options, restService, errorHints)) {
                 throw new RestError(`Not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
             }
 
@@ -563,7 +566,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
             }
 
-            let result = await restService.validateAndDoCall(methodName, collectedParams, {req, resp, session}, options);
+            let result = await restService.validateAndDoCall(methodName, methodArguments, {req, resp, session}, options);
             sendResult(result, methodName);
         }
         catch (caught) {
@@ -597,21 +600,25 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 sendResult(caught); // Just send it.
             }
         }
+        finally {
+            cleanupStreamsAfterRequest?.()
+        }
     });
 
     return router;
 }
 
 /**
- * Wildly collects the parameters. This method is only side effect free but the result may not be secure !
+ * Wildly collects the parameters. This method is only side effect free but the result may not be secure / contain evil input !
+ *
+ * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously
  *
  * @see RestService#validateAndDoCall use this method to check the security on the result
  * @param restService
  * @param methodName
  * @param req
- * @return evil parameters
  */
-function collectParamsFromRequest(restService: RestService, methodName: string, req: Request, enableMultipartFileUploads: boolean): any[] {
+function collectParamsFromRequest(restService: RestService, methodName: string, req: Request, enableMultipartFileUploads: boolean) {
     // Determine path tokens:
     const url = URL.parse(req.url);
     const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -619,7 +626,15 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
 
     const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):undefined;
 
-    let result: any[] = []; // Params that will actually enter the method
+    const result = new class {
+        methodArguments: any[] = []; // Params/arguments that will actually enter the method
+        metaParams: Record<string, string> = {}
+        /**
+         * Must be called after the request is finished. Closes up any open streams.
+         */
+        cleanupStreamsAfterRequest = () => {}
+    }
+
     let listInsertionIndex = -1; // For Listed style /array
     let listInsertionParameter: ReflectedMethodParameter;
 
@@ -638,7 +653,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
 
         function addParamsArray(params: any[]): void {
             function addValue(value: any) {
-                result[listInsertionIndex] = value;
+                result.methodArguments[listInsertionIndex] = value;
             }
 
             for(const value of params) {
@@ -670,11 +685,16 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
          * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
          */
         function addParamsMap(paramsMap: Record<string, any>) {
-            if(!reflectedMethod) {
-                throw new RestError(`Cannot associate the named parameters: ${Object.keys(paramsMap).join(", ")} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
-            }
-
             for(const name in paramsMap) {
+                if(metaParameterNames.has(name)) {
+                    result.metaParams[name] = paramsMap[name];
+                    continue
+                }
+
+                if(!reflectedMethod) {
+                    throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+                }
+
                 const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
                 if(!parameter) {
                     throw new RestError(`Method ${methodName} does not have a parameter named '${name}'`)
@@ -682,7 +702,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
                 if(parameter.isRest) {
                     throw new RestError(`Cannot set ...${name} through named parameter`)
                 }
-                result[parameter.index] = restService.autoConvertValueForParameter(paramsMap[name], parameter, source)
+                result.methodArguments[parameter.index] = restService.autoConvertValueForParameter(paramsMap[name], parameter, source)
             }
         }
 
@@ -701,6 +721,13 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
         }
     }
 
+    // Header (to result.metaParams):
+    metaParameterNames.forEach((name) => {
+        const headerValue = req.header(name);
+        if(headerValue) {
+            result.metaParams[name] = String(headerValue); // Ts would not complain but here we explicitly make a string of it just to make sure.
+        }
+    })
 
     // Path:
     if(pathTokens.length > 1) { // i.e. the url is  [baseurl]/books/1984
@@ -746,7 +773,7 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
                 convertAndAddParams(rawBodyText, null); // no conversion
                 // Do a full check to provoke error for, see catch
                 if(reflectedMethod) {
-                    checkParameterTypes(reflectedMethod, result);
+                    checkParameterTypes(reflectedMethod, result.methodArguments);
                 }
             }
             catch (e) {
