@@ -69,45 +69,63 @@ console.log(await greeterService.greet("Bob"))
 
 # Security
 
+## CORS
+ 
+Restfuncs has built in CORS that plays together with its csrf protection. It is controlled by the `RestfuncsOptions.allowedOrigins` setting. See there for more detail.
+You may set it if you:
+- Host the backend and frontend on different (sub-) domains.
+- Provide authentication methods to other web applications.
+- Consume authentication responses from 3rd party authentication providers. I.e. form- posted SAML responses.
+- Provide client side service methods to other web applications (that need the current user's session).
+- Have a reverse proxy in front of this web app and you get an error cause the same-origin check fails for simple, non preflighted, requests like form posts. Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table (currently this does not work properly with express 4.x)
+
+
 ## CSRF protection
  
-TLDR; In a normal situation (= no basic auth, no client-certs, using the restfuncs-client) restfuncs already has a very strong CSRF protection out of the box (CORS readproof tokens). For other situations, read the following:
+**Tl;dr:** **In a normal situation** (= no basic auth, no client-certs and using the restfuncs-client) **restfuncs already has a very strong CSRF protection** by default (`corsReadToken`, enforced by the client). For other situations, read the following:
 
-Restfuncs has the following 3 protection levels (weakest to hardest) to protect against CSRF attacks. See table.
+Restfuncs has the following 3 protection levels (weakest to hardest) to protect against CSRF attacks. See list below.
 You can enforce it by the `RestfuncsOptions.csrfProtection` setting.  
-**By default/ undefined, the client can decide the protection mode**. _"wait a minute, how can this be secure ?" See explanation_. This way, all sorts of clients can be served. Think of non-browser clients where CSRF does not have relevance, so their devs are not bugged with implementing any tokens.  
-_Explanation: There will be an error if browser clients (or i.e an attacker from another browser tab) with different protection modes try to access the same session. Meaning, once the session is created, it stores from which protection mode it came and all requests, that access this session, must pass the check / show the token accordingly. Also they must at first indicate that they play the same csrfProtection mode (think of attacker creating the session first)._ 
+**By default/ undefined, the client can decide the protection mode**. _"wait a minute, how can this be secure ?" See explanation_. This way, all sorts of clients can be served. Think of non-browser clients where CSRF does not have relevance, so their devs are not bugged with implementing token fetches.  
+_Explanation: Restfuncs will rainse an error, if browser clients (or i.e an attacker from another browser tab) with different protection modes try to access the same session. Meaning, once the session is created, it stores from which protection mode it came and all requests, that access this session, must pass the check / show the token accordingly. Also they must at first indicate that they play the same csrfProtection mode (think of attacker creating the session first)._ 
 
 The above policy (let the clients decide) only covers sessions. So <strong>when using client-certificates or basic auth, you must explicitly decide for a setting</strong>, and you should use at least set it to `readToken` when dealing with browser clients.
 
-`RestfuncsOptions.csrfProtection` or `RestfuncsClient.csrfProtection` can be
+Here are the modes. `RestfuncsOptions.csrfProtection` / `RestfuncsClient.csrfProtection` can be set to:
 
-* `preflight` (**default** if no csrfProtection header was sent): Relies on the browser making a CORS preflight before doing the actual request and bail if that preflight fails. 
-  The [~1.5% browsers which don't implement CORS](https://caniuse.com/?search=cors) are blacklisted.
+* `preflight` (**default**): Relies on the browser to make a CORS preflight before doing the actual request and bail if that preflight failed. 
+  The [~1.5% browsers which don't implement CORS](https://caniuse.com/?search=cors) are blacklisted. This also works with all non-browser clients and they don't need to implement any measurements.
+  [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) are denied, unless they are [@safe](#simple-requests-and-safe) 
+  A lot of the web relies on it, but this has at least a problem within the [specification](https://fetch.spec.whatwg.org/#http-requests):
+  ````  
+  A CORS-preflight request is a CORS request that checks to see if the CORS protocol is understood.
+  ````
+  It doesn't state that a browser has to stop the request after a negative preflight. The following actual request will again contain the info whether it's allowed to read the result and browsers could legally use this as point to bail. But at that point it's already too late: The request has been executed and makes a CSRF attacker happy.
+* `corsReadToken` (**used by restfuncs-client**) This is a safer mode which works around this unclear in-spec/in-practice situation. The client must (if not already clear by `Origin` or `Referrer` headers) prove to have made a successful read, before the call is allowed to execute.  
+   In detail (if you want to implement it yourself):
+  - The Client calls the `getCorsReadToken()` service method to get a token string. Every service has that method inherited from the RestService base class. This the *read-proof*.
+  - Every http request now includes the parameters `csrfProtection=corsReadToken&corsReadToken=<the token>`. _I.e. here in the query but you can also pass them as headers or like any [usual named parameters](#rest-interface)._ See the `devForceTokenCheck` option for development.
   
-* `corsReadToken` (**default by restfuncs-client**)
 * `csrfToken`
-  When having multiple `RestfuncService`s on one server, you must present that individual token for that specific service (cause services can have different `allowedOrigins` settings so they might have different security implications).
-  But you can just pass all the token that you've got as a comma separated list which makes Restfuncs will try out all till one matches.
-
-Also see the `RestfuncsOptions.allowedOrigins` settings. This controls how CORS headers will be sent. **Don't** use a 3rd party CORS middleware for that!
-
-
-There's the old question of [whether to simply rely on CORS or implement CSRF tokens](https://stackoverflow.com/questions/24680302/csrf-protection-with-cors-origin-header-vs-csrf-token?noredirect=1&lq=1).
+  Strictly checks for a token that's been delivered in the start page (by your implementation). It's checked on every call / every session access _(enforced by client / enforced by server)_. The advantage is just that it relies less on in-depth defence / reflection of browser-behaviour and is commonly considered a simple-and-effective industry standard.  
+  - You deliver/embed the csrfToken, which you've got from `restService.getCsrfToken(req: Request)`, inside your *main / index.html* page. This is the tricky/inconvenient part, cause you usually use some web packer.
+  - When using the restfuncs client, you pass it to the options via {csrfProtection:"csrfToken", csrfToken: theToken}.
+  - With plain fetch requests, you include the parameters: `csrfProtection=csrfToken&csrfToken=<the token>`. _I.e. here in the query but you can also pass them as headers or like any [usual named parameters](#rest-interface)_.
 
 
-Restfuncs relies on browsers, to preflight their requests. This is widely adopted in all browsers since ~2009.
-There are some exceptions, called simple requests, where no preflights are done for legacy reasons. To secure those, these methods have to be opted in for such calls by decorating them with `@safe()`. See the JDDoc of `import {@safe} from "restf"
+
+Notes:
+- [More on the security concept](server/Security%20concept.md#csrf-protection)
+- For when having multiple services: _Services share the same session, but still every service has its individual corsReadToken and csrfToken. For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._ 
+
+
+### Simple requests and @safe()
+
+On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). Restfuncs blocks them accordingly, but your methods can, if needed for some situations, be opted in for such calls by decorating them with `@safe()` which indicates, that you are sure, they make read operations only. See the JDDoc of `import {@safe} from "restfuncs-server"`
 
 ## Hardening security for the paranoid
-- Set `RestfuncsOptions.csrfProtection` to `csrfToken` and implement the csrf token logic.
+- Set `RestfuncsOptions.csrfProtection` to `csrfToken` and implement the csrf token handover.
 - TODO: List all sorts of disableXXX options to disable unneeded features
-
-## get... methods can be triggered cross site
-
-Methods starting with `get` can be called by http GET. This means, they can be triggered cross site, even in the context of the logged on user! 
-To prevent against XSRF attacks, make sure these methods are [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., perform read-only operations only.  
-Using 'SameSite' cookies (like in the example) can mitigate this but works only for [~95% of browsers](https://caniuse.com/?search=samesite) and may not always applicable, i.e. when using 3rd party login providers.  
 
 ## Runtime arguments typechecking (shielding against evil input)
 
