@@ -1149,16 +1149,17 @@ function browserSupportsCORS(req: Request, error_hints?: string[]) {
 }
 
 /**
- * Returns if methodName is allowed to access the session or run credentialed via client-cert / basic auth
- * Will return false for possibly forged requests
- * @param methodName The method / function name that's (about to be) called
+ * Returns if the specified request to the specified service's method is allowed to access the session or run using the request's client-cert / basic auth
+ *
+ * Meaning it passes all the CSRF prevention requirements
+ * @param methodName The service's method name that's (about to be) called
  * @param req
- * @param options Controls how restrictive the checks should be / which origins are allowed
+ * @param options Controls how restrictive the checks should be / which origins are allowed.
  * @param restService
  * @param error_hints error hints will be added here
  */
-function methodIsAllowedCredentialed(methodName: string, req: Request, options: RestfuncsOptions, restService: RestService, error_hints: string[]): boolean {
-    // note that this this called from 2 places: On the beginning of a request. And before an actual session access with a (faked) defined options.csrfProtection.
+function requestIsAllowedToRunCredentialed(methodName: string, req: Request, options: RestfuncsOptions, restService: RestService, error_hints: string[]): boolean {
+    // note that this this called from 2 places: On the beginning of a request. And on session value access where it then has an overwritten/ DEFINED options.csrfProtection set.
 
     /**
      * is the corsReadToken or csrfToken valid ?
