@@ -1247,7 +1247,7 @@ function requestIsAllowedToRunCredentialed(methodName: string, req: Request, opt
     else { // Surely a non-simple request ?
         // *** here we are only secured by the browser's preflight ! ***
 
-        if(methodName === "getReadToken") {
+        if(methodName === "getCorsReadToken") {
             return true;
         }
 
