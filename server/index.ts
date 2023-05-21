@@ -1131,7 +1131,7 @@ function originIsAllowed(params: {origin?: string, destination?: string, allowed
         return isSameOrigin()
     }
     else if(_.isArray(params.allowedOrigins)) {
-        return isSameOrigin() || (origin !== undefined && _(params.allowedOrigins).contains(origin));
+        return isSameOrigin() || (params.origin !== undefined && _(params.allowedOrigins).contains(params.origin));
     }
     else if(typeof params.allowedOrigins === "function") {
         return params.allowedOrigins(params.origin, params.destination);
