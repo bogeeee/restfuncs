@@ -257,7 +257,7 @@ function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
 }
 
 /**
- * Wraps the session in a proxy that that checks {@link requestIsAllowedToRunCredentialed} on every access
+ * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access
  * @param session
  * @param reqFields
  * @param allowedOrigins
@@ -271,10 +271,7 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & Security
             //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
         }
 
-        let errorHints: string[] = [];
-        if(!requestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, restService, errorHints, {... diagnosis, isSessionAccess: true})) {
-            throw new RestError(`Session access is not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
-        }
+        checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, restService, {... diagnosis, isSessionAccess: true})
     }
 
     return new Proxy(session, {
@@ -530,11 +527,9 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
             cleanupStreamsAfterRequest = c;
 
-            const errorHints: string[] = [];
+
             const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
-            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false})) {
-                throw new RestError(`Not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
-            }
+            checkIfRequestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, restService, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
             let session = null;
             // @ts-ignore
@@ -1153,150 +1148,154 @@ type SecurityRelevantRequestFields = {
 };
 
 /**
- * Returns if the specified request to the specified service's method is allowed to access the session or run using the request's client-cert / basic auth
+ * Check if the specified request to the specified service's method is allowed to access the session or run using the request's client-cert / basic auth
  *
  * Meaning it passes all the CSRF prevention requirements
  *
  * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
  * @param reqFields
- * @param enforcedCsrfProtectionMode
+ * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
  * @param allowedOrigins from the options
  * @param session holds the tokens
  * @param restService
- * @param error_hints error hints will be added here
  * @param diagnosis
  */
-function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): boolean {
+function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: RestService, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
     // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the RestfuncsOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
-    const diagnosis_seeDocs = "Please see https://github.com/bogeeee/restfuncs/#csrf-protection."
+    const errorHints: string[] = [];
+    /**
+     * returns the result as boolean and collection it into
+     */
+    function isAllowedInner(): boolean {
 
-    // Fix / default some reqFields for convenience:
-    if(reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
-        throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
-    }
-    if(reqFields.corsReadToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "corsReadToken") {
-        throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
-    }
-    if(reqFields.corsReadToken && !reqFields.csrfProtectionMode) {
-        throw new RestError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
-    }
-    if(reqFields.csrfToken) {
-        reqFields.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
-    }
+        const diagnosis_seeDocs = "Please see https://github.com/bogeeee/restfuncs/#csrf-protection."
+
+        // Fix / default some reqFields for convenience:
+        if (reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
+            throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
+        }
+        if (reqFields.corsReadToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "corsReadToken") {
+            throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
+        }
+        if (reqFields.corsReadToken && !reqFields.csrfProtectionMode) {
+            throw new RestError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
+        }
+        if (reqFields.csrfToken) {
+            reqFields.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
+        }
 
 
-    function tokenValid(tokenType: "corsReadToken"|"csrfToken"): boolean {
-        const reqToken = reqFields[tokenType];
-        if(!reqToken) {
-            error_hints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
+        function tokenValid(tokenType: "corsReadToken" | "csrfToken"): boolean {
+            const reqToken = reqFields[tokenType];
+            if (!reqToken) {
+                errorHints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
+                return false;
+            }
+
+            const sessionTokens = tokenType == "corsReadToken" ? session.corsReadTokens : session.csrfTokens;
+            if (sessionTokens === undefined) {
+                errorHints.push(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
+                return false;
+            }
+
+            if (!sessionTokens[restService.id]) {
+                errorHints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`); // TODO
+                return false;
+            }
+
+            if (sessionTokens[restService.id] === reqToken) {
+                return true;
+            } else {
+                errorHints.push("${tokenType} incorrect");
+            }
+
             return false;
         }
 
-        const sessionTokens = tokenType == "corsReadToken"?session.corsReadTokens:session.csrfTokens;
-        if(sessionTokens === undefined) {
-            error_hints.push(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
-            return false;
+        // Check protection mode compatibility:
+        if (enforcedCsrfProtectionMode !== undefined) {
+            if ((reqFields.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
+                errorHints.push(
+                    (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
+                    (reqFields.csrfProtectionMode ? `, but your request wants '${reqFields.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `. `)) +
+                    `${diagnosis_seeDocs}`
+                );
+                return false;
+            }
         }
 
-        if(!sessionTokens[restService.id]) {
-            error_hints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`); // TODO
-            return false;
+        if (enforcedCsrfProtectionMode === "csrfToken") {
+            return tokenValid("csrfToken"); // Strict check already here.
         }
 
-        if(sessionTokens[restService.id] === reqToken) {
-            return true;
-        } else {
-            error_hints.push("${tokenType} incorrect");
+        if (originIsAllowed({...reqFields, allowedOrigins})) {
+            return true
+        }
+
+        // diagnosis:
+        errorHints.push(diagnosis_originNotAllowedMessage({...reqFields, allowedOrigins})) // TODO: add hints into originIsAllowed function
+        if (false) { // TODO x-forwarded-by header == getDestination(req)
+            // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
+        }
+
+        // The server side origin check failed but the request could still be legal:
+        // In case of same-origin requests: Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
+        // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
+        // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
+
+        if (!browserSupportsCORS(reqFields, errorHints)) {
+            return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
+        }
+
+        if (enforcedCsrfProtectionMode === "corsReadToken") {
+            if (tokenValid("corsReadToken")) {  // Read was proven ?
+                return true;
+            }
+        }
+
+        if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
+            // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
+            if (reqFields.httpMethod === "GET" && restService.methodIsSafe(reqFields.serviceMethodName)) {
+                return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
+            } else {
+                // Block
+
+
+                if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
+                } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
+                    errorHints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
+                    errorHints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`)
+                    if (diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, reqFields.serviceMethodName)) {
+                        errorHints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
+                    }
+                } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined) { // Crafted http request (maybe from in web browser)?
+                    errorHints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                } else if (diagnosis.contentType == "text/plain") { // MAYBE from html form
+                    errorHints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                } else if (reqFields.httpMethod !== "GET" && reqFields.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
+                    errorHints.push(`You have to specify a Content-Type header.`);
+                }
+                return false; // Block
+            }
+        } else { // Surely a non-simple request ?
+            // *** here we are only secured by the browser's preflight ! ***
+
+            if (reqFields.serviceMethodName === "getCorsReadToken") {
+                return true;
+            }
+
+            if (enforcedCsrfProtectionMode === undefined || enforcedCsrfProtectionMode === "preflight") {
+                return true; // Trust the browser that it would bail after a negative preflight
+            }
         }
 
         return false;
     }
 
-    // Check protection mode compatibility:
-    if(enforcedCsrfProtectionMode !== undefined) {
-        if ((reqFields.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
-            error_hints.push(
-                (diagnosis.isSessionAccess?`The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'`:`The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
-                (reqFields.csrfProtectionMode?`, but your request wants '${reqFields.csrfProtectionMode}'. `:(enforcedCsrfProtectionMode === "csrfToken"?`. Please provide a csrfToken in the header / query- / body parameters. `:`. `)) +
-                `${diagnosis_seeDocs}`
-            );
-            return false;
-        }
+    if(!isAllowedInner()) {
+        throw new RestError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
     }
-
-    if(enforcedCsrfProtectionMode === "csrfToken") {
-        return tokenValid("csrfToken"); // Strict check already here.
-    }
-
-    if(originIsAllowed({...reqFields, allowedOrigins})) {
-        return true
-    }
-
-    // diagnosis:
-    error_hints.push(diagnosis_originNotAllowedMessage({...reqFields, allowedOrigins})) // TODO: add hints into originIsAllowed function
-    if(false) { // TODO x-forwarded-by header == getDestination(req)
-        // error_hints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
-    }
-
-    // The server side origin check failed but the request could still be legal:
-    // In case of same-origin requests: Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
-    // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
-    // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
-
-    if(!browserSupportsCORS(reqFields, error_hints)) {
-        return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
-    }
-
-    if(enforcedCsrfProtectionMode === "corsReadToken") {
-        if(tokenValid("corsReadToken")) {  // Read was proven ?
-            return true;
-        }
-    }
-
-    if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
-        // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
-        if(reqFields.httpMethod === "GET" && restService.methodIsSafe(reqFields.serviceMethodName)) {
-            return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
-        }
-        else {
-            // Block
-
-
-            if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
-            }
-            else if(reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html") ) { // Top level navigation in web browser ?
-                error_hints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
-                error_hints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`)
-                if(diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, reqFields.serviceMethodName)) {
-                    error_hints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
-                }
-            }
-            else if(reqFields.httpMethod === "GET" && reqFields.origin === undefined) { // Crafted http request (maybe from in web browser)?
-                error_hints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
-            }
-            else if (diagnosis.contentType == "text/plain") { // MAYBE from html form
-                error_hints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
-            }
-            else if(reqFields.httpMethod !== "GET" && reqFields.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
-                error_hints.push(`You have to specify a Content-Type header.`);
-            }
-            return false; // Block
-        }
-    }
-    else { // Surely a non-simple request ?
-        // *** here we are only secured by the browser's preflight ! ***
-
-        if(reqFields.serviceMethodName === "getCorsReadToken") {
-            return true;
-        }
-
-        if(enforcedCsrfProtectionMode === undefined || enforcedCsrfProtectionMode === "preflight") {
-            return true; // Trust the browser that it would bail after a negative preflight
-        }
-    }
-
-    return false;
 }
 
 const diagnosis_originNotAllowedMessage = (params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}) => `Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
