@@ -200,12 +200,12 @@ export class RestService {
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     async getCorsReadToken() {
-        // TODO: crate token if needed an store it in the session. Check and initialize the _protection field.
+        // TODO: crate token if needed an store it in the session. Check and initialize the csrfProtectionMode field.
         // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
     }
 
     getCsrfToken(): string {
-        // TODO: crate token if needed an store it in the session. Check and initialize the _protection field.
+        // TODO: crate token if needed an store it in the session. Check and initialize the csrfProtectionMode field.
         // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
         throw new Error("TODO")
     }

@@ -201,98 +201,80 @@ export function restfuncs(service: object | RestService, arg1: any, arg2?: any):
 export default restfuncs
 
 type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
+
+/**
+ * Values that are allowed to be set as meta parameters via header / query params / request body params.
+ */
 const metaParameterNames = new Set<string>(["csrfProtectionMode","corsReadToken","csrfToken"])
 
-type SessionProtectionHeader = {
+type SecurityRelevantSessionFields = {
     /**
-     *
+     * Can be undefined if nothing has yet been written, or if the client(s) don't explicitly specify a mode
      */
-    _protection?: CSRFProtectionMode
+    csrfProtectionMode?: CSRFProtectionMode
 
     /**
-     * When corsWithReadProof, this read proof must be shown for each session access
-     *
-     * RestService base url -> token
+     * One for each service
+     * RestService id -> token
      */
-    _readTokens?: Record<string,string>
+    corsReadTokens?: Record<string,string>
 
     /**
      * One for each service
      *
-     * RestService base url -> token
+     * RestService id -> token
      */
-    _csrfTokens?: Record<string,string>
+    csrfTokens?: Record<string,string>
 };
 
 /**
- * Checks that session is in a valid state
+ * Checks that session is in a valid state (security relevant fields)
+ *
+ * Will be called on each write to security relevant fields
  * @param session
  */
-function checkSessionProtectionIsValid(session: Record<string, any>) {
-    if(session._protection === "corsReadToken") {
-        if(!session._readTokens || session._csrfTokens) {
+function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
+    if(session.csrfProtectionMode === "corsReadToken") {
+        if(!session.corsReadTokens || session.csrfTokens) {
             throw new Error("Illegal state");
         }
 
     }
-    else if(session._protection === "csrfToken") {
-        if(session._readTokens || !session._csrfTokens) {
+    else if(session.csrfProtectionMode === "csrfToken") {
+        if(session.corsReadTokens || !session.csrfTokens) {
             throw new Error("Illegal state");
         }
     }
-    else if(session._protection === "preflight" || session._protection === undefined) {
-        if(session._readTokens || session._csrfTokens) {
+    else if(session.csrfProtectionMode === "preflight" || session.csrfProtectionMode === undefined) {
+        if(session.corsReadTokens || session.csrfTokens) {
             throw new Error("Illegal state");
         }
     }
+
     else {
         throw new Error("Illegal state");
     }
 }
 
-function createCsrfProtectedSessionProxy(session: Record<string, any> & SessionProtectionHeader, req: Request, isForSafeMethod = false) {
+/**
+ * Wraps the session in a proxy that that checks {@link requestIsAllowedToRunCredentialed} on every access
+ * @param session
+ * @param reqFields
+ * @param allowedOrigins
+ * @param restService
+ * @param diagnosis
+ */
+function createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, restService: RestService, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
-
-    function requestIsFromRestfuncsClient() {
-        return req.header("restfuncs-client-version") !== undefined
-    }
-
-    /**
-     * Checks if reads+write are allowed and throws an error
-     * For writes, the prooftype must be specified before you call this
-     */
     function checkAccess(isRead: boolean) {
-        checkSessionProtectionIsValid(session)
-
-        if(isRead && isForSafeMethod) {
-            return; // Allow cause they don't change the state
+        if(isRead && session.csrfProtectionMode === undefined) {
+            //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
         }
 
-        if(session._protection === undefined) {
-            if(isRead) {
-                return; // allow reads. Session is still empty
-            }
-            throw new Error("_proofType should be initialized first")
+        let errorHints: string[] = [];
+        if(!requestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, restService, errorHints, {... diagnosis, isSessionAccess: true})) {
+            throw new RestError(`Session access is not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
         }
-        else if(session._protection === "preflight") {
-            if(requestIsFromRestfuncsClient()) {
-                throw new RestError("The session was already written to by a non-Restfuncs client (which did not prove that it can make CORS reads). You can't access it via Restfuncs client then.")
-            }
-            return
-        }
-        else if(session._protection === "corsReadToken") { // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
-            const corsReadProofFromRequest = req.header("corsReadProofFromRequest");
-            if(!corsReadProofFromRequest) {
-                throw new RestError("The session was already written to by a Restfuncs client. To access values of it, you must also proof that you can read the result of HTTP requests by calling proofRead() and send the returned {corsReadProof} token in your next requests (as a header).")
-            }
-
-            if(corsReadProofFromRequest !== session._corsReadProofToken) {
-                throw new RestError("Wrong corsReadProof. Maybe the session timed out and another session was created in the meanwhile. Please re-fetch that token.")
-            }
-            return;
-        }
-
-        throw new Error("Illegal _proofType value")
     }
 
     return new Proxy(session, {
@@ -302,8 +284,7 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & SessionP
                 throw new RestError(`Unhandled : ${String(p)}`)
             }
 
-
-            checkAccess(true); // If you first wonder, why need we a read proof for read access? But this read may get the userId and call makes WRITES to the DB with it afterwards.
+            checkAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
 
             return target[p];
         },
@@ -313,26 +294,18 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & SessionP
                 throw new RestError(`Unhandled : ${String(p)}`)
             }
 
-            if(isForSafeMethod) {
-                throw new Error("Must not make writes to the session from an @safe() method you naughty coder !!!")
-            }
-
-            // if browser allows writes without reads, an attacker could create a new session and login his user
-
-            if(session._protection === undefined) { // New / undecided session ?
-                // Specify the proofType:
-                if(requestIsFromRestfuncsClient()) {
-                    session._protection = "corsReadToken"
-                    session._corsReadProofToken = crypto.randomBytes(32).toString("hex")
-                }
-                else {
-                    session._protection = "preflight";
-                }
-
-                checkSessionProtectionIsValid(session);
-            }
-
             checkAccess(false);
+
+            if(session.csrfProtectionMode === undefined && reqFields.csrfProtectionMode) { // Session protection not yet initialized ?
+                // initialize how the client wants it:
+                const newFields: SecurityRelevantSessionFields = {
+                    csrfProtectionMode: reqFields.csrfProtectionMode,
+                    corsReadTokens: (reqFields.csrfProtectionMode === "corsReadToken")?{}:undefined,
+                    csrfTokens: (reqFields.csrfProtectionMode === "csrfToken")?{}:undefined
+                }
+                checkIfSessionIsValid(newFields);
+                _(session).extend(newFields)
+            }
 
             target[p] = newValue;
 
@@ -559,7 +532,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             const errorHints: string[] = [];
             const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
-            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]})) {
+            if(!requestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, restService, errorHints, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false})) {
                 throw new RestError(`Not allowed: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
             }
 
@@ -568,6 +541,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             const reqSession = req.session as Record<string,any>|undefined;
             if(reqSession !== undefined) { // Express runs a session handler ?
                 session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
+                session = createCsrfProtectedSessionProxy(session, requestParams, options.allowedOrigins, restService, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
             }
 
             let result = await restService.validateAndDoCall(methodName, methodArguments, {req, resp, session}, options);
@@ -1168,6 +1142,7 @@ type SecurityRelevantRequestFields = {
      */
     destination?: string,
 
+    csrfProtectionMode?: CSRFProtectionMode
     corsReadToken?: string,
     csrfToken?: string,
     /**
@@ -1182,38 +1157,76 @@ type SecurityRelevantRequestFields = {
  *
  * Meaning it passes all the CSRF prevention requirements
  *
- * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the csrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
+ * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
  * @param reqFields
- * @param csrfProtectionMode this mode is to be enforced
+ * @param enforcedCsrfProtectionMode
  * @param allowedOrigins from the options
+ * @param session holds the tokens
  * @param restService
  * @param error_hints error hints will be added here
  * @param diagnosis
  */
-function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, csrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}): boolean {
-    // note that this this called from 2 places: On the beginning of a request. And on session value access where it then has an overwritten/ DEFINED options.csrfProtectionMode set.
+function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: RestService, error_hints: string[], diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): boolean {
+    // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the RestfuncsOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
-    /**
-     * is the corsReadToken or csrfToken valid ?
-     */
-    function tokenValid(): boolean {
-        // TODO
-        error_hints.push("Invalid token"); // TODO
+    const diagnosis_seeDocs = "Please see https://github.com/bogeeee/restfuncs/#csrf-protection."
+
+    // Fix / default some reqFields for convenience:
+    if(reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
+        throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
+    }
+    if(reqFields.corsReadToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "corsReadToken") {
+        throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
+    }
+    if(reqFields.corsReadToken && !reqFields.csrfProtectionMode) {
+        throw new RestError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
+    }
+    if(reqFields.csrfToken) {
+        reqFields.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
+    }
+
+
+    function tokenValid(tokenType: "corsReadToken"|"csrfToken"): boolean {
+        const reqToken = reqFields[tokenType];
+        if(!reqToken) {
+            error_hints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
+            return false;
+        }
+
+        const sessionTokens = tokenType == "corsReadToken"?session.corsReadTokens:session.csrfTokens;
+        if(sessionTokens === undefined) {
+            error_hints.push(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
+            return false;
+        }
+
+        if(!sessionTokens[restService.id]) {
+            error_hints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`); // TODO
+            return false;
+        }
+
+        if(sessionTokens[restService.id] === reqToken) {
+            return true;
+        } else {
+            error_hints.push("${tokenType} incorrect");
+        }
 
         return false;
     }
 
     // Check protection mode compatibility:
-    if(csrfProtectionMode !== undefined) { // csrfProtectionMode is enforced ?
-        const clientProtectionMode = undefined // TODO
-        if (clientProtectionMode !== csrfProtectionMode) { // Client and server want different protection modes  ?
-            error_hints.push(`The server requires x , while your request y ...`)
+    if(enforcedCsrfProtectionMode !== undefined) {
+        if ((reqFields.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
+            error_hints.push(
+                (diagnosis.isSessionAccess?`The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'`:`The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
+                (reqFields.csrfProtectionMode?`, but your request wants '${reqFields.csrfProtectionMode}'. `:(enforcedCsrfProtectionMode === "csrfToken"?`. Please provide a csrfToken in the header / query- / body parameters. `:`. `)) +
+                `${diagnosis_seeDocs}`
+            );
             return false;
         }
     }
 
-    if(csrfProtectionMode === "csrfToken") {
-        return tokenValid(); // Strict check already here.
+    if(enforcedCsrfProtectionMode === "csrfToken") {
+        return tokenValid("csrfToken"); // Strict check already here.
     }
 
     if(originIsAllowed({...reqFields, allowedOrigins})) {
@@ -1235,8 +1248,8 @@ function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFie
         return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
     }
 
-    if(csrfProtectionMode === "corsReadToken") {
-        if(tokenValid()) {  // Read was proven ?
+    if(enforcedCsrfProtectionMode === "corsReadToken") {
+        if(tokenValid("corsReadToken")) {  // Read was proven ?
             return true;
         }
     }
@@ -1278,7 +1291,7 @@ function requestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFie
             return true;
         }
 
-        if(csrfProtectionMode === undefined || csrfProtectionMode === "preflight") {
+        if(enforcedCsrfProtectionMode === undefined || enforcedCsrfProtectionMode === "preflight") {
             return true; // Trust the browser that it would bail after a negative preflight
         }
     }

@@ -110,7 +110,7 @@ Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csr
   Strictly checks for a token that's been delivered in the start page (by your implementation). It's checked on every call / every session access _(enforced by client / enforced by server)_. The advantage is just that it relies less on in-depth defence / reflection of browser-behaviour and is commonly considered a simple-and-effective industry standard.  
   - You deliver/embed the csrfToken, which you've got from `restService.getCsrfToken(req: Request)`, inside your *main / index.html* page. This is the tricky/inconvenient part, cause you usually use some web packer.
   - When using the restfuncs client, you pass it to the options via {csrfProtectionMode:"csrfToken", csrfToken: theToken}.
-  - With plain fetch requests, you include the parameters: `csrfProtectionMode=csrfToken&csrfToken=<the token>`. _I.e. here in the query but you can also pass them as headers or like any [usual named parameters](#rest-interface)_.
+  - With plain fetch requests, you include the parameter: `csrfToken=<the token>` _in the header or as a [usual named parameter](#rest-interface)_.
 
 
 
