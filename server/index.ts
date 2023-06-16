@@ -122,9 +122,8 @@ export type RestfuncsOptions = {
     csrfProtectionMode?: CSRFProtectionMode
 
     /**
-     * For "corsReadToken" mode only:
-     * <p>Many requests are usually allowed to go through without requiring the read token. I.e if host/origin/referer headers are present or if no session is accessed at all.
-     *     </p>
+     * <p>Many requests are usually allowed to go through without requiring the corsReadToken check. I.e if host/origin/referer headers are present or if no session is accessed at all.
+     * </p>
      * <p>
      * Here you can force the check for every request (except {@link safe() safe methods}), so you'll <strong>see early in the development if the token was not properly passed</strong>.
      * </p>
@@ -533,6 +532,20 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
 
             const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
+
+            if(options.devForceTokenCheck) {
+                const strictestMode = options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
+                if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
+                    // Enforce the early check of the token:
+                    checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, restService, {
+                        acceptedResponseContentTypes,
+                        contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
+                        isSessionAccess: false
+                    })
+                }
+            }
+
+
             checkIfRequestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, restService, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
             let session = null;

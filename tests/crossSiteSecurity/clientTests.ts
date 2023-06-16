@@ -380,8 +380,8 @@ export async function runAlltests() {
                             await corsAllowedService.test();
                         }
                         {
-                            const corsAllowedService = (await createRestfuncsClient("allowedTestsService_forceTokenCheck",mode2)).proxy // todo: move down
                             await assertFails(async () => {
+                                const corsAllowedService = (await createRestfuncsClient("allowedTestsService_forceTokenCheck",mode2)).proxy
                                 await corsAllowedService.test();
                             })
                         }
