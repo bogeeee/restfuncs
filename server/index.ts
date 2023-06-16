@@ -122,7 +122,7 @@ export type RestfuncsOptions = {
     csrfProtectionMode?: CSRFProtectionMode
 
     /**
-     * For "readToken" mode only:
+     * For "corsReadToken" mode only:
      * <p>Many requests are usually allowed to go through without requiring the read token. I.e if host/origin/referer headers are present or if no session is accessed at all.
      *     </p>
      * <p>
@@ -207,7 +207,7 @@ type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
  */
 const metaParameterNames = new Set<string>(["csrfProtectionMode","corsReadToken","csrfToken"])
 
-type SecurityRelevantSessionFields = {
+export type SecurityRelevantSessionFields = {
     /**
      * Can be undefined if nothing has yet been written, or if the client(s) don't explicitly specify a mode
      */
@@ -233,7 +233,7 @@ type SecurityRelevantSessionFields = {
  * Will be called on each write to security relevant fields
  * @param session
  */
-function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
+export function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
     if(session.csrfProtectionMode === "corsReadToken") {
         if(!session.corsReadTokens || session.csrfTokens) {
             throw new Error("Illegal state");
@@ -252,7 +252,7 @@ function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
     }
 
     else {
-        throw new Error("Illegal state");
+        throw new Error(`Illegal value for csrfProtectionMode: '${session.csrfProtectionMode}'`);
     }
 }
 
@@ -281,6 +281,10 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & Security
                 throw new RestError(`Unhandled : ${String(p)}`)
             }
 
+            if(p === "__isCsrfProtectedSessionProxy") { // Probe field ?
+                return true;
+            }
+
             checkAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
 
             return target[p];
@@ -296,7 +300,7 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & Security
             if(session.csrfProtectionMode === undefined && reqFields.csrfProtectionMode) { // Session protection not yet initialized ?
                 // initialize how the client wants it:
                 const newFields: SecurityRelevantSessionFields = {
-                    csrfProtectionMode: reqFields.csrfProtectionMode,
+                    csrfProtectionMode: reqFields.csrfProtectionMode || "preflight",
                     corsReadTokens: (reqFields.csrfProtectionMode === "corsReadToken")?{}:undefined,
                     csrfTokens: (reqFields.csrfProtectionMode === "csrfToken")?{}:undefined
                 }
@@ -1165,7 +1169,12 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
 
     const errorHints: string[] = [];
     /**
-     * returns the result as boolean and collection it into
+     * Indicate this to the client that is should fetch/re-fetch it to solve the problem
+     */
+    let aValidCorsReadTokenWouldBeHelpful = false;
+
+    /**
+     * returns the result as boolean. Collects the above variables.
      */
     function isAllowedInner(): boolean {
 
@@ -1218,7 +1227,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
             if ((reqFields.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
                 errorHints.push(
                     (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
-                    (reqFields.csrfProtectionMode ? `, but your request wants '${reqFields.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `. `)) +
+                    (reqFields.csrfProtectionMode ? `, but your request wants '${reqFields.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
                     `${diagnosis_seeDocs}`
                 );
                 return false;
@@ -1252,6 +1261,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
             if (tokenValid("corsReadToken")) {  // Read was proven ?
                 return true;
             }
+            aValidCorsReadTokenWouldBeHelpful = true;
         }
 
         if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
@@ -1294,11 +1304,11 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
     }
 
     if(!isAllowedInner()) {
-        throw new RestError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`))
+        throw new RestError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
     }
 }
 
-const diagnosis_originNotAllowedMessage = (params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}) => `Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. \nAlso if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table`;
+const diagnosis_originNotAllowedMessage = (params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}) => `Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to allowedOrigins.`;
 
 /**
  * Pre checks some of the fields to give meaningful errors in advance.

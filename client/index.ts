@@ -19,6 +19,13 @@ export class ServerError extends Error {
      * The Error or exception string that was thrown on the server. We can't keep the orginal class hierarchy, so Errors will just become plain objects.
      */
     cause: any
+
+    httpStatusCode?: Number
+
+    constructor(message: string, options: ErrorOptions, httpStatusCode: Number | undefined) {
+        super(message, options);
+        this.httpStatusCode = httpStatusCode;
+    }
 }
 
 /**
@@ -120,29 +127,48 @@ export class RestfuncsClient<Service> {
      * @param args
      */
     private async inner_doCall(funcName: string, args: any[]) {
+        const exec = async () => {
+            let requestUrl: string;
+            if(this.url) {
+                requestUrl = `${this.url}${this.url.endsWith("/")?"":"/"}${funcName}`;
+            }
+            else {
+                requestUrl=funcName;
+            }
 
-        let requestUrl: string;
-        if(this.url) {
-            requestUrl = `${this.url}${this.url.endsWith("/")?"":"/"}${funcName}`;
-        }
-        else {
-            requestUrl=funcName;
+            // Prepare request:
+            const req: RequestInit = {
+                method: this.method,
+                headers: {
+                    'Content-Type': 'application/brillout-json',
+                    'Accept': "application/brillout-json",
+                    // Make sure you list these headers under Access-Control-Allow-Headers in server/index.js
+                    // add keys only if needed:
+                    ...(this.csrfProtectionMode?{csrfProtectionMode: this.csrfProtectionMode}: {}),
+                    ...(this._corsReadToken?{corsReadToken: this._corsReadToken}:{}),
+                    ...(this.csrfToken?{csrfToken: this.csrfToken}:{})
+                },
+                redirect: "follow",
+                credentials: "include"
+            }
+
+            const r = await this.doFetch(funcName, args, requestUrl, req);
+            return r.result;
         }
 
-        // Prepare request:
-        const req: RequestInit = {
-            method: this.method,
-            headers: {
-                'Content-Type': 'application/brillout-json',
-                'Accept': "application/brillout-json"
-                // Make sure you list these headers under Access-Control-Allow-Headers in server/index.js
-            },
-            redirect: "follow",
-            credentials: "include"
+        try {
+            return await exec();
         }
-
-        const r = await this.doFetch(funcName, args, requestUrl, req);
-        return r.result;
+        catch (e) {
+            // @ts-ignore
+            if(typeof e === "object" && e?.httpStatusCode === 480) { // Invalid token error ? (we cant use "instanceof ServerError" for target:es5)
+                await this.fetchCorsReadToken()
+                return await exec(); // try once again;
+            }
+            else {
+                throw e;
+            }
+        }
     }
 
 
@@ -208,9 +234,13 @@ export class RestfuncsClient<Service> {
                     }
                 }
 
-                throw new ServerError(formatError(responseJSON), {cause: responseJSON});
+                throw new ServerError(formatError(responseJSON), {cause: responseJSON}, response.status);
             }
         }
+
+    async fetchCorsReadToken() {
+        this._corsReadToken = await this.inner_doCall("getCorsReadToken",[]);
+    }
 
     /**
      *

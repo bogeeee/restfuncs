@@ -104,13 +104,13 @@ Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csr
 * `corsReadToken` (**used by restfuncs-client**) This is a safer mode which works around this unclear in-spec/in-practice situation. The client must (if not already clear by `Origin` or `Referrer` headers) prove to have made a successful read, before the call is allowed to execute.  
    In detail (if you want to implement it yourself):
   - The Client calls the `getCorsReadToken()` service method to get a token string. Every service has that method inherited from the RestService base class. This the *read-proof*.
-  - Every http request now includes the parameters `csrfProtectionMode=corsReadToken&corsReadToken=<the token>`. _I.e. here in the query but you can also pass them as headers or like any [usual named parameters](#rest-interface)._ See the `devForceTokenCheck` option for development.
+  - Every http request now includes the parameters `csrfProtectionMode=corsReadToken&corsReadToken=<the token>`. _I.e. here in the query but you can also pass them as headers or like any [usual named parameters](#rest-interface)._ See the `devForceTokenCheck` option for development. A http response code `480` is sent when the token was missing/incorrect. 
   
 * `csrfToken`
   Strictly checks for a token that's been delivered in the start page (by your implementation). It's checked on every call / every session access _(enforced by client / enforced by server)_. The advantage is just that it relies less on in-depth defence / reflection of browser-behaviour and is commonly considered a simple-and-effective industry standard.  
   - You deliver/embed the csrfToken, which you've got from `restService.getCsrfToken(req: Request)`, inside your *main / index.html* page. This is the tricky/inconvenient part, cause you usually use some web packer.
   - When using the restfuncs client, you pass it to the options via {csrfProtectionMode:"csrfToken", csrfToken: theToken}.
-  - With plain fetch requests, you include the parameter: `csrfToken=<the token>` _in the header or as a [usual named parameter](#rest-interface)_.
+  - With plain fetch requests, you include the parameter: `csrfToken=<the token>` _in the header or as a [usual named parameter](#rest-interface)_. A http response code `480` is sent when the token was missing/incorrect.
 
 
 

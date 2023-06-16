@@ -1,9 +1,10 @@
 import {Request, Response} from "express";
 import _ from "underscore";
-import {RestError, RestfuncsOptions} from "./index";
+import {checkIfSessionIsValid, RestError, RestfuncsOptions, SecurityRelevantSessionFields} from "./index";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
 import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall} from "./Util";
 import escapeHtml from "escape-html";
+import crypto from "node:crypto"
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -129,9 +130,9 @@ export class RestService {
     static safeMethods?: Set<string>
 
     /**
-     * Those methods on RestService are allowed to be called
+     * Those methods directly here on RestService are allowed to be called
      */
-    static whitelistedMethodNames = new Set(["getIndex"])
+    static whitelistedMethodNames = new Set(["getIndex", "getCorsReadToken"])
 
     /**
      * The currently running (express) request. See https://expressjs.com/en/4x/api.html#req
@@ -199,17 +200,62 @@ export class RestService {
      * The created read token is stored in the session (so it can be matched with later requests)
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
-    async getCorsReadToken() {
-        // TODO: crate token if needed an store it in the session. Check and initialize the csrfProtectionMode field.
-        // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
+    async getCorsReadToken(): Promise<string> {
+        if(!this.session) {
+            throw new RestError(`No session handler installed. Please see https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session`)
+        }
+
+        return this.getOrCreateSecurityToken(<SecurityRelevantSessionFields>this.session, "corsReadToken");
     }
 
-    getCsrfToken(): string {
-        // TODO: crate token if needed an store it in the session. Check and initialize the csrfProtectionMode field.
-        // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
-        throw new Error("TODO")
+    /**
+     * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
+     * @param session req.session (from inside express handler) or this.req.session (from inside a RestService call).
+     * It must be the RAW session object (and not the proxy that protects it from csrf)
+     */
+    getCsrfToken(session: object): string {
+        // Check for valid input
+        if(!session) {
+            throw new Error(`session not set. Do you have no session handler installed like [here](https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session)`)
+        }
+        if(typeof session !== "object") {
+            throw new Error(`Invalid session value`)
+        }
+        // Better error message:
+        // @ts-ignore
+        if(session["__isCsrfProtectedSessionProxy"]) {
+            throw new Error("Invalid session argument. Please supply the the raw session object to getCsrfToken(). I.e. use 'this.req.session' instead of 'this.session'")
+        }
+
+        return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
+    /**
+     * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
+     * @param session
+     * @param csrfProtectionMode
+     * @private
+     */
+    private getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken") {
+        if (session.csrfProtectionMode !== undefined && session.csrfProtectionMode !== csrfProtectionMode) {
+            throw new RestError(`Session is already initialized with csrfProtectionMode='${session.csrfProtectionMode}'. Please make sure that either the server or all browser clients (for this session) use the same mode.`)
+        }
+
+        const tokensFieldName = csrfProtectionMode==="corsReadToken"?"corsReadTokens":"csrfTokens";
+
+        // initialize the session:
+        session.csrfProtectionMode = csrfProtectionMode;
+        const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
+        checkIfSessionIsValid(session);
+
+        if (tokens[this.id] === undefined) {
+            // Create a token:
+            const token = crypto.randomBytes(32).toString("hex") // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
+            tokens[this.id] = token;
+        }
+
+        return tokens[this.id];
+    }
 
     /**
      * Security checks the method name and args and executes the methods call.
