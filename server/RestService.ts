@@ -201,11 +201,12 @@ export class RestService {
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     async getCorsReadToken(): Promise<string> {
-        if(!this.session) {
+        const session = this.req.session;
+        if(!session) {
             throw new RestError(`No session handler installed. Please see https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session`)
         }
 
-        return this.getOrCreateSecurityToken(<SecurityRelevantSessionFields>this.session, "corsReadToken");
+        return this.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
     }
 
     /**
