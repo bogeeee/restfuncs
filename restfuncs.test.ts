@@ -899,7 +899,7 @@ test('Sessions', async () => {
     try {
         // @ts-ignore
         const port = server.address().port;
-        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`)
+        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {csrfProtectionMode:"preflight"}) // "preflight" to eliminate big errors chunks in the console while this testcase fails anyway. Remove option when test works.
 
         await apiProxy.checkInitialSessionValues();
 
