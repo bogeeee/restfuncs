@@ -87,7 +87,7 @@ You may set it if you:
 Restfuncs has the following 3 protection levels (weakest to hardest) to protect against CSRF attacks. See list below.
 You can enforce it by the `RestfuncsOptions.csrfProtectionMode` setting.  
 **By default/ undefined, the client can decide the protection mode**. _"wait a minute, how can this be secure ?" See explanation_. This way, all sorts of clients can be served. Think of non-browser clients where CSRF does not have relevance, so their devs are not bugged with implementing token fetches.  
-_Explanation: Restfuncs will rainse an error, if browser clients (or i.e an attacker from another browser tab) with different protection modes try to access the same session. Meaning, once the session is created, it stores from which protection mode it came and all requests, that access this session, must pass the check / show the token accordingly. Also they must at first indicate that they play the same csrfProtection mode (think of attacker creating the session first)._ 
+_Explanation: Restfuncs will raise an error, if browser clients (or i.e an attacker from another browser tab) with different protection modes try to [access the (same) session](#store-values-in-the-http--browser-session). Meaning, once the session is created, it stores from which protection mode it came from, and all following requests, that access this session, must pass the check / show the token accordingly. Also they must at first indicate that they play the same csrfProtection mode (think of attacker creating the session first)._ 
 
 The above policy (let the clients decide) only covers sessions. So <strong>when using client-certificates or basic auth, you must explicitly decide for a setting</strong>, and you should use at least set it to `readToken` when dealing with browser clients.
 
@@ -116,12 +116,12 @@ Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csr
 
 Notes:
 - [More on the security concept](server/Security%20concept.md#csrf-protection)
-- For when having multiple services: _Services share the same session, but still every service has its individual corsReadToken and csrfToken. For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._ 
+- For, when having multiple services: _Services share the same session, but still every service has its individual corsReadToken and csrfToken (cause allowedOrigins or other security settings may be individual). For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._ 
 
 
 ### Simple requests and @safe()
 
-On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). Restfuncs blocks them accordingly, but your methods can, if needed for some situations, be opted in for such calls by decorating them with `@safe()` which indicates, that you are sure, they make read operations only. See the JDDoc of `import {@safe} from "restfuncs-server"`
+On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). **Restfuncs blocks them** accordingly, but your methods can, if needed for some situations, be **opted in** for such calls by decorating them with `@safe()` which indicates, that you are sure, they make **read operations only**. See the JDDoc of `import {@safe} from "restfuncs-server"`
 
 ## Hardening security for the paranoid
 - Set `RestfuncsOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
@@ -167,7 +167,7 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 # Advanced
 
-# REST interface
+## REST interface
 
 Like the name restfuncs suggests, there's also a REST interface for the case that you don't use the neat RPC client or you want to call these from other languages, etc.  
 <br/>
@@ -250,7 +250,7 @@ The service method must then explcitily set the content type and return the resu
 _See [Request](https://expressjs.com/en/4x/api.html#req) and [Response](https://expressjs.com/en/4x/api.html#res) in the express API._
 
 ## Store values in the http- (browser) session...
-...under `session` field.
+...under the `session` field.
 ```typescript
 class MyService {
     
@@ -279,6 +279,8 @@ app.use(session({
 ```
 
 _The standalone server has it already done for you._
+
+**Security note**: Raw access to the session via `this.req.session` (or through plain express handlers or other middlewares) is not [shielded against csrf attacks](#csrf-protection). Use `this.session` instead, just like in the example above.
 
 ## Intercept calls (server side)
 
