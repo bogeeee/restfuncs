@@ -45,7 +45,7 @@ import {ControlService} from "./ControlService.js";
             app.use(`/${name}`, restfuncs(service, services[name].options))
         }
 
-        app.use("/controlService", restfuncs(new ControlService(services), {allowedOrigins: "all"}))
+        app.use("/controlService", restfuncs(new ControlService(services), {allowedOrigins: "all", exposeErrors: true}))
 
 
 
