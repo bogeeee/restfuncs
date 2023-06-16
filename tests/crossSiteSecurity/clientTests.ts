@@ -6,6 +6,7 @@ import {ControlService} from "./ControlService";
 export const mainSiteUrl = "http://localhost:3000";
 export const isMainSite = window.location.href.startsWith(mainSiteUrl);
 let failed = false;
+const debug_failAllTestsOnFirstFail = false; // enable to have a better error stack trace in the console (use firefox instead of chrome then)
 
 async function assertRuns(fn: () => Promise<void>) {
     await fn();
@@ -22,6 +23,16 @@ async function assertFails(fn: () => Promise<void>) {
 }
 
 
+function failTests(e: unknown) {
+    failed = true;
+    if(e) {
+        if (debug_failAllTestsOnFirstFail) {
+            throw e;
+        }
+        console.error(e);
+    }
+}
+
 /**
  * Assert that it should fail same-site and also cross site
  *
@@ -36,8 +47,8 @@ async function testAssertFailsSSAndXS(description: string, fn:() => Promise<void
         console.log(`...expectedly fails`)
     }
     catch (e) {
-        failed = true;
         console.log(`...!!! runs but was expected to fail`)
+        failTests(null);
     }
 
 }
@@ -55,9 +66,8 @@ async function testAssertWorksSSAndXS(description: string, fn: () => Promise<voi
         console.log(`...expectedly runs ${isMainSite?"": "cross site "}`)
     }
     catch (e) {
-        failed = true;
-        console.log(`...!!! unexpectedly failed ${isMainSite?"": "cross site. See the following error:"}`)
-        console.error(e);
+        console.log(`...!!! unexpectedly failed ${isMainSite?"": "cross site"}. See the following error:`)
+        failTests(e)
     }
 
 }
@@ -77,9 +87,8 @@ async function testAssertWorksSSAndFailsXS(description: string, fn:() => Promise
             console.log(`...expectedly runs on main site`)
         }
         catch (e) {
-            failed = true;
             console.log(`...!!! failed on main site. See the following error:`)
-            console.error(e);
+            failTests(e);
         }
     }
     else {
@@ -88,8 +97,8 @@ async function testAssertWorksSSAndFailsXS(description: string, fn:() => Promise
             console.log(`...expectedly fails cross site`)
         }
         catch (e) {
-            failed = true;
             console.log(`...!!! runs cross site but was expected to fail`)
+            failTests(null);
         }
     }
 
