@@ -250,8 +250,15 @@ export class RestService {
         checkIfSessionIsValid(session);
 
         if (tokens[this.id] === undefined) {
+            // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
+            // So store a hash(token + server-side secret) in the session instead.
+            // The secrets should be configurable in the RestfuncsOptions. I.e. secrets: string[] Secret of your server; secret of other servers (i.e. multi server environment with session offloading).
+            // Then, for a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all.
+            // The RestfuncsOptions should may be moved to a field inside this class then (easier API).
+            // When having multiple RestServices, all should use the same key(s), like all session related stuff is global.
+
             // Create a token:
-            const token = crypto.randomBytes(32).toString("hex") // TODO: Assume the the session could be sent to the client in cleartext via JWT, so derive the token
+            const token = crypto.randomBytes(32).toString("hex")
             tokens[this.id] = token;
         }
 

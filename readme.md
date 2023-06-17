@@ -280,7 +280,12 @@ app.use(session({
 
 _The standalone server has it already done for you._
 
-**Security note**: Raw access to the session via `this.req.session` (or through plain express handlers or other middlewares) is not [shielded against csrf attacks](#csrf-protection). Use `this.session` instead, just like in the example above.
+**Security notes**
+- Raw access to the session via `this.req.session` (or through plain express handlers or other middlewares) is not [shielded against csrf attacks](#csrf-protection). Use `this.session` instead, just like in the example above and you are fine.<br/><br/>
+  _Feedback wanted: Do you use other express handlers / middlewares besides Restfuncs ? Or should we include the session handler completely into Restfuncs to make things simpler ?_     
+- If using a JWT session handler, make sure that the browser is not able to read the session contents cause confidential csrfTokens / corsReadTokens are stored there. Either the content should be encrypted or the session-cookie should be `HttpOnly`.
+
+  
 
 ## Intercept calls (server side)
 
