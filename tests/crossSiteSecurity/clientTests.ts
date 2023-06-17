@@ -145,7 +145,7 @@ export async function runAlltests() {
 
     if(!isMainSite) {
         // cheap prevention of race condition if both browser windows reload at the same time:
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait a bit
+        await new Promise(resolve => setTimeout(resolve, 4000)); // Wait a bit
     }
 
     const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {}).proxy
