@@ -492,7 +492,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     if(req.header("Access-Control-Request-Method")) { // Request is a  CORS preflight (we don't care which actual method) ?
                         resp.header("Access-Control-Allow-Origin", origin)
                         resp.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
-                        resp.header("Access-Control-Allow-Headers", "content-type, accept");
+                        resp.header("Access-Control-Allow-Headers", ["content-type", "accept", ...Array.from(metaParameterNames).map( v=> v.toLowerCase())].join(", "));
                         resp.header("Access-Control-Allow-Credentials", "true")
 
                         resp.header("Vary", "Origin")
@@ -1222,7 +1222,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
             }
 
             if (!sessionTokens[restService.id]) {
-                errorHints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`); // TODO
+                errorHints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
                 return false;
             }
 
