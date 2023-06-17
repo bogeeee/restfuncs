@@ -239,73 +239,88 @@ export async function runAlltests() {
     }
 
 
-    // CorsReadToken: Automatic token fetch and re fetch:
-    // Rather this should go into the normal restfuncs.test.ts. But we have lack of session support there
-    await testAssertWorksSSAndXS(`Request with required token. Check if corsReadToken is fetched and re fetched automaticly`, async () => {
-        await controlService.resetSession();
-        // @ts-ignore
-        const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken"});
-        const allowedService = client.proxy
-        await allowedService.logon("bob");
-        // @ts-ignore
-        const getCurrentToken = ()=> client._corsReadToken
-        // @ts-ignore
-        const setCurrentToken = (value) => client._corsReadToken = value
-        const valid = getCurrentToken();
-        if(!valid) {
-            throw new Error("Token has not beet set")
-        }
+    if(isMainSite) { // only on main site. allowedTestsService_eraseOrigin does not work cross origin
+        // CorsReadToken: Automatic token fetch and re fetch:
+        // Rather this should go into the normal restfuncs.test.ts. But we have lack of session support there
+        await testAssertWorksSSAndXS(`Request with required token. Check if corsReadToken is fetched and re fetched automaticly`, async () => {
+            await controlService.resetSession();
+            // @ts-ignore
+            const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken"});
+            const allowedService = client.proxy
+            await allowedService.logon("bob");
+            // @ts-ignore
+            const getCurrentToken = () => client._corsReadToken
+            // @ts-ignore
+            const setCurrentToken = (value) => client._corsReadToken = value
+            const valid = getCurrentToken();
+            if (!valid) {
+                throw new Error("Token has not beet set")
+            }
 
-        for(const invalidToken of [undefined, "abcWrongValue"]) {
-            setCurrentToken(invalidToken);
-            await allowedService.test();
-            assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed
-            await allowedService.getBalance("bob");
-            assertEquals(getCurrentToken(), valid); // The new token should have been fetched
-        }
+            for (const invalidToken of [undefined, "abcWrongValue"]) {
+                setCurrentToken(invalidToken);
+                await allowedService.test();
+                assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed
+                await allowedService.getBalance("bob");
+                assertEquals(getCurrentToken(), valid); // The new token should have been fetched
+            }
 
-    });
-    await testAssertWorksSSAndXS(`Copying corsReadToken from an allowed service to a restricted service should not work. Copying the proper one to the resrticted service should work`, async () => {
-        await controlService.resetSession();
+        });
+    }
 
-        // @ts-ignore
-        const allowedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken"});
-        const allowedService = allowedClient.proxy
-        await allowedService.logon("bob");
+    if(isMainSite) {
+        // isMainSite: allowedTestsService_eraseOrigin doesn't work cross origin. We would need to mock it somehow that in the normal response the access-control-allow-origin header is filled with i.e localhost:3666.
+        // Sencondly: The testsService is blocked by browser's CORS anyway
 
-        const restrictedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/testsService`, {csrfProtectionMode: "corsReadToken"});
-        const restrictedService = restrictedClient.proxy;
-        const loginOnRestrictedService = async () => { await restrictedService.logon("bob");}
+        await testAssertWorksSSAndXS(`Copying corsReadToken from an allowed service to a restricted service should not work. Copying the proper one to the resrticted service should work`, async () => {
+            await controlService.resetSession();
 
-        if(isMainSite) {
-            await loginOnRestrictedService();
-        }
-        else {
-            await assertFails(loginOnRestrictedService)
-        }
+            // @ts-ignore
+            const allowedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken"});
+            const allowedService = allowedClient.proxy
+            await allowedService.logon("bob");
 
-        // Copy the one from allowed service:
-        // @ts-ignore
-        restrictedClient._corsReadToken = allowedClient._corsReadToken
-        // @ts-ignore
-        if(!restrictedClient._corsReadToken) throw new Error("should not be unset")
-        // Should still fail:
-        if(isMainSite) {
-            await loginOnRestrictedService();
-        }
-        else {
-            await assertFails(loginOnRestrictedService)
-        }
+            const restrictedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/testsService`, {csrfProtectionMode: "corsReadToken"});
+            const restrictedService = restrictedClient.proxy;
+            const loginOnRestrictedService = async () => {
+                await restrictedService.logon("bob");
+            }
 
-        // Obtain a valid one by cheating:
-        // @ts-ignore
-        restrictedClient._corsReadToken = await controlService.getCorsReadTokenForService("testsService")
-        await loginOnRestrictedService(); // now this should work
-        assertEquals(await restrictedService.getBalance("bob"), 5000);
-    });
+            if (isMainSite) {
+                await loginOnRestrictedService();
+            } else {
+                await assertFails(loginOnRestrictedService)
+            }
+
+            // @ts-ignore
+            if (!allowedClient._corsReadToken) {
+                throw new Error("_corsReadToken was not yet fetched")
+            }
+
+            // Copy the one from allowed service:
+            // @ts-ignore
+            restrictedClient._corsReadToken = allowedClient._corsReadToken
+
+            // Should still fail:
+            if (isMainSite) {
+                await loginOnRestrictedService();
+            } else {
+                await assertFails(loginOnRestrictedService)
+            }
+
+            // Obtain a valid one by cheating:
+            // @ts-ignore
+            restrictedClient._corsReadToken = await controlService.getCorsReadTokenForService("testsService")
+            await loginOnRestrictedService(); // now this should work
+            assertEquals(await restrictedService.getBalance("bob"), 5000);
+        });
+    }
 
     // CSRFToken:
     for(const serviceName of ["testsService","allowedTestsService"]) {
+        if(serviceName === "testsService" && !isMainSite) {
+            continue; // testsService is blocked anyway by browser's CORS
+        }
         await testAssertWorksSSAndXS(`Check if no/wrong csrfToken is rejected and proper token is accepted for ${serviceName}`, async () => {
             await controlService.resetSession();
             // @ts-ignore
