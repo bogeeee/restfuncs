@@ -247,7 +247,7 @@ export class RestService {
      */
     private getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken"): string {
         if (session.csrfProtectionMode !== undefined && session.csrfProtectionMode !== csrfProtectionMode) {
-            throw new RestError(`Session is already initialized with csrfProtectionMode='${session.csrfProtectionMode}'. Please make sure that either the server or all browser clients (for this session) use the same mode.`)
+            throw new RestError(`Session is already initialized with csrfProtectionMode=${session.csrfProtectionMode} but this request wants to use ${csrfProtectionMode}. Please make sure that all browser clients (for this session) use the same mode.`)
         }
 
         const tokensFieldName = csrfProtectionMode==="corsReadToken"?"corsReadTokens":"csrfTokens";

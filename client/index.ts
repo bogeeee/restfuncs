@@ -69,9 +69,7 @@ export class RestfuncsClient<Service> {
     public method = "POST";
 
     /**
-     * The csrf protection mode which is required from the server.
-     *
-     * This indicates to the server, that <strong>this client's</strong> session, the client-certificate and basic auth must be protected like specified.
+     * This indicates to the server, how <strong>this client's</strong> session must be protected.
      */
     csrfProtectionMode: CSRFProtectionMode = "corsReadToken"
 
