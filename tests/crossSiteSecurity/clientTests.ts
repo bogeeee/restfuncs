@@ -257,7 +257,7 @@ export async function runAlltests() {
                 throw new Error("Token has not beet set")
             }
 
-            for (const invalidToken of [undefined, `${"AA".repeat(32)}--${"AA".repeat(32)}`]) { // undefined + invalid but well-formed token
+            for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
                 setCurrentToken(invalidToken);
                 await allowedService.test();
                 assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed

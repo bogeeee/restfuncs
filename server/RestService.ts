@@ -266,7 +266,7 @@ export class RestService {
             // When having multiple RestServices, all should use the same key(s), like all session related stuff is global.
 
             // Create a token:
-            tokens[this.id] = crypto.randomBytes(32).toString("hex");
+            tokens[this.id] = crypto.randomBytes(16).toString("hex");
         }
 
         const token = tokens[this.id];
