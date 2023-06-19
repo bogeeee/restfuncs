@@ -1,6 +1,8 @@
 import escapeHtml from "escape-html";
 import {RestError} from "./index";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
+import crypto from "node:crypto"
+import { Buffer } from 'node:buffer';
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -197,4 +199,58 @@ export function diagnisis_shortenValue(value: any) : string {
         return "unknown"
     }
 
+}
+
+
+/**
+ * Scrambles a Buffer with a random nonce, so it can't be read out by BREACH attacks
+ * formats it as string in the form<br/>
+ * <code>
+ * [Nonce as hex]--[xor'ed content as hex].
+ * </code>
+ * <br/>I.e.<br/>
+ * <code>021cc798cdb5dd--637ea4fca8d3ba</code>
+ */
+export function shieldTokenAgainstBREACH(input: Buffer) {
+    const length = input.length;
+
+    const randomNonce = crypto.randomBytes(length);
+
+    const xorEdContent = Buffer.alloc(length)
+    for (let i = 0; i < length; i++) {
+        xorEdContent[i] = randomNonce[i] ^ input[i];
+    }
+
+    return  randomNonce.toString("hex") + "--" + xorEdContent.toString("hex")
+}
+
+/**
+ * @see shieldTokenAgainstBREACH
+ */
+export function shieldTokenAgainstBREACH_unwrap(shieldedToken: string) {
+    if(shieldedToken.length < 2 ||(shieldedToken.length % 2 !== 0) ) {
+        throw new Error(`Malformed token: ${shieldedToken}. Make sure it has the form XXXXXX--XXXXXX (any number of X)`)
+    }
+
+    const seperatorPos = shieldedToken.length / 2 - 1;
+    const nonce = Buffer.from( shieldedToken.substring(0, seperatorPos), "hex")
+    const separator = shieldedToken.substring(seperatorPos, seperatorPos+2)
+    const xorEdContent =  Buffer.from(  shieldedToken.substring(seperatorPos+2), "hex")
+
+    if(separator !== "--") {
+        throw new Error(`Malformed token: ${shieldedToken}. Make sure it has the form XXXXXX--XXXXXX (any number of X)`)
+    }
+
+    const resultLength = xorEdContent.length;
+    if(nonce.length != resultLength) {
+        throw new Error("Nonce length not valid");
+    }
+
+
+    const resultBuffer = Buffer.alloc(resultLength)
+    for (let i = 0; i < seperatorPos; i++) {
+        resultBuffer[i] = nonce[i] ^ xorEdContent[i];
+    }
+
+    return  resultBuffer
 }

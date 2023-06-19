@@ -2,7 +2,7 @@ import {Request, Response} from "express";
 import _ from "underscore";
 import {checkIfSessionIsValid, RestError, RestfuncsOptions, SecurityRelevantSessionFields} from "./index";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
-import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall} from "./Util";
+import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall, shieldTokenAgainstBREACH} from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 
@@ -196,8 +196,12 @@ export class RestService {
     }
 
     /**
-     * Returns a token which proves that your browser allows requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link RestfuncsOptions.allowedOrigins}
+     * Returns a token which you show in later requests, to prove that your browser allowed requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link RestfuncsOptions.allowedOrigins}
      * The created read token is stored in the session (so it can be matched with later requests)
+     *
+     * <p>
+     * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
+     * </p>
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     async getCorsReadToken(): Promise<string> {
@@ -213,6 +217,9 @@ export class RestService {
      * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
      * @param session req.session (from inside express handler) or this.req.session (from inside a RestService call).
      * It must be the RAW session object (and not the proxy that protects it from csrf)
+     * <p>
+     * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
+     * </p>
      */
     getCsrfToken(session: object): string {
         // Check for valid input
@@ -233,11 +240,12 @@ export class RestService {
 
     /**
      * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
+     * The token is stored in the session and a transfer token is returned which is BREACH shielded.
      * @param session
      * @param csrfProtectionMode
      * @private
      */
-    private getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken") {
+    private getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken"): string {
         if (session.csrfProtectionMode !== undefined && session.csrfProtectionMode !== csrfProtectionMode) {
             throw new RestError(`Session is already initialized with csrfProtectionMode='${session.csrfProtectionMode}'. Please make sure that either the server or all browser clients (for this session) use the same mode.`)
         }
@@ -258,11 +266,12 @@ export class RestService {
             // When having multiple RestServices, all should use the same key(s), like all session related stuff is global.
 
             // Create a token:
-            const token = crypto.randomBytes(32).toString("hex")
-            tokens[this.id] = token;
+            tokens[this.id] = crypto.randomBytes(32).toString("hex");
         }
 
-        return tokens[this.id];
+        const token = tokens[this.id];
+        const rawToken = Buffer.from(token,"hex");
+        return shieldTokenAgainstBREACH(rawToken);
     }
 
     /**

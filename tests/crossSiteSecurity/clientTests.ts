@@ -252,17 +252,17 @@ export async function runAlltests() {
             const getCurrentToken = () => client._corsReadToken
             // @ts-ignore
             const setCurrentToken = (value) => client._corsReadToken = value
-            const valid = getCurrentToken();
-            if (!valid) {
+            const validToken = getCurrentToken();
+            if (!validToken) {
                 throw new Error("Token has not beet set")
             }
 
-            for (const invalidToken of [undefined, "abcWrongValue"]) {
+            for (const invalidToken of [undefined, `${"AA".repeat(32)}--${"AA".repeat(32)}`]) { // undefined + invalid but well-formed token
                 setCurrentToken(invalidToken);
                 await allowedService.test();
                 assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed
                 await allowedService.getBalance("bob");
-                assertEquals(getCurrentToken(), valid); // The new token should have been fetched
+                assertEquals(await controlService.shieldTokenAgainstBREACH_unwrap(getCurrentToken()), await controlService.shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
             }
 
         });

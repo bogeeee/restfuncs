@@ -15,6 +15,10 @@
     ".": {
       "browser": "./dist/mjs/index.js",
       "default": "./index.js"
+    },
+    "./Util": {
+      "browser": "./dist/mjs/Util.js",
+      "default": "./Util.js"
     }
   },
   "scripts": {

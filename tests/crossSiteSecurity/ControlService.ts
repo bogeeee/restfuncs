@@ -2,6 +2,7 @@ import {RestfuncsOptions, RestService} from "restfuncs-server";
 import session from "express-session";
 import express from "express"
 import _ from "underscore";
+import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 
 const app = express()
 
@@ -55,5 +56,12 @@ export class ControlService extends RestService {
         return this.services[name].service.getCsrfToken(this.req.session)
     }
 
+    /**
+     * The browser code does not have direct access to shieldTokenAgainstBREACH_unwrap or node's Buffer class
+     * @param shieldedToken
+     */
+    async shieldTokenAgainstBREACH_unwrap(shieldedToken: string): Promise<string> {
+        return shieldTokenAgainstBREACH_unwrap(shieldedToken).toString("hex");
+    }
 
 }

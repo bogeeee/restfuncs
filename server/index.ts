@@ -8,7 +8,7 @@ import {
     errorToHtml,
     errorToString,
     ErrorWithExtendedInfo,
-    fixErrorStack
+    fixErrorStack, shieldTokenAgainstBREACH_unwrap
 } from "./Util";
 import http from "node:http";
 import crypto from "node:crypto";
@@ -1253,10 +1253,15 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
                 return false;
             }
 
-            if (sessionTokens[restService.id] === reqToken) {
-                return true;
-            } else {
-                errorHints.push("${tokenType} incorrect");
+            try {
+                if (crypto.timingSafeEqual(Buffer.from(sessionTokens[restService.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[restService.id] === reqToken ?
+                    return true;
+                } else {
+                    errorHints.push(`${tokenType} incorrect`);
+                }
+            }
+            catch (e) {
+                throw new RestError(`Error validating ${tokenType}: ${(<Error>e)?.message}. Make sure it has the proper form.`, {cause: (e instanceof Error?e:undefined)});
             }
 
             return false;
