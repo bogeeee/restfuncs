@@ -485,7 +485,8 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
 
             let allowSessionAccess = false;
             const origin = getOrigin(req);
-            const originAllowed = originIsAllowed({origin, destination: getDestination(req), allowedOrigins: options.allowedOrigins});
+            const diagnosis_originNotAllowedErrors: string[] = []
+            const originAllowed = originIsAllowed({origin, destination: getDestination(req), allowedOrigins: options.allowedOrigins}, diagnosis_originNotAllowedErrors);
             // Answer preflights:
             if(req.method === "OPTIONS") {
                 if(originAllowed) {
@@ -502,7 +503,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     }
                 }
                 else {
-                    throw new RestError(diagnosis_originNotAllowedMessage({origin, destination: getDestination(req), allowedOrigins: options.allowedOrigins}), {httpStatusCode: 204});
+                    throw new RestError(diagnosis_originNotAllowedErrors.join("; "));
                 }
 
                 resp.end();
@@ -1106,28 +1107,54 @@ function getDestination(req: Request) : string | undefined {
 /**
  *
  * @param params: pre-computed origin and destination
+ * @param errorHints Error messages will be added here
  * @return if origin and destination are allowed by the "allowedOrigins" option
  */
-function originIsAllowed(params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}): boolean {
+function originIsAllowed(params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}, errorHints?: string[]): boolean {
     function isSameOrigin() {
         return params.destination !== undefined && params.origin !== undefined && (params.origin === params.destination);
     }
 
-    if(!params.allowedOrigins) { // Only same origin allowed ?
-        return isSameOrigin()
+    if(params.allowedOrigins === "all") {
+        return true;
+    }
+
+
+    if(typeof params.allowedOrigins === "function") {
+        if(params.allowedOrigins(params.origin, params.destination) ) {
+            return true;
+        }
+    }
+
+    if(!params.origin) {
+        // Return with a better errorHint:
+        errorHints?.push("No origin/referrer header present. May be your browser is just hiding it. The request can still be allowed by showing a corsReadToken or csrfToken. See further messages")
+        return false;
+    }
+
+    if(typeof params.allowedOrigins === "function") {
+        // prevent the default else
+    }
+    else if(!params.allowedOrigins) { // Only same origin allowed ?
+        if(isSameOrigin()) {
+            return true
+        }
     }
     else if(_.isArray(params.allowedOrigins)) {
-        return isSameOrigin() || (params.origin !== undefined && _(params.allowedOrigins).contains(params.origin));
-    }
-    else if(typeof params.allowedOrigins === "function") {
-        return params.allowedOrigins(params.origin, params.destination);
-    }
-    else if(params.allowedOrigins === "all") {
-        return true;
+        if( isSameOrigin() || (params.origin !== undefined && _(params.allowedOrigins).contains(params.origin)) ) {
+            return true;
+        }
     }
     else {
         throw new Error("Invalid value for allowedOrigins: " + params.allowedOrigins)
     }
+
+
+    if (false) { // TODO x-forwarded-by header == getDestination(req)
+        // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
+    }
+
+    errorHints?.push(`Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to allowedOrigins.`)
 
     return false;
 }
@@ -1251,14 +1278,8 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
             return tokenValid("csrfToken"); // Strict check already here.
         }
 
-        if (originIsAllowed({...reqFields, allowedOrigins})) {
+        if (originIsAllowed({...reqFields, allowedOrigins}, errorHints)) {
             return true
-        }
-
-        // diagnosis:
-        errorHints.push(diagnosis_originNotAllowedMessage({...reqFields, allowedOrigins})) // TODO: add hints into originIsAllowed function
-        if (false) { // TODO x-forwarded-by header == getDestination(req)
-            // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
         }
 
         // The server side origin check failed but the request could still be legal:
@@ -1320,8 +1341,6 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         throw new RestError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
     }
 }
-
-const diagnosis_originNotAllowedMessage = (params: {origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions}) => `Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to allowedOrigins.`;
 
 /**
  * Pre checks some of the fields to give meaningful errors in advance.
