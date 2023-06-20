@@ -1175,7 +1175,7 @@ function originIsAllowed(params: {origin?: string, destination?: string, allowed
 type SecurityRelevantRequestFields = {
     httpMethod: string,
     /**
-     * The service method name that's about to be called
+     * The / your RestService's method name that's about to be called
      */
     serviceMethodName: string,
     /**
@@ -1198,8 +1198,7 @@ type SecurityRelevantRequestFields = {
     corsReadToken?: string,
     csrfToken?: string,
     /**
-     * Computed result from
-     * @see couldBeSimpleRequest
+     * Computed result from couldBeSimpleRequest function
      */
     couldBeSimpleRequest?: boolean
 };
