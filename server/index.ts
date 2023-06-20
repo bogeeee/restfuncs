@@ -2,7 +2,7 @@ import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
 import {
-    browserMightNotSupportCORS,
+    browserMightHaveSecurityIssuseWithCrossOriginRequests,
     cloneError,
     diagnisis_shortenValue,
     ERROR_PROPERTIES,
@@ -1161,9 +1161,6 @@ function originIsAllowed(params: {origin?: string, destination?: string, allowed
 }
 
 
-function browserSupportsCORS(req: { }, error_hints?: string[]) {
-    return true; // TODO
-}
 
 type SecurityRelevantRequestFields = {
     httpMethod: string,
@@ -1297,8 +1294,8 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
         // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
-        if (reqFields.userAgent && browserMightNotSupportCORS({userAgent: reqFields.userAgent})) {
-            errorHints.push("Your browser does not support CORS. Please use a more secure browser. Any modern Browser will do.")
+        if (reqFields.userAgent && browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: reqFields.userAgent})) {
+            errorHints.push("Your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.")
             return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
         }
 

@@ -255,8 +255,13 @@ export function shieldTokenAgainstBREACH_unwrap(shieldedToken: string) {
     return  resultBuffer
 }
 
-export function browserMightNotSupportCORS(req: { userAgent: string }) {
-    // Browsers blacklisted, according to: https://caniuse.com/?search=cors
+/**
+ *
+ * @param req
+ * @return true for older browsers that are blacklisted for not supporting CORS or disregarding same-origin-policy / execute cross-origin blindly / having problems with that / having an unclear situation there
+ */
+export function browserMightHaveSecurityIssuseWithCrossOriginRequests(req: { userAgent: string }) {
+    // Browsers blacklisted, according to: https://caniuse.com/cors
 
     // See https://www.useragentstring.com
     // TODO: pre-instantiate all those regexps for better performance
@@ -278,22 +283,27 @@ export function browserMightNotSupportCORS(req: { userAgent: string }) {
     if (/Version\/[0-5]\.[0-9.]* (Mobile\/[^ ]+ )?Safari/.test(req.userAgent)) {
         return true;
     }
-
-    // Firefox:
-    if (/Firefox\/[0-3]\./.test(req.userAgent)) {
-        return true;
-    }
+    // Version 6-16 "does not support CORS <video> in <canvas> but in that case, it blocks the access itsself, so this functions doesn't need to report it. https://bugs.webkit.org/show_bug.cgi?id=135379
 
     // Opera
-    if (/Opera[/ ]([0-9]|10|11)\./.test(req.userAgent)) {
-        return true;
+    const operaVersionResult = /Opera[/ ]([\d.]+)/.exec(req.userAgent);
+    if (operaVersionResult) {
+        return parseFloat(operaVersionResult[1]) < 12
     }
-    if (/Opera$/.test(req.userAgent)) {
+    if (/Opera$/.test(req.userAgent)) { // Early version with Opera at the end ?
         return true;
     }
     // Some Opera 10-11 hide themselfes as IE (probably <= 10). These are blacklisted anyway
 
-    // Internet Exporer
+
+    // Firefox: Block at least all til 2016-08-21, cause, according to the comments in https://bugzilla.mozilla.org/show_bug.cgi?id=918767, there could be a real security issue
+    const ffVersionResult =  /Firefox\/([\d.]+)/.exec(req.userAgent)
+    if(ffVersionResult && parseFloat(ffVersionResult[1]) < 71) { // Version < 71 is rather pessimistic for the above issue. Could be refined to a lower version.
+        return true;
+    }
+
+
+    // Internet Exporer < 11
     if (/MSIE ([0-9]|10)[^0-9]/.test(req.userAgent)) {
         return true;
     }
@@ -306,12 +316,12 @@ export function browserMightNotSupportCORS(req: { userAgent: string }) {
         var isAndroidMobile = navU.indexOf('Android') > -1 && navU.indexOf('Mozilla/5.0') > -1 && (navU.indexOf('AppleWebKit') > -1 || navU.indexOf('AppleWebkit') > -1);
 
         // Apple webkit
-        var regExAppleWebKit = new RegExp(/AppleWebKit\/([\d.]+)/i);
+        var regExAppleWebKit = /AppleWebKit\/([\d.]+)/i;
         var resultAppleWebKitRegEx = regExAppleWebKit.exec(navU);
         var appleWebKitVersion = (resultAppleWebKitRegEx === null ? null : parseFloat(resultAppleWebKitRegEx[1]));
 
         // Chrome
-        var regExChrome = new RegExp(/Chrome\/([\d.]+)/);
+        var regExChrome = /Chrome\/([\d.]+)/;
         var resultChromeRegEx = regExChrome.exec(navU);
         var chromeVersion = (resultChromeRegEx === null ? null : parseFloat(resultChromeRegEx[1]));
 
