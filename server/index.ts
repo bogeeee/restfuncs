@@ -739,6 +739,12 @@ function collectParamsFromRequest(restService: RestService, methodName: string, 
     // Querystring params:
     if(url.query) {
         const parsed= restService.parseQuery(url.query);
+
+        // Diagnosis / error:
+        if(!_.isArray(parsed.result)&& (parsed.result["csrfToken"] || parsed.result["corsReadToken"]) && req.method !=="GET") {
+            throw new RestError(`You should not send the sensitive csrfToken/corsReadToken in a query parameter (only with GET). Please send it in a header or in the body.`);
+        }
+
         convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
     }
 
