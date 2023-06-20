@@ -1129,7 +1129,7 @@ function originIsAllowed(params: {origin?: string, destination?: string, allowed
 
     if(!params.origin) {
         // Return with a better errorHint:
-        errorHints?.push("No origin/referrer header present. May be your browser is just hiding it. The request can still be allowed by showing a corsReadToken or csrfToken. See further messages")
+        errorHints?.push("No origin/referrer header present. May be your browser is just hiding it.")
         return false;
     }
 
@@ -1219,7 +1219,8 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
      */
     function isAllowedInner(): boolean {
 
-        const diagnosis_seeDocs = "Please see https://github.com/bogeeee/restfuncs/#csrf-protection."
+        const diagnosis_seeDocs = "See https://github.com/bogeeee/restfuncs/#csrf-protection."
+        const diagnosis_decorateWithsafeExample = `Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`;
 
         // Fix / default some reqFields for convenience:
         if (reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
@@ -1283,6 +1284,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         if (enforcedCsrfProtectionMode === "csrfToken") {
             return tokenValid("csrfToken"); // Strict check already here.
         }
+        errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)
 
         if (originIsAllowed({...reqFields, allowedOrigins}, errorHints)) {
             return true
@@ -1304,6 +1306,9 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
             }
             aValidCorsReadTokenWouldBeHelpful = true;
         }
+        else {
+            errorHints.push(`You could allow the request by showing a corsReadToken. ${diagnosis_seeDocs}`)
+        }
 
         if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
             // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
@@ -1316,7 +1321,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
                 if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
                 } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
                     errorHints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
-                    errorHints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`)
+                    errorHints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
                     if (diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, reqFields.serviceMethodName)) {
                         errorHints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
                     }
