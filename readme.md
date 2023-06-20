@@ -93,10 +93,10 @@ The above policy (let the clients decide) only covers sessions. So <strong>when 
 
 Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csrfProtectionMode` can be set to:
 
-* `preflight` (**default**): Relies on the browser to make a CORS preflight before doing the actual request and bail if that preflight failed. 
-  The [~1.5% browsers which don't implement CORS](https://caniuse.com/?search=cors) are blacklisted. This also works with all non-browser clients and they don't need to implement any measurements.
-  [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) are denied, unless they are [@safe](#simple-requests-and-safe) 
-  A lot of the web relies on it, but this has at least a problem within the [specification](https://fetch.spec.whatwg.org/#http-requests):
+* `preflight` (**default**): Relies on the browser to make a CORS-preflight before doing the actual request and bail if that preflight failed. 
+  The [~1.5% browsers which don't implement CORS](https://caniuse.com/cors) are blacklisted. This also works with all non-browser clients and they don't need to implement any measurements.
+  [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) are denied, unless they are [@safe](#simple-requests-and-safe).  
+  A lot of the web out there relies on CORS-preflights, **but this method has at least a problem within the [specification](https://fetch.spec.whatwg.org/#http-requests)**:
   ````  
   A CORS-preflight request is a CORS request that checks to see if the CORS protocol is understood.
   ````
