@@ -494,7 +494,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                     if(req.header("Access-Control-Request-Method")) { // Request is a  CORS preflight (we don't care which actual method) ?
                         resp.header("Access-Control-Allow-Origin", origin)
                         resp.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
-                        resp.header("Access-Control-Allow-Headers", ["content-type", "accept", ...Array.from(metaParameterNames).map( v=> v.toLowerCase())].join(", "));
+                        resp.header("Access-Control-Allow-Headers", ["content-type", "accept", "iscomplex", ...Array.from(metaParameterNames).map( v=> v.toLowerCase())].join(", "));
                         resp.header("Access-Control-Allow-Credentials", "true")
 
                         resp.header("Vary", "Origin")
