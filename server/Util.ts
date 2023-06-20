@@ -254,3 +254,73 @@ export function shieldTokenAgainstBREACH_unwrap(shieldedToken: string) {
 
     return  resultBuffer
 }
+
+export function browserMightNotSupportCORS(req: { userAgent: string }) {
+    // Browsers blacklisted, according to: https://caniuse.com/?search=cors
+
+    // See https://www.useragentstring.com
+    // TODO: pre-instantiate all those regexps for better performance
+
+    if (req.userAgent.indexOf("Opera Mini") >= 0) {
+        return true;
+    }
+    // Some opera mini may still slip through: https://stackoverflow.com/questions/36320204/opera-mini-user-agent-string-does-not-contain-opera-mini
+
+    if (/Chrome\/[0-4]\./.test(req.userAgent)) {
+        return true;
+    }
+
+
+    // Safari < 6:
+    if (/like Gecko\) Safari/.test(req.userAgent)) {
+        return true;
+    }
+    if (/Version\/[0-5]\.[0-9.]* (Mobile\/[^ ]+ )?Safari/.test(req.userAgent)) {
+        return true;
+    }
+
+    // Firefox:
+    if (/Firefox\/[0-3]\./.test(req.userAgent)) {
+        return true;
+    }
+
+    // Opera
+    if (/Opera[/ ]([0-9]|10|11)\./.test(req.userAgent)) {
+        return true;
+    }
+    if (/Opera$/.test(req.userAgent)) {
+        return true;
+    }
+    // Some Opera 10-11 hide themselfes as IE (probably <= 10). These are blacklisted anyway
+
+    // Internet Exporer
+    if (/MSIE ([0-9]|10)[^0-9]/.test(req.userAgent)) {
+        return true;
+    }
+
+    // Android Browser (AOSP):
+    function isAOSP(navU: string) {
+        // Taken from https://stackoverflow.com/questions/14403766/how-to-detect-the-stock-android-browser
+
+        // Android Mobile
+        var isAndroidMobile = navU.indexOf('Android') > -1 && navU.indexOf('Mozilla/5.0') > -1 && (navU.indexOf('AppleWebKit') > -1 || navU.indexOf('AppleWebkit') > -1);
+
+        // Apple webkit
+        var regExAppleWebKit = new RegExp(/AppleWebKit\/([\d.]+)/i);
+        var resultAppleWebKitRegEx = regExAppleWebKit.exec(navU);
+        var appleWebKitVersion = (resultAppleWebKitRegEx === null ? null : parseFloat(resultAppleWebKitRegEx[1]));
+
+        // Chrome
+        var regExChrome = new RegExp(/Chrome\/([\d.]+)/);
+        var resultChromeRegEx = regExChrome.exec(navU);
+        var chromeVersion = (resultChromeRegEx === null ? null : parseFloat(resultChromeRegEx[1]));
+
+        return isAndroidMobile && (appleWebKitVersion !== null && appleWebKitVersion < 538) || (chromeVersion !== null && chromeVersion < 37);
+    }
+
+    if (isAOSP(req.userAgent)) {
+        return true;
+    }
+
+    return false;
+}

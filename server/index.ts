@@ -2,6 +2,7 @@ import 'reflect-metadata' // Must import
 import express, {raw, Router, Request} from "express";
 import session from "express-session";
 import {
+    browserMightNotSupportCORS,
     cloneError,
     diagnisis_shortenValue,
     ERROR_PROPERTIES,
@@ -532,7 +533,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             cleanupStreamsAfterRequest = c;
 
 
-            const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), couldBeSimpleRequest: couldBeSimpleRequest(req)}
+            const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), userAgent: req.header("User-Agent"), couldBeSimpleRequest: couldBeSimpleRequest(req)}
 
             if(options.devForceTokenCheck) {
                 const strictestMode = options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
@@ -1292,7 +1293,8 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
         // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
-        if (!browserSupportsCORS(reqFields, errorHints)) {
+        if (reqFields.userAgent && browserMightNotSupportCORS({userAgent: reqFields.userAgent})) {
+            errorHints.push("Your browser does not support CORS. Please use a more secure browser. Any modern Browser will do.")
             return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
         }
 
