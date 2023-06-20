@@ -1301,7 +1301,8 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         if (enforcedCsrfProtectionMode === "csrfToken") {
             return tokenValid("csrfToken"); // Strict check already here.
         }
-        errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)
+        //Diagnosis:
+        if (!reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)}
 
         if (originIsAllowed({...reqFields, allowedOrigins}, errorHints)) {
             return true
