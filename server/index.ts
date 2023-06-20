@@ -1182,6 +1182,8 @@ type SecurityRelevantRequestFields = {
      */
     destination?: string,
 
+    userAgent: string | undefined
+
     csrfProtectionMode?: CSRFProtectionMode
     corsReadToken?: string,
     csrfToken?: string,
