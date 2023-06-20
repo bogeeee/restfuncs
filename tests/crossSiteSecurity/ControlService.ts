@@ -6,10 +6,6 @@ import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 
 const app = express()
 
-app.use("/test", function (req, res, next) {
-    let x: express.Request
-    x.session.destroy((() => {}))
-});
 
 export class ControlService extends RestService {
     services: { [name: string]: { service: RestService;} }

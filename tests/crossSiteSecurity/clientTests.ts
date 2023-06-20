@@ -262,7 +262,7 @@ export async function runAlltests() {
                 await allowedService.test();
                 assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed
                 await allowedService.getBalance("bob");
-                assertEquals(await controlService.shieldTokenAgainstBREACH_unwrap(getCurrentToken()), await controlService.shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
+                assertEquals(await controlService.shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken()), await controlService.shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
             }
 
         });

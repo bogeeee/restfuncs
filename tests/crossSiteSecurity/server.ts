@@ -119,7 +119,7 @@ import {ControlService} from "./ControlService.js";
 
 })()
 
-function eraseOrigin (req, res, next) {
+function eraseOrigin (req: any, res: any, next: any) {
     req.headers.origin = undefined
     req.headers.referer = undefined
 

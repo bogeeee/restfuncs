@@ -2,12 +2,13 @@ import {RestService, safe} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
 
-const bankAccounts: Record<string, number> = {};
+export class TestServiceSession {
+    user?: string;
+    bankAccounts?: Record<string, number>;
+}
 
 export class TestsService extends RestService {
-    session: {
-        user?: string
-    } = {}
+    session= new TestServiceSession()
 
     unsafeMethod() {
         return "test"
@@ -16,8 +17,10 @@ export class TestsService extends RestService {
     async logon(user: string) {
         this.session.user = user;
 
+        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize
+
         // give user some money:
-        bankAccounts[this.session.user] = 5000;
+        this.session.bankAccounts[this.session.user] = 5000;
     }
 
     async spendMoney() {
@@ -25,7 +28,9 @@ export class TestsService extends RestService {
             throw new Error("Not logged it");
         }
 
-        bankAccounts[this.session.user] = 0;
+        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+
+        this.session.bankAccounts[this.session.user] = 0;
     }
 
 
@@ -35,11 +40,20 @@ export class TestsService extends RestService {
             throw new Error("Not logged it");
         }
 
-        bankAccounts[this.session.user] = 0;
+
+        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+
+        this.session.bankAccounts[this.session.user] = 0;
     }
 
     async getBalance(user: string) {
-        return bankAccounts[this.session.user];
+        if(!this.session.user) {
+            throw new Error("Not logged it");
+        }
+
+        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+
+        return this.session.bankAccounts[this.session.user];
     }
 
 
