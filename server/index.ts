@@ -533,7 +533,17 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             cleanupStreamsAfterRequest = c;
 
 
-            const requestParams: SecurityRelevantRequestFields = {...metaParams, httpMethod: req.method, serviceMethodName: methodName, origin, destination: getDestination(req), userAgent: req.header("User-Agent"), couldBeSimpleRequest: couldBeSimpleRequest(req)}
+            // Collect / pre-compute securityRelevantRequestFields:
+            const userAgent = req.header("User-Agent");
+            const requestParams: SecurityRelevantRequestFields = {
+                ...metaParams,
+                httpMethod: req.method,
+                serviceMethodName: methodName,
+                origin,
+                destination: getDestination(req),
+                browserMightHaveSecurityIssuseWithCrossOriginRequests: userAgent?browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: userAgent}):false,
+                couldBeSimpleRequest: couldBeSimpleRequest(req)
+            }
 
             if(options.devForceTokenCheck) {
                 const strictestMode = options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
@@ -1179,7 +1189,10 @@ type SecurityRelevantRequestFields = {
      */
     destination?: string,
 
-    userAgent: string | undefined
+    /**
+     * Computed result from Util.js/browserMightHaveSecurityIssuseWithCrossOriginRequests function
+     */
+    browserMightHaveSecurityIssuseWithCrossOriginRequests: Boolean;
 
     csrfProtectionMode?: CSRFProtectionMode
     corsReadToken?: string,
@@ -1237,6 +1250,12 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
 
 
         function tokenValid(tokenType: "corsReadToken" | "csrfToken"): boolean {
+            if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+                // With a non secure browser we can't trust a valid token:
+                errorHints.push(`You can't prove a valid ${tokenType} because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
+                return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
+            }
+
             const reqToken = reqFields[tokenType];
             if (!reqToken) {
                 errorHints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
@@ -1294,7 +1313,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
         // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
-        if (reqFields.userAgent && browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: reqFields.userAgent})) {
+        if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
             errorHints.push("Your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.")
             return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
         }
