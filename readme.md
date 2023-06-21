@@ -124,6 +124,7 @@ Notes:
 On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). **Restfuncs blocks them** accordingly, but your methods can, if needed for some situations, be **opted in** for such calls by decorating them with `@safe()` which indicates, that you are sure, they make **read operations only**. See the JDDoc of `import {@safe} from "restfuncs-server"`
 
 ## Hardening security for the paranoid
+- Install the cookie handler with `cookie: {sameSite: true}`, see the [session topic](#store-values-in-the-http--browser-session)
 - Set `RestfuncsOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 - TODO: List all sorts of disableXXX options to disable unneeded features
 
@@ -254,9 +255,11 @@ _See [Request](https://expressjs.com/en/4x/api.html#req) and [Response](https://
 ```typescript
 class MyService {
     
-    protected session: {visitCounter: 0}, // this becomes the default for every new session (shallowly cloned).
+    protected session= {visitCounter: 0}; // this simply becomes the initial/default for every new session (shallowly cloned). When having multiple RestServices, make sure, they all declare the **same** initial value !
     
-    countVisits: () => this.session.visitCounter++
+    async countVisits() {
+        this.session.visitCounter++
+    }
 }
 ```
 For this to work, you must install a session/cookie middleware in express. I.e.:
@@ -269,8 +272,8 @@ import crypto from "node:crypto"
 // Install session handler first:
 app.use(session({
     secret: crypto.randomBytes(32).toString("hex"),
-    cookie: {sameSite: true},
-    saveUninitialized: false, // Only send a cookie when really needed
+    cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
+    saveUninitialized: false, // Privacy: Only send a cookie when really needed
     unset: "destroy",
     store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
 }));

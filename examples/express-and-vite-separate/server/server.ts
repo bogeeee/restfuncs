@@ -13,10 +13,10 @@ import crypto from "node:crypto";
     // Install session handler:
     app.use(session({
         secret: crypto.randomBytes(32).toString("hex"),
-        cookie: {sameSite: true},
-        saveUninitialized: false, // Only send a cookie when really needed
+        cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
+        saveUninitialized: false, // Privacy: Only send a cookie when really needed
         unset: "destroy",
-        store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
+        store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
     }));
 
     // Remote service(s):
