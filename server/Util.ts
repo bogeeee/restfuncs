@@ -147,7 +147,7 @@ const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*RestError.*\n/;
 export function fixErrorStack(error: Error) {
     //Redundantly fix error.cause's
     if(error.cause && typeof error.cause === "object") {
-        fixErrorStack(error.cause);
+        fixErrorStack(<Error> error.cause);
     }
 
     if(typeof error.stack !== "string") {
