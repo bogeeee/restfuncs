@@ -1255,11 +1255,6 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
 
 
         function tokenValid(tokenType: "corsReadToken" | "csrfToken"): boolean {
-            if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
-                // With a non secure browser we can't trust a valid token:
-                errorHints.push(`You can't prove a valid ${tokenType} because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
-                return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
-            }
 
             const reqToken = reqFields[tokenType];
             if (!reqToken) {
@@ -1305,6 +1300,11 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
         }
 
         if (enforcedCsrfProtectionMode === "csrfToken") {
+            if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+                // With a non secure browser, we can't trust a valid csrfToken token. Cause these could i.e. read out the contents of the main / index.html page cross-origin by script and extract the token.
+                errorHints.push(`You can't prove a valid csrfToken because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
+                return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
+            }
             return tokenValid("csrfToken"); // Strict check already here.
         }
         //Diagnosis:
