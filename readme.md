@@ -4,6 +4,7 @@
 
 Tired of handcrafting every server API method + fetch / ajax request + (forgotten) error handling over and over? How about this:
 
+**NOTE: This is the 1.0 branch and will be released as a NPM package soon. Please see the [documentation in NPM](https://www.npmjs.com/package/restfuncs) for the current 0.9x release.**  
 
 ## Usage 
 
