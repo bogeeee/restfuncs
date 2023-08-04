@@ -237,9 +237,11 @@ To specify what you want to **receive** in the response, Set the `Accept` header
 
 The service method must then explcitily set the content type and return the result via `string`, `Buffer` or `Readable`. Example:
 ```typescript
+    @safe() // Lessen restrictions and allow this method to be called by GET...
     async getAvatarImage(name: string) {
+        // ... therefore (SECURITY) code in @safe() methods must perform read operations only !
         this.resp?.contentType("image/x-png")
-        return fs.createReadStream("/someImage.png") // Returns a Readable which is streamed to client
+        return fs.createReadStream("/someImage.png") // Returns a Readable which is streamed to client. You can also return Buffer, String, File(TODO)
     }
 ```
 
