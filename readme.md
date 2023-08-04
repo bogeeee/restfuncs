@@ -328,7 +328,6 @@ Almost everything is already covered but for the full API details see the code's
 
 ### Things to come
 
-- XSRF prevention (not investigated in this yet)
 - Conform to OPENAPI/Swagger standards and automatically generate swagger docs
 - Auto upgrade connection to websockets for faster calls or allow to send calls in batches
 - Websockify: Provide a simple way to call functions on the client. I.e. just pass them as callbacks.
