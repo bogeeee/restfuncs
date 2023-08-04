@@ -323,6 +323,14 @@ const myService = restfuncsClient<MyService>("/myAPI", { // options
 
 _If you want to mangle with request and response on the client, subclass it and override doFetch._ 
 
+# Performance
+
+## Writes to the session are slow...
+... cause they trigger a http (non-websocket) request to update the session.
+
+## Multi server environment
+When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling by default.  
+
 # API
 Almost everything is already covered but for the full API details see the code's JSDoc.
 
@@ -331,11 +339,9 @@ Almost everything is already covered but for the full API details see the code's
 ### Things to come
 
 - Conform to OPENAPI/Swagger standards and automatically generate swagger docs
-- Auto upgrade connection to websockets for faster calls or allow to send calls in batches
-- Websockify: Provide a simple way to call functions on the client. I.e. just pass them as callbacks.
+- Provide a simple way to call functions on the client. I.e. just pass them as callbacks.
 - Support for file uploads
-- Easy basicauth handler for the standalone server  
-- JsonP (maybe)
+- Easy basicauth handler for the standalone server
 
 ### Comparison to other RPC frameworks
 [Comparison table](https://github.com/bogeeee/RPCFrameworksComparison)
