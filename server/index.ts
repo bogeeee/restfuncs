@@ -37,8 +37,19 @@ type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, d
 export type RestfuncsOptions = {
     /**
      * Only for standalone server
+     * TODO: remove
      */
     path?: string
+
+    /**
+     * Enable basic auth by specifying a function that returns true if username+password is allowed.
+     * <p>
+     * Setting it to "ignoresHeader" confirms that your code inside this service does not evaluate the Basic Auth http header (whilst it was intended for other services). Therefore restfuncs will not complain when using a client-decided CSRF protection mode.
+     * </p>
+     * TODO: implement. Maybe instead of ignoresHeader, react on a hook when the header is accessed.
+     */
+    basicAuth?: ( (user: string, password: string) => boolean ) | "ignoresHeader"
+
 
     /**
      * TODO: use global disableSecurity option
@@ -94,10 +105,6 @@ export type RestfuncsOptions = {
     allowedOrigins?: AllowedOriginsOptions
 
 
-    //allowTopLevelNavigationGET?: boolean // DON'T allow: We can't see know if this really came from a top level navigation ! It can be easily faked by referrerpolicy="no-referrer"
-
-    //sessionCSRFProtection <- not here, at each session
-
 
     /**
      * <p>
@@ -137,7 +144,7 @@ export type RestfuncsOptions = {
     /**
      * Enable/disable file uploads through http multipart
      * If not needed, you may disable this to have one less http parser library (busboy) involved (security).
-     *
+     * TODO: do we need this flag ?
      * undefined (default) = auto detect if really needed by scanning for functions that have Buffer parameters
      */
     enableMultipartFileUploads?: boolean
