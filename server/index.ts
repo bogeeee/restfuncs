@@ -27,6 +27,7 @@ import {
 import _ from "underscore";
 import URL from "url"
 import busboy from "busboy";
+import {RestfuncsServer} from "./Server";
 
 export {RestService, safe} from "./RestService";
 
@@ -35,6 +36,12 @@ const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
 type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, destination?: string) => boolean);
 export type RestfuncsOptions = {
+    /**
+     * If using multiple RestfuncsServers(=apps), you must explicitly specify which one this service belongs to.
+     */
+    app?: RestfuncsServer
+
+
     /**
      * Only for standalone server
      * TODO: remove
