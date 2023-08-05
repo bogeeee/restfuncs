@@ -20,6 +20,7 @@ Nothing more is needed for such a method (no ZOD and no routing @decorators). Re
 - Proper **error handling** and logging.
 - **Basic auth** handler TODO. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/1.x/examples/express-and-vite-with-authentication)
 - **[Collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
+- **Tinkering friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
 # &lt;Boilerplate cheat sheet - all you need to know&gt;
@@ -35,21 +36,20 @@ export class MyService extends RestService {
     /**
      * ---- Write your API method as a plain typescript method... ----
      * This JSDoc also gets outputted in the API browser / OpenAPI spec.
-     * @param user Parameters can be any complex typescript type. They are automatically validated at runtime.
-     * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (see return) // TODO: allow deeply nested
+     * @param someComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
+     * @param myEventCallbackParam You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
+     * @param someFileParam Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
      */
-    async myAPIMethod(user: {id?: number, name: string}, myCallback?: (v) => void) { 
+    async myAPIMethod(someComplexParam: {id?: number, name: string},   myEventCallbackParam?: (percentDone:number) => void,   someFileParam?: UploadFile) {
         // this.session.... // access the browser session
         
         // ADVANCED:
         // this.req.... // Access the raw (express) request
         // this.res.... // Access the raw (express) response
-        // (<Callback> myCallback).... // Access some options for, when dealing with high frequent updates. 
+        // (<Callback> myEventCallbackParam).... // Access some options for, when dealing with high frequent events.
         
         return `Hello ${user.name}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
     }
-
-    async myAPIMethodWithFileUpload(..., myFile: UploadFile, ...) {/*...*/} // Use the UploadFile type anywhere in your parameters (can be multiple and deeply nested).
     
     // ... <-- More API methods
     // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
@@ -63,9 +63,11 @@ import {restfuncsExpress} from "restfuncs-server/Server";
 import {MyService} from "MyService";
 
 const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
+
 app.use("/myAPI", new MyService( {/* RestfuncsOptions */})) // ---- Serve your Service(s) ---- 
 // ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a packager like vite, parcel or turbopack. See examples.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyService.
+
 app.listen(3000); // Listen on Port 3000
 ````
 **client.ts**
@@ -75,13 +77,14 @@ import {UploadFile} from "restfuncs-server";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyService} from "../path/to/server/code/or/its/packagename/MyService.js" // Import the class to have full type support on the client
 
-// ** Call methods: **
 const myRemoteService = new RestfuncsClient<MyService>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
-console.log(await myRemoteService.myAPIMethod({name: "Hans"})); // ---- ...and finally make a typesafe call to your API method ;) !!this is the line you were waiting for!! ----
 
-// ** File upload: **
+// ** Finally call your API method: **
+console.log( await myRemoteService.myAPIMethod({name: "Hans"}) );
+
+// ** Example with a callback + a file upload: **
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve a browser DOM's file from an <input type="file" />'files list (here) or drag&drop's event.dataTransfer.files list
-await myRemoteService.myAPIMethodWithFileUpload(..., UploadFile.fromBrowserFile(myFile)) // You must first convert the file into a "descriptor DTO / proxy", then you can pass these to any of your UploadFile-typed parameters.  
+await myRemoteService.myAPIMethod(...,  (progress) => console.log(`${progress}% uploaded`),  UploadFile.fromBrowserFile(myFile)) // You must first convert the file into a "descriptor DTO / proxy", then you can pass these to any of your UploadFile-typed parameters.  
 ````
 
 ### Setting up the build (the annoying stuff)
@@ -116,7 +119,9 @@ _Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plu
 See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite packaging for the client/browser._
 ## &lt;/Boilerplate cheat sheet&gt;
 
+_Congrats, you've got it. The rest ist advanced / exotic :P_
 
+<br/><br/><br/><br/><br/><br/>
 
 # Example projects
 
@@ -133,9 +138,9 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 ### Html / images / binary as a result
 
-The service method must then explcitily set the content type and return the result via `string`, `Buffer` or `Readable`. Example:
+To serve a non API result, the service method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
 ```typescript
-    @safe() // Lessen restrictions and allow this method to be called by GET...
+    @safe() // Lessen restrictions and allow this method to be called by GET ...
     async getAvatarImage(name: string) {
         // ... therefore (SECURITY) code in @safe() methods must perform read operations only !
         this.res?.contentType("image/x-png")

@@ -81,7 +81,9 @@ export type RestfuncsServer = RestfuncsServerOOP & Express
 
 
 /**
- * Declare it in a nice OOP way and in the end it becomes merged with Express
+ * Declare it in a nice OOP way and in the end it becomes merged into Express (= 'import express from Express')
+ * Note that express is the main object, so instanceof does not work. See constructor
+ * TODO: how to subclass this
  */
 class RestfuncsServerOOP {
     serverOptions: ServerOptions
@@ -297,13 +299,6 @@ let instance: RestfuncsServer | undefined | "multipleInstancesExist"
  * Drop in replacement for
  *
  * <pre>
- * import express from "express"
- * const app = express()
- * </pre>
- *
- * instead use:
- * <pre>
- * import {default as express, ...} from "restfuncs-server"
  * const app = express()
  * </pre>
  *
