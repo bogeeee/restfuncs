@@ -415,9 +415,9 @@ export class RestService {
 
     /**
      * Allows you to intercept calls. Override and implement it with the default body:
-     * <pre><code>
+     * <pre>
      *      return  await this[funcName](...args) // Call the original function
-     * </code></pre>
+     * </pre>
      *
      * You have access to this.req, this.resp and this.session as usual.
      *
@@ -840,7 +840,7 @@ export class RestService {
  *     @safe()
  *     getUserStatusPage() {
  *
- *         //... perform non-state-changing operations only
+ *         // ... SECURITY: code in @safe() methods must perform read operations only !
  *
  *         this.resp?.contentType("text/html; charset=utf-8");
  *         return `<html>

@@ -203,8 +203,8 @@ export function diagnisis_shortenValue(value: any) : string {
 
 
 /**
- * Scrambles a Buffer with a random nonce, so it can't be read out by BREACH attacks
- * formats it as string in the form<br/>
+ * Scrambles a Buffer with a random nonce, so it can't be read out by BREACH attacks.
+ * Formats it as string in the form<br/>
  * <code>
  * [Nonce as hex]--[xor'ed content as hex].
  * </code>
