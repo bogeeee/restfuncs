@@ -308,3 +308,5 @@ Places where your help would be needed
 - Security review this and of typescript-rtti
 - Enhance [testcases for typescript-rtti](runtime-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
 - Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
+- Write a 3rd party `Service` base class for authentication (session based, oauth, SSO).
+- Fork restfuncs and create a good ****framework / concept for multi-page-app routing with server side pre-rendering****. Also have a look at [telefunc](https://telefunc.com/) which is already an RPC that aims there. Also in the [comparison table](https://github.com/bogeeee/RPCFrameworksComparison). There's probably much need for that by the community, and we don't want to let that fall to those frameworks that only shine with 2big2fail'ness (you know which i'm talking about;) ). Restfuncs itself will stay a sole http communication library.    
