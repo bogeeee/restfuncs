@@ -320,6 +320,8 @@ function createCsrfProtectedSessionProxy(session: Record<string, any> & Security
                 }
                 checkIfSessionIsValid(newFields);
                 _(session).extend(newFields)
+
+                checkAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
             }
 
             target[p] = newValue;

@@ -897,8 +897,9 @@ test('Sessions', async () => {
             expect(this.session.undefinedProp).toBe(undefined);
 
             // Test the proxy's setter / getter:
-            this.session.counter++;
-            expect(this.session.counter).toBe(1);
+            this.session.counter = this.session.counter + 1;
+            this.session.counter = this.session.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
+            expect(this.session.counter).toBe(2);
             expect( () => this.session.counter = undefined).toThrow();
             this.session.counter = null;
             expect(this.session.counter).toBe(null);
