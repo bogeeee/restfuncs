@@ -224,7 +224,7 @@ export class RestfuncsClient<Service> {
                 const formatError = (e: any): string => {
                     if (typeof (e) == "object") {
                         return (e.name ? (e.name + ": ") : "") + (e.message || e) +
-                            (e.stack ? `\nServer stack: ${e.stack}` : '') +
+                            (e.stack ? `\nServer stack:\n ${e.stack}` : '') +
                             (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
                             (e.cause ? `\nCause: ${formatError(e.cause)}` : '')
                     } else {
