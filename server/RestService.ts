@@ -349,6 +349,8 @@ export class RestService {
     }
 
     protected getSecurityGroupId(): string {
+        return this.id; // TODO: remove this line when implemented
+
         if(!this.server) { // Used without RestfuncsExpress server (with classic express) ?
             throw new Error("this.server not set. Please report this as a bug"); // Should we always expect that one server exists ?
         }
