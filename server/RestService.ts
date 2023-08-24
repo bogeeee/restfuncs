@@ -5,6 +5,8 @@ import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtt
 import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall, shieldTokenAgainstBREACH} from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
+import {Server2ServerEncryptedBox, RestfuncsServer, getServerInstance} from "./Server";
+import {Server} from "engine.io";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
@@ -111,6 +113,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
+
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
@@ -140,7 +143,7 @@ export class RestService {
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
      */
-        // @ts-ignore // TODO: make req | null in 1.0 API
+        // @ts-ignore // TODO: make req | undefined in 1.0 API
     protected req!: Request = null;
 
     /**
@@ -149,7 +152,8 @@ export class RestService {
      * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
      */
-        // @ts-ignore // TODO: make req | null in 1.0 API
+     // @ts-ignore // TODO: make req | undefined in 1.0 API
+    // TODO: rename to res
     protected resp!: Response = null;
 
 
@@ -163,7 +167,14 @@ export class RestService {
      * @protected
      */
     // @ts-ignore
-    protected session: {} | null = {};
+    protected session?: {} = {};
+
+    public get server(): RestfuncsServer {
+        if(this.options.app) {
+            return this.options.app;
+        }
+        return getServerInstance();
+    }
 
     /**
      * @return The / index- / home page
@@ -204,6 +215,7 @@ export class RestService {
      * </p>
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
+    // TODO: make httponly
     async getCorsReadToken(): Promise<string> {
         const session = this.req.session;
         if(!session) {
@@ -238,6 +250,68 @@ export class RestService {
         return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
+
+    /**
+     * Get's the complete session, encrypted, so it can be transferred to the websocket connection
+     */
+    // TODO: make httponly
+    async getSession(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
+        if(!this.server) {
+            throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
+        }
+
+        const sessionRequestToken = this.server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
+        // Security check:
+        if(sessionRequestToken.restServiceId !== this.id) {
+            throw new RestError(`SessionRequestToken from another service`)
+        }
+
+        // TODO: test theoretical session access, checkIfRequestIsAllowedToRunCredentialed would throw an error
+
+        const token: SessionTransferToken = {
+            request: sessionRequestToken,
+            session: this.session || null
+        }
+        return this.server.encryptToken(token, "SessionTransferToken")
+    }
+
+    /**
+     * Called via http if the webservice connection has written to the session to update the real session (cookie)
+     * @param sessionBox
+     */
+    // TODO: make httponly
+    async updateSession(sessionBox: Server2ServerEncryptedBox<UpdateSessionToken>) {
+        if(!this.server) {
+            throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
+        }
+
+        const token = this.server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
+        if(token.restServiceId !== this.id) {
+            throw new RestError(`updateSession came from another service`)
+        }
+
+        // TODO: check if session id matches and version number is exactly 1 higher
+    }
+
+    // TODO: make httponly
+    async areCallsAllowed(encryptedQuestion: Server2ServerEncryptedBox<AreCallsAllowedQuestion>): Promise<Server2ServerEncryptedBox<AreCallsAllowedAnswer>> {
+        if(!this.server) {
+            throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
+        }
+
+        const question = this.server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
+        // Security check:
+        if(question.restServiceId !== this.id) {
+            throw new RestError(`Question came from another service`)
+        }
+
+        return this.server.encryptToken({
+            question,
+            value: true
+        }, "AreCallsAllowedAnswer");
+    }
+
+
     /**
      * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
      * The token is stored in the session and a transfer token is returned which is BREACH shielded.
@@ -257,21 +331,30 @@ export class RestService {
         const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
         checkIfSessionIsValid(session);
 
-        if (tokens[this.id] === undefined) {
+        const securityGroupId = this.getSecurityGroupId();
+        if (tokens[securityGroupId] === undefined) {
             // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
-            // So store a hash(token + server-side secret) in the session instead.
-            // The secrets should be configurable in the RestfuncsOptions. I.e. secrets: string[] Secret of your server; secret of other servers (i.e. multi server environment with session offloading).
-            // Then, for a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all.
+            // So store a hash(token + server.secret) in the session instead.
+            // For a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all. Similar to Server2ServerEncryptedBox
             // The RestfuncsOptions should may be moved to a field inside this class then (easier API).
             // When having multiple RestServices, all should use the same key(s), like all session related stuff is global.
 
             // Create a token:
-            tokens[this.id] = crypto.randomBytes(16).toString("hex");
+            tokens[securityGroupId] = crypto.randomBytes(16).toString("hex");
         }
 
-        const token = tokens[this.id];
+        const token = tokens[securityGroupId];
         const rawToken = Buffer.from(token,"hex");
         return shieldTokenAgainstBREACH(rawToken);
+    }
+
+    protected getSecurityGroupId(): string {
+        return this.id; // TODO: remove this line when implemented
+
+        if(!this.server) { // Used without RestfuncsExpress server (with classic express) ?
+            throw new Error("this.server not set. Please report this as a bug"); // Should we always expect that one server exists ?
+        }
+        return this.server.getSecurityGroupIdOfService(this)
     }
 
     /**
@@ -334,9 +417,9 @@ export class RestService {
 
     /**
      * Allows you to intercept calls. Override and implement it with the default body:
-     * <pre><code>
+     * <pre>
      *      return  await this[funcName](...args) // Call the original function
-     * </code></pre>
+     * </pre>
      *
      * You have access to this.req, this.resp and this.session as usual.
      *
@@ -675,6 +758,7 @@ export class RestService {
     /**
      * Registry to make ensure that IDs are unique
      * @private
+     * TODO: move to Server.restServices
      */
     private static idToRestService = new Map<string, RestService>()
 
@@ -758,7 +842,7 @@ export class RestService {
  *     @safe()
  *     getUserStatusPage() {
  *
- *         //... perform non-state-changing operations only
+ *         // ... SECURITY: code in @safe() methods must perform read operations only !
  *
  *         this.resp?.contentType("text/html; charset=utf-8");
  *         return `<html>
@@ -831,4 +915,60 @@ export function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function 
     }
 
     return false;
+}
+
+// *** Tokens that are transfered between the websocket connection and the http service *** See Security concept.md
+
+/**
+ * Question from the websocket connection
+ */
+type AreCallsAllowedQuestion = {
+    /**
+     * Must be a random id
+     */
+    websocketConnectionId: string
+    restServiceId: string,
+}
+
+type AreCallsAllowedAnswer = {
+    question: AreCallsAllowedQuestion
+    value: boolean
+}
+
+
+
+/**
+ * The websocket connections sees at some point that it need a valid session
+ */
+type SessionTransferRequest = {
+    /**
+     * Random id to make sure that we can't give it a session from the past or an evil client
+     */
+    id: string
+    restServiceId: string,
+}
+
+export type SessionTransferToken = {
+    /**
+     * re-include that token
+     */
+    request: SessionTransferRequest
+
+    session: object | null
+}
+
+export type UpdateSessionToken = {
+    /**
+     * Where did this come from ?
+     */
+    restServiceId: string,
+
+    sessionId: string | null
+
+    /**
+     * Current / old version
+     */
+    currentVersion: number
+
+    newSession: object | null
 }

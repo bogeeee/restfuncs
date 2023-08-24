@@ -28,22 +28,7 @@ export class ServerError extends Error {
     }
 }
 
-/**
- * Fetch but with a better errormessage
- * @param request
- */
-async function fixed_fetch(url: string, request: RequestInit): Promise<any> {
-    let response;
-    try {
-        return await fetch(url, request);
-    } catch (e) {
-        // @ts-ignore
-        if (e?.cause) {
-            // TODO: throw a better message than just "fetch failed" -> nah, the runtime sometimes doesn't show the cause properly. Try recompiling
-        }
-        throw e;
-    }
-}
+
 
 /**
  * A method that's called here (on .proxy) get's send as a REST call to the server.
@@ -184,7 +169,7 @@ export class RestfuncsClient<Service> {
             req.body =  brilloutJsonStringify(args);
 
             // Exec fetch:
-            const response = <Response>await fixed_fetch(url, req);
+            const response = <Response>await this.httpFetch(url, req);
 
             // Check server protocol version:
             const serverProtocolVersion = response.headers.get("restfuncs-protocol");
@@ -224,7 +209,7 @@ export class RestfuncsClient<Service> {
                 const formatError = (e: any): string => {
                     if (typeof (e) == "object") {
                         return (e.name ? (e.name + ": ") : "") + (e.message || e) +
-                            (e.stack ? `\nServer stack: ${e.stack}` : '') +
+                            (e.stack ? `\nServer stack:\n ${e.stack}` : '') +
                             (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
                             (e.cause ? `\nCause: ${formatError(e.cause)}` : '')
                     } else {
@@ -235,6 +220,23 @@ export class RestfuncsClient<Service> {
                 throw new ServerError(formatError(responseJSON), {cause: responseJSON}, response.status);
             }
         }
+
+    /**
+     * Like fetch (from the browser api) but with a better errormessage and fixed session handling in the testcases, cause support for session is missing when run from node
+     * @param request
+     */
+    async httpFetch(url: string, request: RequestInit) {
+        let response;
+        try {
+            return await fetch(url, request);
+        } catch (e) {
+            // @ts-ignore
+            if (e?.cause) {
+                // TODO: throw a better message than just "fetch failed" -> nah, the runtime sometimes doesn't show the cause properly. Try recompiling
+            }
+            throw e;
+        }
+    }
 
     async fetchCorsReadToken() {
         this._corsReadToken = await this.inner_doCall("getCorsReadToken",[]);

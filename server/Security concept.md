@@ -17,3 +17,25 @@
 - TODO: check for [sendBeacon](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon)
 - TODO: Show the shortened code of requestIsAllowedToRunCredentialed here
 - See the [CrossSiteSecurity testcases application](../tests/crossSiteSecurity) which tests if this logic is working.
+
+
+# Websockets
+_"http" referes to traditional non-websocket http here_
+_"encrypted" means: Symmetrical encrypted by the server + MAC'ed. (MAC'ed only would even mostly be fine but for simplicity, we always encrypt)
+
+All the above applies to traditional http and all this seems fine but now come Websockets and new problems arise:
+- Do calls to Websockets regard CORS and the same security restrictions normal http calls ?
+- Do all browsers properly implement this ?
+- Can we keep track of the session content in websocket connections ? The session cookie might only be sent during connection establishment and from there on have a stale value
+- There's even no proper API in engine.io for checking all the http state and cookies
+
+The answer to all this is: We don't secure websocket connections themselves (+they're CORS allowed to all origins)
+Instead, the client pulls the context in which it operates from the main trusted http service to the websocket connection via encrypted tokens.
+Context means: "Can the client make requests to the service ?" + the full content of the session.
+
+See the types: AreCallsAllowedQuestion, AreCallsAllowedAnswer and corresponding methods in the RestService
+For session transfer, see: SessionTransferRequest, SessionTransferToken, UpdateSessionToken. and corresponding methods in the RestService
+
+Tokens always contain an unguessable id from inside the websocket handler's situation, so they can't be replaced with tokens which an attacker has in stock (previously validly obtained by his own connection) and also can't be replayed.
+
+The main source of truth for the session is the http cookie. The websocket connection is only a downstream subscriber and also can push updates there (see the above tokens). A unique session key + a version number makes sure that it can't be updated to an old value.

@@ -9,6 +9,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 function resetGlobalState() {
     // @ts-ignore
     RestService.idToRestService = new Map<string, RestService>() // Reset id registry
+    restfuncsClientCookie = undefined;
 }
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
@@ -21,7 +22,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     const serverPort = server.address().port;
 
     try {
-        const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
+        const client = restfuncsClient_fixed<Api>(`http://localhost:${serverPort}${path}`);
         await clientTests(client);
     }
     finally {
@@ -48,6 +49,24 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
         server.closeAllConnections();
         await new Promise((resolve) => server.close(resolve));
     }
+}
+
+
+/**
+ * Cookie that's used by restfuncsClient_fixed. Simulated here, cause the current nodejs implementations lacks of support for it.
+ */
+let restfuncsClientCookie:string;
+function restfuncsClient_fixed<RestService>(url: string, options: Partial<RestfuncsClient<any>> = {}): RestService {
+    return new (class extends RestfuncsClient<RestService>{
+        async httpFetch(url: string, request: RequestInit) {
+            const result = await super.httpFetch(url, {...request, headers: {...(request.headers||{}), "Cookie": restfuncsClientCookie}});
+            const setCookie = result.headers.get("Set-Cookie");
+            if(setCookie) {
+                restfuncsClientCookie = setCookie;
+            }
+            return result;
+        }
+    })(url, options).proxy;
 }
 
 async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<any>, expected?: string | RegExp | Error | jest.Constructable) {
@@ -105,7 +124,7 @@ test('Most simple example (standalone http server)', async () => {
         // @ts-ignore
         const port = server.address().port;
 
-        const remote = restfuncsClient(`http://localhost:${port}`)
+        const remote = restfuncsClient_fixed(`http://localhost:${port}`)
         // @ts-ignore
         expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
     }
@@ -137,7 +156,7 @@ test('Proper example with express and type support', async () => {
         // @ts-ignore
         const serverPort = server.address().port;
 
-        const greeterService = restfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
+        const greeterService = restfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
     }
     finally {
@@ -202,7 +221,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = restfuncsClient(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
+            const client = restfuncsClient_fixed(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
@@ -878,8 +897,9 @@ test('Sessions', async () => {
             expect(this.session.undefinedProp).toBe(undefined);
 
             // Test the proxy's setter / getter:
-            this.session.counter++;
-            expect(this.session.counter).toBe(1);
+            this.session.counter = this.session.counter + 1;
+            this.session.counter = this.session.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
+            expect(this.session.counter).toBe(2);
             expect( () => this.session.counter = undefined).toThrow();
             this.session.counter = null;
             expect(this.session.counter).toBe(null);
@@ -895,11 +915,11 @@ test('Sessions', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0, {checkArguments: false});
+    const server = restfuncs(new Service(),0, {checkArguments: false, exposeErrors: true});
     try {
         // @ts-ignore
         const port = server.address().port;
-        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {csrfProtectionMode:"preflight"}) // "preflight" to eliminate big errors chunks in the console while this testcase fails anyway. Remove option when test works.
+        const apiProxy = restfuncsClient_fixed<Service>(`http://localhost:${port}`, {})
 
         await apiProxy.checkInitialSessionValues();
 
@@ -930,7 +950,7 @@ test('Intercept with doCall (client side)', async () => {
     const port = server.address().port;
 
     try {
-        const apiProxy = restfuncsClient<Service>(`http://localhost:${port}`, {
+        const apiProxy = restfuncsClient_fixed<Service>(`http://localhost:${port}`, {
             async doCall(funcName: string, args: any[]) {
                 args[0] = "b"
                 return await this[funcName](...args) // Call the original function
