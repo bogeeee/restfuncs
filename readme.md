@@ -1,6 +1,6 @@
 _This is the 1.0 Version (API redesign), planned to be released before November 23. Stay tuned ! Feedback welcome. 
 The [release on NPM](https://www.npmjs.com/package/restfuncs) is still an older version. Please refer to the docs there._
-# Restfuncs - HTTP API done proper
+# Restfuncs - HTTP API done proper (coming soon)
 
 ## Intro + features
 
