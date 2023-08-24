@@ -1,3 +1,4 @@
+_This is the 1.0 Version (API redesign), planned to be released in November 23. Stay tuned ! Feedback welcome_
 # Restfuncs - HTTP API done proper
 
 ## Intro + features
