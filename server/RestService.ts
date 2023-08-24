@@ -6,7 +6,6 @@ import {Camelize, diagnisis_shortenValue, enhanceViaProxyDuringCall, shieldToken
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 import {Server2ServerEncryptedBox, RestfuncsServer, getServerInstance} from "./Server";
-import {Server} from "engine.io";
 
 function diagnosis_isAnonymousObject(o: object) {
     if(o.constructor?.name === "Object") {
