@@ -2,7 +2,7 @@ import type {Server as HttpServer,} from "node:http";
 import http, {createServer} from "node:http";
 import expressApp, {Express} from "express";
 import _ from "underscore";
-import {RestService} from "./RestService";
+import {Service} from "./Service";
 import {RestfuncsOptions} from "./index";
 
 export type SessionHeader = {
@@ -119,10 +119,10 @@ class RestfuncsServerOOP {
      * id -> service
      * The Service constructor registers itself here. TODO
      */
-    private services = new Map<string, RestService>()
+    private services = new Map<string, Service>()
 
     // Hope we don't get to the point where we need the group object (not only the id) - as it will always turn out so ;)
-    private cache_service2SecurityGroupIdMap?: Map<RestService, string>
+    private cache_service2SecurityGroupIdMap?: Map<Service, string>
 
     expressApp: Express;
 
@@ -237,7 +237,7 @@ class RestfuncsServerOOP {
         throw new Error("TODO")
     }
 
-    public registerService(service: RestService) {
+    public registerService(service: Service) {
         if(this.cache_service2SecurityGroupIdMap) {
             throw new Error("Cannot add a service after cache_service2SecurityGroupIdMap has been computed");
         }
@@ -253,7 +253,7 @@ class RestfuncsServerOOP {
      * @return A hash that groups together services with the same security relevant settings.
      * TODO: write testcases
      */
-    public getSecurityGroupIdOfService(service: RestService): string {
+    public getSecurityGroupIdOfService(service: Service): string {
         const result = this.getService2SecurityGroupIdMap().get(service);
         if(result === undefined) {
             throw new Error("Illegal state: service not inside service2SecurityGroupIdMap. Was it registered for another server ?")
@@ -268,7 +268,7 @@ class RestfuncsServerOOP {
 
         const relevantProperties: (keyof RestfuncsOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
         // Go through all services and collect the groups
-        const groups: {options: RestfuncsOptions, members: RestService[]}[] = []
+        const groups: {options: RestfuncsOptions, members: Service[]}[] = []
         this.services.forEach((service) => {
             for(const group of groups) {
                 if(  _(relevantProperties).find( key => group.options[key] !== service.options[key] ) === undefined ) { // Found a group where all relevantProperties match ?
@@ -281,7 +281,7 @@ class RestfuncsServerOOP {
         });
 
         // Compose result:
-        this.cache_service2SecurityGroupIdMap = new Map<RestService, string>()
+        this.cache_service2SecurityGroupIdMap = new Map<Service, string>()
         for(const group of groups) {
             // Calculate groupId:
             let tokens = relevantProperties.map(key => {

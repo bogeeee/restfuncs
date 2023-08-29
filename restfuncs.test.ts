@@ -1,4 +1,4 @@
-import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, RestService, safe} from "restfuncs-server";
+import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, Service, safe} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -8,7 +8,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 function resetGlobalState() {
     // @ts-ignore
-    RestService.idToRestService = new Map<string, RestService>() // Reset id registry
+    Service.idToRestService = new Map<string, Service>() // Reset id registry
     restfuncsClientCookie = undefined;
 }
 
@@ -138,7 +138,7 @@ test('Most simple example (standalone http server)', async () => {
 test('Proper example with express and type support', async () => {
     resetGlobalState()
 
-    class GreeterService extends RestService {
+    class GreeterService extends Service {
 
         async greet(name: string) {
             return `hello ${name} from the server`
@@ -347,7 +347,7 @@ test('Safe methods security', async () => {
         function mixin(service: object, id?: string) {
             // @ts-ignore
             if(id) service.id = id;
-            return RestService.initializeRestService(service, {checkArguments: false,})
+            return Service.initializeRestService(service, {checkArguments: false,})
         }
         expect(mixin(new Service(), "service1").methodIsSafe("getIndex")).toBeTruthy()
         expect(mixin(new Service(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
@@ -538,7 +538,7 @@ test('various call styles', async () => {
 
 test('Result Content-Type', async () => {
 
-    await runRawFetchTests(new class extends RestService{
+    await runRawFetchTests(new class extends Service{
         async getString() {
             return "test";
         }
@@ -595,7 +595,7 @@ test('Result Content-Type', async () => {
 
 test('Http stream and buffer results', async () => {
 
-    await runRawFetchTests(new class extends RestService{
+    await runRawFetchTests(new class extends Service{
         async readableResult() {
             this.resp.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
@@ -772,7 +772,7 @@ test('Parameter types', async () => {
 test('.req, .resp and Resources leaks', async () => {
         await new Promise<void>(async (resolve, reject) => {
             try {
-                const serverAPI = new class extends RestService {
+                const serverAPI = new class extends Service {
                     async myMethod() {
                         // test ac
                         expect(this.req.path).toContain("/myMethod");
@@ -801,35 +801,35 @@ test('.req, .resp and Resources leaks', async () => {
 });
 
 test('parseQuery', () => {
-    expect(new RestService().parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
-    expect(new RestService().parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
-    expect(new RestService().parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
-    expect(new RestService().parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
-    expect(new RestService().parseQuery("&c").result).toStrictEqual({"c": "true"});
-    expect(new RestService().parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
+    expect(new Service().parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
+    expect(new Service().parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
+    expect(new Service().parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
+    expect(new Service().parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
+    expect(new Service().parseQuery("&c").result).toStrictEqual({"c": "true"});
+    expect(new Service().parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
 
 });
 
 test('registerIds', () => {
     // Make your services need unique ids
-    RestService.initializeRestService({id: "a"}, {checkArguments: false})
-    expect( () => RestService.initializeRestService({id: "a"}, {})).toThrow("not unique");
+    Service.initializeRestService({id: "a"}, {checkArguments: false})
+    expect( () => Service.initializeRestService({id: "a"}, {})).toThrow("not unique");
 
-    class MyService extends RestService {
+    class MyService extends Service {
     }
 
     // Use same class twice:
-    RestService.initializeRestService(new MyService(), {})
-    expect( () => RestService.initializeRestService(new MyService(), {checkArguments: false})).toThrow("used twice");
+    Service.initializeRestService(new MyService(), {})
+    expect( () => Service.initializeRestService(new MyService(), {checkArguments: false})).toThrow("used twice");
 
     // Use object without methods twice:
-    RestService.initializeRestService({a: false}, {})
-    expect( () => RestService.initializeRestService({b: false}, {checkArguments: false})).toThrow("not unique");
+    Service.initializeRestService({a: false}, {})
+    expect( () => Service.initializeRestService({b: false}, {checkArguments: false})).toThrow("not unique");
 
 
     // This should work
-    RestService.initializeRestService({myFunc1() {}}, {checkArguments: false})
-    RestService.initializeRestService({myFunc2() {}}, {checkArguments: false})
+    Service.initializeRestService({myFunc1() {}}, {checkArguments: false})
+    Service.initializeRestService({myFunc2() {}}, {checkArguments: false})
 });
 
 test('diagnosis_looksLikeJson', () => {
@@ -845,7 +845,7 @@ test('diagnosis_looksLikeJson', () => {
 });
 
 test('Reserved names', async () => {
-    await runClientServerTests(new class extends RestService{
+    await runClientServerTests(new class extends Service{
 
     },async apiProxy => {
         for(const forbiddenName of ["req", "resp", "session", "doCall","methodIsSafe"]) {
@@ -862,7 +862,7 @@ test('Reserved names', async () => {
 });
 
 test("Access 'this' on server service", async () => {
-    await runClientServerTests(new class extends RestService{
+    await runClientServerTests(new class extends Service{
         a = "test";
         myServiceFields= {
             val: null
@@ -882,7 +882,7 @@ test("Access 'this' on server service", async () => {
 });
 
 test('Sessions', async () => {
-    class Service extends RestService{
+    class Service extends Service{
         session = {
             counter: 0,
             val: null,
@@ -937,7 +937,7 @@ test('Sessions', async () => {
 test('Intercept with doCall (client side)', async () => {
     resetGlobalState();
 
-    class Service extends RestService{
+    class Service extends Service{
         getSomething(something: any) {
             return something;
         }
@@ -969,7 +969,7 @@ test('Intercept with doCall (client side)', async () => {
 test('Intercept with doFetch (client side)', async () => {
     resetGlobalState()
 
-    class Service extends RestService{
+    class Service extends Service{
         getSomething(something: any) {
             return something;
         }
@@ -1002,7 +1002,7 @@ test('Intercept with doFetch (client side)', async () => {
 });
 
 test('validateAndDoCall security', async () => {
-   const service = new class extends RestService {
+   const service = new class extends Service {
        x = "string";
        myMethod(a,b) {
            return a + b;
@@ -1036,7 +1036,7 @@ test('validateAndDoCall security', async () => {
 });
 
 test('listCallableMethods', () => {
-   class A extends RestService {
+   class A extends Service {
        async methodA() {}
        async methodB(x: string) {}
    }
@@ -1049,24 +1049,24 @@ test('listCallableMethods', () => {
        methodC() {}
    }
 
-    const b = RestService.initializeRestService(new B(), {});
+    const b = Service.initializeRestService(new B(), {});
     expect(b.listCallableMethods().length).toBe(1);
 
 });
 
 test('mayNeedFileUploadSupport', () => {
-    expect(new class extends RestService {
+    expect(new class extends Service {
         async methodA() {}
         async methodB(x: string) {}
         async methodC(x: any) {}
         async methodD(x: string | number) {}
     }().mayNeedFileUploadSupport()).toBeFalsy()
 
-    expect(new class extends RestService {
+    expect(new class extends Service {
         async methodA(b: Buffer) {}
     }().mayNeedFileUploadSupport()).toBeTruthy()
 
-    expect(new class extends RestService {
+    expect(new class extends Service {
         async methodA(...b: Buffer[]) {}
     }().mayNeedFileUploadSupport()).toBeTruthy()
 

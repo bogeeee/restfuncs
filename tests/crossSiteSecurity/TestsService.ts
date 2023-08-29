@@ -1,4 +1,4 @@
-import {RestService, safe} from "restfuncs-server";
+import {Service, safe} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
 
@@ -7,7 +7,7 @@ export class TestServiceSession {
     bankAccounts?: Record<string, number>;
 }
 
-export class TestsService extends RestService {
+export class TestsService extends Service {
     session= new TestServiceSession()
 
     unsafeMethod() {

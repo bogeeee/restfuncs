@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs, RestfuncsOptions, RestService} from "restfuncs-server"
+import {restfuncs, RestfuncsOptions, Service} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
@@ -31,7 +31,7 @@ import {ControlService} from "./ControlService.js";
         }));
 
         // Remote service(s): Register them
-        const services: {[name: string]: { service: RestService, options?:RestfuncsOptions} } = {
+        const services: {[name: string]: { service: Service, options?:RestfuncsOptions} } = {
             "mainframeAPI":  { service:new MainframeService(), options: commonOptions},
             "testsService":  { service:new TestsService(), options: commonOptions},
             "allowedTestsService": { service:new TestsService(), options: {...commonOptions, allowedOrigins: ["http://localhost:3666"]}},

@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {restfuncs, RestService} from "restfuncs-server";
+import {restfuncs, Service} from "restfuncs-server";
 import {isTypeInfoAvailable} from "restfuncs-server/RestService";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
@@ -9,7 +9,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     // @ts-ignore
-    RestService.idToRestService = new Map<string, RestService>() // Reset id registry
+    Service.idToRestService = new Map<string, Service>() // Reset id registry
 
     const app = express();
     app.use(path, restfuncs(serverAPI, {checkArguments: true, logErrors: false, exposeErrors: true}));

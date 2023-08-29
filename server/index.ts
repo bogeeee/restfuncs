@@ -22,14 +22,14 @@ import {
     diagnosis_methodWasDeclaredSafeAtAnyLevel,
     isTypeInfoAvailable,
     ParameterSource,
-    RestService
-} from "./RestService";
+    Service
+} from "./Service";
 import _ from "underscore";
 import URL from "url"
 import busboy from "busboy";
 import {RestfuncsServer} from "./Server";
 
-export {RestService, safe} from "./RestService";
+export {Service, safe} from "./Service";
 
 const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -126,7 +126,7 @@ export type RestfuncsOptions = {
      * </p>
      * To still allow interoperability, you can:
      * - if the method is read only, see {@link safe()}.
-     * - implement the access token logic yourself, see {@link RestService.proofRead()}
+     * - implement the access token logic yourself, see {@link Service.proofRead()}
      * - disable this feature and trust on browsers to make preflights and bail if they fail.
      *
      * Note: For client developers with tokenized modes: You may wonder wonder why some requests will still pass without token checks. They may be already considered safe according the the origin/referrer headers or for @safe methods.
@@ -166,7 +166,7 @@ export type RestfuncsOptions = {
  * @param options
  * @return
  */
-export function restfuncs(service: object | RestService, port: number, options?: RestfuncsOptions) : http.Server;
+export function restfuncs(service: object | Service, port: number, options?: RestfuncsOptions) : http.Server;
 /**
  * Creates an express router/middleware that makes service's member functions callable via REST.
  * Usage:
@@ -176,8 +176,8 @@ export function restfuncs(service: object | RestService, port: number, options?:
  * @param service
  * @return
  */
-export function restfuncs(service: object | RestService, options?: RestfuncsOptions): Router;
-export function restfuncs(service: object | RestService, arg1: any, arg2?: any): any {
+export function restfuncs(service: object | Service, options?: RestfuncsOptions): Router;
+export function restfuncs(service: object | Service, arg1: any, arg2?: any): any {
 
     if(typeof(arg1) == "number") { // standalone ?
         const port = arg1;
@@ -278,7 +278,7 @@ export function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
  * @param restService
  * @param diagnosis
  */
-function createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, restService: RestService, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+function createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, restService: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
     function checkAccess(isRead: boolean) {
         if(isRead && session.csrfProtectionMode === undefined) {
@@ -397,7 +397,7 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  */
 function createRestFuncsExpressRouter(restServiceObj: object, options: RestfuncsOptions): Router {    ;
     checkOptionsValidity(options)
-    const restService = RestService.initializeRestService(restServiceObj, options);
+    const restService = Service.initializeRestService(restServiceObj, options);
 
     const enableMultipartFileUploads = options.enableMultipartFileUploads || (options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(restService) || restService.mayNeedFileUploadSupport()))
 
@@ -636,7 +636,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
  * @param methodName
  * @param req
  */
-function collectParamsFromRequest(restService: RestService, methodName: string, req: Request, enableMultipartFileUploads: boolean) {
+function collectParamsFromRequest(restService: Service, methodName: string, req: Request, enableMultipartFileUploads: boolean) {
     // Determine path tokens:
     const url = URL.parse(req.url);
     const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -1238,7 +1238,7 @@ type SecurityRelevantRequestFields = {
  * @param restService
  * @param diagnosis
  */
-function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: RestService, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
+function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
     // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the RestfuncsOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
     const errorHints: string[] = [];

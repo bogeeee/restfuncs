@@ -116,14 +116,14 @@ export type ParameterSource = "string" | "json" | null; // Null means: Cannot be
 /**
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
-export class RestService {
+export class Service {
     [index: string]: any
 
     /**
      * Uniquely identify this service. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
      * Normally the class name is used and not a random ID, cause we want to allow for multi-server environments with client handover
      */
-    id: string = RestService.generatedId(this)
+    id: string = Service.generatedId(this)
 
     /**
      * Lists the methods that are flagged as @safe
@@ -376,7 +376,7 @@ export class RestService {
         if(typeof methodName !== "string") {
             throw new RestError(`methodName is not a string`)
         }
-        if( (new (class extends RestService{})()[methodName] !== undefined || {}[methodName] !== undefined) && !RestService.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
+        if( (new (class extends Service{})()[methodName] !== undefined || {}[methodName] !== undefined) && !Service.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
             throw new RestError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if(this[methodName] === undefined) {
@@ -477,8 +477,8 @@ export class RestService {
      */
     public methodIsSafe(methodName: string) {
 
-        if(this[methodName] === RestService.prototype[methodName]) { // Method was unmodifiedly taken from the RestService mixin. I.e. "getIndex". See RestService.initializeRestService(). ?
-            return methodIsMarkedSafeAtActualImplementationLevel(RestService, methodName); // Look at RestService level
+        if(this[methodName] === Service.prototype[methodName]) { // Method was unmodifiedly taken from the RestService mixin. I.e. "getIndex". See RestService.initializeRestService(). ?
+            return methodIsMarkedSafeAtActualImplementationLevel(Service, methodName); // Look at RestService level
         }
 
         if(!this.constructor) { // No class ?
@@ -604,7 +604,7 @@ export class RestService {
             }
 
             if (parameter.type.isClass(Boolean)) {
-                return RestService.STRING_TO_BOOL_MAP[value];
+                return Service.STRING_TO_BOOL_MAP[value];
             }
 
             if (parameter.type.isClass(Date)) {
@@ -661,7 +661,7 @@ export class RestService {
      * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
      */
     public listCallableMethods() {
-        const protoRestService = new (class extends RestService{})();
+        const protoRestService = new (class extends Service{})();
 
         return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
             if (protoRestService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
@@ -705,7 +705,7 @@ export class RestService {
      * @param restServiceObj
      * @param options
      */
-    public static initializeRestService(restServiceObj: object, options: RestfuncsOptions): RestService {
+    public static initializeRestService(restServiceObj: object, options: RestfuncsOptions): Service {
         /**
          * Nonexisting props and methods get copied to the target so that it's like the target exends the base class .
          * @param target
@@ -720,11 +720,11 @@ export class RestService {
         }
 
 
-        if(!(restServiceObj instanceof RestService)) {
-            baseOn(restServiceObj, new RestService());
+        if(!(restServiceObj instanceof Service)) {
+            baseOn(restServiceObj, new Service());
         }
 
-        const restService = <RestService> restServiceObj;
+        const restService = <Service> restServiceObj;
 
         // ID:
         if(restService.id === "RestService") { // We still have the plain dump base id ?
@@ -759,7 +759,7 @@ export class RestService {
      * @private
      * TODO: move to Server.restServices
      */
-    private static idToRestService = new Map<string, RestService>()
+    private static idToRestService = new Map<string, Service>()
 
     /**
      * ..., therefore, ids are registered within here.
@@ -770,7 +770,7 @@ export class RestService {
             throw new Error("id not set. Please specify an id property on your service.")
         }
 
-        const registered = RestService.idToRestService.get(this.id);
+        const registered = Service.idToRestService.get(this.id);
         if(registered === this) {
             return;
         }
@@ -783,7 +783,7 @@ export class RestService {
             throw new Error(`Please add an id property to your service object to make it unique. Current (generated) id is not unique: '${this.id}'`)
         }
 
-        RestService.idToRestService.set(this.id, this);
+        Service.idToRestService.set(this.id, this);
     }
 
     /**
