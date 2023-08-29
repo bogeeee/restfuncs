@@ -229,14 +229,14 @@ export type SecurityRelevantSessionFields = {
 
     /**
      * One for each service
-     * RestService id -> token
+     * Service id -> token
      */
     corsReadTokens?: Record<string,string>
 
     /**
      * One for each service
      *
-     * RestService id -> token
+     * Service id -> token
      */
     csrfTokens?: Record<string,string>
 };
@@ -275,17 +275,17 @@ export function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
  * @param session
  * @param reqFields
  * @param allowedOrigins
- * @param restService
+ * @param service
  * @param diagnosis
  */
-function createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, restService: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+function createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, service: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
     function checkAccess(isRead: boolean) {
         if(isRead && session.csrfProtectionMode === undefined) {
             //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
         }
 
-        checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, restService, {... diagnosis, isSessionAccess: true})
+        checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, service, {... diagnosis, isSessionAccess: true})
     }
 
     return new Proxy(session, {
@@ -395,11 +395,11 @@ function createProxyWithPrototype(session: Record<string, any>, sessionPrototype
  * Creates a middleware/router to use with express.
  * @param service An object who's methods can be called remotely / are exposed as a rest service.
  */
-function createRestFuncsExpressRouter(restServiceObj: object, options: RestfuncsOptions): Router {    ;
+function createRestFuncsExpressRouter(serviceObj: object, options: RestfuncsOptions): Router {    ;
     checkOptionsValidity(options)
-    const restService = Service.initializeRestService(restServiceObj, options);
+    const service = Service.initializeService(serviceObj, options);
 
-    const enableMultipartFileUploads = options.enableMultipartFileUploads || (options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(restService) || restService.mayNeedFileUploadSupport()))
+    const enableMultipartFileUploads = options.enableMultipartFileUploads || (options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(service) || service.mayNeedFileUploadSupport()))
 
     const router = express.Router();
 
@@ -537,7 +537,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             // retrieve method name:
             const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
             let methodNameFromPath = fixedPath.split("/")[0];
-            const methodName = restService.getMethodNameForCall(req.method, methodNameFromPath);
+            const methodName = service.getMethodNameForCall(req.method, methodNameFromPath);
             if(!methodName) {
                 if(!methodNameFromPath) {
                     throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
@@ -545,7 +545,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
             }
 
-            const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = collectParamsFromRequest(restService, methodName, req, enableMultipartFileUploads);
+            const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = collectParamsFromRequest(service, methodName, req, enableMultipartFileUploads);
             cleanupStreamsAfterRequest = c;
 
 
@@ -565,7 +565,7 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
                 const strictestMode = options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                 if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                     // Enforce the early check of the token:
-                    checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, restService, {
+                    checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, service, {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
                         isSessionAccess: false
@@ -574,17 +574,17 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
             }
 
 
-            checkIfRequestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, restService, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
+            checkIfRequestIsAllowedToRunCredentialed(requestParams, options.csrfProtectionMode, options.allowedOrigins, <SecurityRelevantSessionFields> req.session, service, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
             let session = null;
             // @ts-ignore
             const reqSession = req.session as Record<string,any>|undefined;
             if(reqSession !== undefined) { // Express runs a session handler ?
-                session = createProxyWithPrototype(reqSession, restService._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
-                session = createCsrfProtectedSessionProxy(session, requestParams, options.allowedOrigins, restService, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                session = createProxyWithPrototype(reqSession, service._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows service.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
+                session = createCsrfProtectedSessionProxy(session, requestParams, options.allowedOrigins, service, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
             }
 
-            let result = await restService.validateAndDoCall(methodName, methodArguments, {req, resp, session}, options);
+            let result = await service.validateAndDoCall(methodName, methodArguments, {req, resp, session}, options);
             sendResult(result, methodName);
         }
         catch (caught) {
@@ -631,18 +631,18 @@ function createRestFuncsExpressRouter(restServiceObj: object, options: Restfuncs
  *
  * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously
  *
- * @see RestService#validateAndDoCall use this method to check the security on the result
- * @param restService
+ * @see Service#validateAndDoCall use this method to check the security on the result
+ * @param service
  * @param methodName
  * @param req
  */
-function collectParamsFromRequest(restService: Service, methodName: string, req: Request, enableMultipartFileUploads: boolean) {
+function collectParamsFromRequest(service: Service, methodName: string, req: Request, enableMultipartFileUploads: boolean) {
     // Determine path tokens:
     const url = URL.parse(req.url);
     const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
     const pathTokens = relativePath.split("/");
 
-    const reflectedMethod = isTypeInfoAvailable(restService)?reflect(restService).getMethod(methodName):undefined;
+    const reflectedMethod = isTypeInfoAvailable(service)?reflect(service).getMethod(methodName):undefined;
 
     const result = new class {
         methodArguments: any[] = []; // Params/arguments that will actually enter the method
@@ -693,7 +693,7 @@ function collectParamsFromRequest(restService: Service, methodName: string, req:
                     throw new RestError(`Runtime typechecking of destructuring arguments is not yet supported`)
                 }
                 else {
-                    addValue(restService.autoConvertValueForParameter(value, listInsertionParameter, source));
+                    addValue(service.autoConvertValueForParameter(value, listInsertionParameter, source));
                 }
             }
         }
@@ -710,7 +710,7 @@ function collectParamsFromRequest(restService: Service, methodName: string, req:
                 }
 
                 if(!reflectedMethod) {
-                    throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${restService._diagnosisWhyIsRTTINotAvailable()}`)
+                    throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${service._diagnosisWhyIsRTTINotAvailable()}`)
                 }
 
                 const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
@@ -720,7 +720,7 @@ function collectParamsFromRequest(restService: Service, methodName: string, req:
                 if(parameter.isRest) {
                     throw new RestError(`Cannot set ...${name} through named parameter`)
                 }
-                result.methodArguments[parameter.index] = restService.autoConvertValueForParameter(paramsMap[name], parameter, source)
+                result.methodArguments[parameter.index] = service.autoConvertValueForParameter(paramsMap[name], parameter, source)
             }
         }
 
@@ -754,7 +754,7 @@ function collectParamsFromRequest(restService: Service, methodName: string, req:
 
     // Querystring params:
     if(url.query) {
-        const parsed= restService.parseQuery(url.query);
+        const parsed= service.parseQuery(url.query);
 
         // Diagnosis / error:
         if(!_.isArray(parsed.result)&& (parsed.result["csrfToken"] || parsed.result["corsReadToken"]) && req.method !=="GET") {
@@ -775,7 +775,7 @@ function collectParamsFromRequest(restService: Service, methodName: string, req:
             convertAndAddParams(brilloutJsonParse(rawBodyText), null);
         } else if(contentType == "application/x-www-form-urlencoded") {
             const rawBodyText = req.body.toString(fixTextEncoding(contentTypeAttributes["encoding"] || "utf8"));
-            const parsed= restService.parseQuery(rawBodyText);
+            const parsed= service.parseQuery(rawBodyText);
             convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
         }
         else if(contentType == "multipart/form-data") {
@@ -1197,7 +1197,7 @@ function originIsAllowed(params: {origin?: string, destination?: string, allowed
 type SecurityRelevantRequestFields = {
     httpMethod: string,
     /**
-     * The / your RestService's method name that's about to be called
+     * The / your Service's method name that's about to be called
      */
     serviceMethodName: string,
     /**
@@ -1235,10 +1235,10 @@ type SecurityRelevantRequestFields = {
  * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
  * @param allowedOrigins from the options
  * @param session holds the tokens
- * @param restService
+ * @param service
  * @param diagnosis
  */
-function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, restService: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
+function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, service: Service, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
     // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the RestfuncsOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
     const errorHints: string[] = [];
@@ -1284,13 +1284,13 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
                 return false;
             }
 
-            if (!sessionTokens[restService.id]) {
-                errorHints.push(`No ${tokenType} was stored in the session for the RestService, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
+            if (!sessionTokens[service.id]) {
+                errorHints.push(`No ${tokenType} was stored in the session for the Service, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
                 return false;
             }
 
             try {
-                if (crypto.timingSafeEqual(Buffer.from(sessionTokens[restService.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[restService.id] === reqToken ?
+                if (crypto.timingSafeEqual(Buffer.from(sessionTokens[service.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                     return true;
                 } else {
                     errorHints.push(`${tokenType} incorrect`);
@@ -1352,7 +1352,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
 
         if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
             // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
-            if (reqFields.httpMethod === "GET" && restService.methodIsSafe(reqFields.serviceMethodName)) {
+            if (reqFields.httpMethod === "GET" && service.methodIsSafe(reqFields.serviceMethodName)) {
                 return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
             } else {
                 // Block
@@ -1362,7 +1362,7 @@ function checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantReq
                 } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
                     errorHints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
                     errorHints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
-                    if (diagnosis_methodWasDeclaredSafeAtAnyLevel(restService.constructor, reqFields.serviceMethodName)) {
+                    if (diagnosis_methodWasDeclaredSafeAtAnyLevel(service.constructor, reqFields.serviceMethodName)) {
                         errorHints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
                     }
                 } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined) { // Crafted http request (maybe from in web browser)?

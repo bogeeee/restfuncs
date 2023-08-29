@@ -29,9 +29,9 @@ Nothing more is needed for such a method (no ZOD and no routing @decorators). Re
 
 **MyService.ts**
 ````typescript
-import {RestService, UploadFile} from "restfuncs-server";
+import {Service, UploadFile} from "restfuncs-server";
 
-export class MyService extends RestService {
+export class MyService extends Service {
     
     session?= new class { myLogonUserId?: string } // Browser session. Shared among all services. It gets serialized into a JWT cookie. The value here becomes the initial/default for every new session (shallowly cloned !).
 
@@ -168,7 +168,7 @@ The following example service method...
 | GET | _/**getBook**/1984/George%20Orwell_ | | **List** arguments in the **path**
 | GET | _/**getBook**?1984,George%20Orwell_ | | **List** arguments in the **query**
 | GET | _/**getBook**?name=1984&authorFilter=George%20Orwell_ | | **Name** arguments in the **query**
-| GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your RestService subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
+| GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your Service subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
 | GET | _/**book** ..._ | | Read **"GET book"** like `getBook`. Applies to other http verbs also. Additionally **"PUT book"** will try to call `updateBook` or `setBook` cause this sounds more common in programming languages.
 | POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Name** arguments inside JSON body
 | POST | _/**getBook**_ | `["1984", "George Orwell"]` | **List** arguments inside JSON body
@@ -204,7 +204,7 @@ To specify what you **send** and how it should be interpreted, set the `Content-
 Parameter values will be **reasonably** auto converted to the actual declared type.
 - The **query or path** can only carry strings, so they **will auto convert to boolean, number, Date, BigInt** types.
 - **JSON**'s unsupported `undefined` (in arrays), `BigInt` and `Date` values will auto convert.   
-  _Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `RestService.autoConvertValueForParameter_fromJson` method to improve it._
+  _Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `Service.autoConvertValueForParameter_fromJson` method to improve it._
 
 _Restfuncs won't try to convert to ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._
 
@@ -251,7 +251,7 @@ Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csr
   It doesn't state that a browser has to stop the request after a negative preflight. The following actual request will again contain the info whether it's allowed to read the result and browsers could legally use this as point to bail. But at that point it's already too late: The request has been executed and makes a CSRF attacker happy.
 * `corsReadToken` (**used by restfuncs-client**) This is a safer mode which works around this unclear in-spec/in-practice situation. The client must (if not already clear by `Origin` or `Referrer` headers) prove to have made a successful read, before the call is allowed to execute.  
   In detail (if you want to implement it yourself):
-  - The Client calls the `getCorsReadToken()` service method to get a token string. Every service has that method inherited from the RestService base class. This the *read-proof*.
+  - The Client calls the `getCorsReadToken()` service method to get a token string. Every service has that method inherited from the Service base class. This the *read-proof*.
   - Every http request now includes the fields `csrfProtectionMode=corsReadToken` and `corsReadToken=<the token>` in the headers, in the query (GET only) or in the body like [usual named parameters](#rest-interface). See the `devForceTokenCheck` option for development. A http response code `480` is sent when the token was missing/incorrect.
 
 * `csrfToken`

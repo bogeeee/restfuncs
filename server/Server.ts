@@ -96,7 +96,7 @@ type Server2ServerEncryptedBox_inner = {
  * Comes with session handler and methods to retrieve the csrfToken
  * Secrets to
  *
- * All RestServices are registered here, once they're instantiated.
+ * All Services are registered here, once they're instantiated.
  * Makes sure then, they have unique IDs and use the same initial session value
  */
 export type RestfuncsServer = RestfuncsServerOOP & Express
@@ -242,7 +242,7 @@ class RestfuncsServerOOP {
             throw new Error("Cannot add a service after cache_service2SecurityGroupIdMap has been computed");
         }
 
-        // TODO: check uniqueness and stuff like in RestService.checkIfIdIsUnique()
+        // TODO: check uniqueness and stuff like in Service.checkIfIdIsUnique()
 
         this.services.set(service.id, service);
     }

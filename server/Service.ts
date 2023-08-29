@@ -15,8 +15,8 @@ function diagnosis_isAnonymousObject(o: object) {
     return false;
 }
 
-export function isTypeInfoAvailable(restService: object) {
-    const r = reflect(restService);
+export function isTypeInfoAvailable(service: object) {
+    const r = reflect(service);
 
     // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
     // TODO: improve checks for security reasons !
@@ -132,7 +132,7 @@ export class Service {
     static safeMethods?: Set<string>
 
     /**
-     * Those methods directly here on RestService are allowed to be called
+     * Those methods directly here on Service are allowed to be called
      */
     static whitelistedMethodNames = new Set(["getIndex", "getCorsReadToken"])
 
@@ -226,7 +226,7 @@ export class Service {
 
     /**
      * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
-     * @param session req.session (from inside express handler) or this.req.session (from inside a RestService call).
+     * @param session req.session (from inside express handler) or this.req.session (from inside a Service call).
      * It must be the RAW session object (and not the proxy that protects it from csrf)
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
@@ -261,7 +261,7 @@ export class Service {
 
         const sessionRequestToken = this.server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
         // Security check:
-        if(sessionRequestToken.restServiceId !== this.id) {
+        if(sessionRequestToken.serviceId !== this.id) {
             throw new RestError(`SessionRequestToken from another service`)
         }
 
@@ -285,7 +285,7 @@ export class Service {
         }
 
         const token = this.server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
-        if(token.restServiceId !== this.id) {
+        if(token.serviceId !== this.id) {
             throw new RestError(`updateSession came from another service`)
         }
 
@@ -300,7 +300,7 @@ export class Service {
 
         const question = this.server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
         // Security check:
-        if(question.restServiceId !== this.id) {
+        if(question.serviceId !== this.id) {
             throw new RestError(`Question came from another service`)
         }
 
@@ -336,7 +336,7 @@ export class Service {
             // So store a hash(token + server.secret) in the session instead.
             // For a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all. Similar to Server2ServerEncryptedBox
             // The RestfuncsOptions should may be moved to a field inside this class then (easier API).
-            // When having multiple RestServices, all should use the same key(s), like all session related stuff is global.
+            // When having multiple Services, all should use the same key(s), like all session related stuff is global.
 
             // Create a token:
             tokens[securityGroupId] = crypto.randomBytes(16).toString("hex");
@@ -407,8 +407,8 @@ export class Service {
         Object.keys(enhancementProps).map(key => {if(!allowed[key]) { throw new Error(`${key} not allowed in enhancementProps`)}})
 
         let result;
-        await enhanceViaProxyDuringCall(this, enhancementProps, async (restService) => { // make .req and .resp safely available during call
-            result = await restService.doCall(methodName, args); // Call method with user's doCall interceptor;
+        await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .resp safely available during call
+            result = await service.doCall(methodName, args); // Call method with user's doCall interceptor;
         }, methodName);
 
         return result
@@ -477,8 +477,8 @@ export class Service {
      */
     public methodIsSafe(methodName: string) {
 
-        if(this[methodName] === Service.prototype[methodName]) { // Method was unmodifiedly taken from the RestService mixin. I.e. "getIndex". See RestService.initializeRestService(). ?
-            return methodIsMarkedSafeAtActualImplementationLevel(Service, methodName); // Look at RestService level
+        if(this[methodName] === Service.prototype[methodName]) { // Method was unmodifiedly taken from the Service mixin. I.e. "getIndex". See Service.initializeService(). ?
+            return methodIsMarkedSafeAtActualImplementationLevel(Service, methodName); // Look at Service level
         }
 
         if(!this.constructor) { // No class ?
@@ -661,10 +661,10 @@ export class Service {
      * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
      */
     public listCallableMethods() {
-        const protoRestService = new (class extends Service{})();
+        const protoService = new (class extends Service{})();
 
         return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
-            if (protoRestService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
+            if (protoService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
             }
 
@@ -702,10 +702,10 @@ export class Service {
 
     /**
      * Internal: Must be called by every adapter (i.e. express router) before the service is used.
-     * @param restServiceObj
+     * @param serviceObj
      * @param options
      */
-    public static initializeRestService(restServiceObj: object, options: RestfuncsOptions): Service {
+    public static initializeService(serviceObj: object, options: RestfuncsOptions): Service {
         /**
          * Nonexisting props and methods get copied to the target so that it's like the target exends the base class .
          * @param target
@@ -720,34 +720,34 @@ export class Service {
         }
 
 
-        if(!(restServiceObj instanceof Service)) {
-            baseOn(restServiceObj, new Service());
+        if(!(serviceObj instanceof Service)) {
+            baseOn(serviceObj, new Service());
         }
 
-        const restService = <Service> restServiceObj;
+        const service = <Service> serviceObj;
 
         // ID:
-        if(restService.id === "RestService") { // We still have the plain dump base id ?
-            restService.id = this.generatedId(restServiceObj); // Generate a better one
+        if(service.id === "Service") { // We still have the plain dump base id ?
+            service.id = this.generatedId(serviceObj); // Generate a better one
         }
-        restService.checkIfIdIsUnique();
+        service.checkIfIdIsUnique();
 
-        restService._sessionPrototype = restService.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
+        service._sessionPrototype = service.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
         // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
         // @ts-ignore
-        restService.req = null; restService.resp = null; restService.session = null;
+        service.req = null; service.resp = null; service.session = null;
 
         // Warn/error if type info is not available:
-        if(!isTypeInfoAvailable(restService)) {
+        if(!isTypeInfoAvailable(service)) {
             if(options.checkArguments) {
-                throw new RestError("Runtime type information is not available.\n" +  restService._diagnosisWhyIsRTTINotAvailable())
+                throw new RestError("Runtime type information is not available.\n" +  service._diagnosisWhyIsRTTINotAvailable())
             }
             else if(options.checkArguments === undefined) {
-                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + restService._diagnosisWhyIsRTTINotAvailable())
+                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your func's arguments cannot be checked automatically !\n" + service._diagnosisWhyIsRTTINotAvailable())
             }
         }
 
-        return restService;
+        return service;
     }
 
     public _diagnosisWhyIsRTTINotAvailable() {
@@ -757,9 +757,9 @@ export class Service {
     /**
      * Registry to make ensure that IDs are unique
      * @private
-     * TODO: move to Server.restServices
+     * TODO: move to Server.services
      */
-    private static idToRestService = new Map<string, Service>()
+    private static idToService = new Map<string, Service>()
 
     /**
      * ..., therefore, ids are registered within here.
@@ -770,7 +770,7 @@ export class Service {
             throw new Error("id not set. Please specify an id property on your service.")
         }
 
-        const registered = Service.idToRestService.get(this.id);
+        const registered = Service.idToService.get(this.id);
         if(registered === this) {
             return;
         }
@@ -783,7 +783,7 @@ export class Service {
             throw new Error(`Please add an id property to your service object to make it unique. Current (generated) id is not unique: '${this.id}'`)
         }
 
-        Service.idToRestService.set(this.id, this);
+        Service.idToService.set(this.id, this);
     }
 
     /**
@@ -793,8 +793,8 @@ export class Service {
      * @see checkIfIdIsUnique
      * @private
      */
-    public static generatedId(restService: object): string {
-        const className = restService.constructor?.name
+    public static generatedId(service: object): string {
+        const className = service.constructor?.name
         if(className && className !== "Object") {
             return className;
         }
@@ -803,9 +803,9 @@ export class Service {
         // generate an id of the first function names that are found.
         const MAX_LENGTH = 40;
         let result = "Obj";
-        for(const k of Object.getOwnPropertyNames(restService)) {
+        for(const k of Object.getOwnPropertyNames(service)) {
             // @ts-ignore
-            if(typeof k === "string" && typeof restService[k] == "function") {
+            if(typeof k === "string" && typeof service[k] == "function") {
                 result+="_" + k;
                 if(result.length >= MAX_LENGTH) {
                     return result.substring(0, MAX_LENGTH);
@@ -814,7 +814,7 @@ export class Service {
         }
 
         // not enough info found ? I.e. the object was enhanced during typescript-rtti compile
-        const prototype = Object.getPrototypeOf(restService);
+        const prototype = Object.getPrototypeOf(service);
         if(prototype) {
             return this.generatedId(prototype); // Take the prototy
         }
@@ -926,7 +926,7 @@ type AreCallsAllowedQuestion = {
      * Must be a random id
      */
     websocketConnectionId: string
-    restServiceId: string,
+    serviceId: string,
 }
 
 type AreCallsAllowedAnswer = {
@@ -944,7 +944,7 @@ type SessionTransferRequest = {
      * Random id to make sure that we can't give it a session from the past or an evil client
      */
     id: string
-    restServiceId: string,
+    serviceId: string,
 }
 
 export type SessionTransferToken = {
@@ -960,7 +960,7 @@ export type UpdateSessionToken = {
     /**
      * Where did this come from ?
      */
-    restServiceId: string,
+    serviceId: string,
 
     sessionId: string | null
 

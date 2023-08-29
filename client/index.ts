@@ -286,8 +286,8 @@ export class RestfuncsClient<Service> {
  * @param url
  * @param options {@see RestfuncsClient}
  */
-export function restfuncsClient<RestService>(url: string, options: Partial<RestfuncsClient<any>> = {}): RestService {
-    return new RestfuncsClient<RestService>(url, options).proxy;
+export function restfuncsClient<Service>(url: string, options: Partial<RestfuncsClient<any>> = {}): Service {
+    return new RestfuncsClient<Service>(url, options).proxy;
 }
 
 export default restfuncsClient

@@ -8,7 +8,7 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 
 function resetGlobalState() {
     // @ts-ignore
-    Service.idToRestService = new Map<string, Service>() // Reset id registry
+    Service.idToService = new Map<string, Service>() // Reset id registry
     restfuncsClientCookie = undefined;
 }
 
@@ -56,8 +56,8 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
  * Cookie that's used by restfuncsClient_fixed. Simulated here, cause the current nodejs implementations lacks of support for it.
  */
 let restfuncsClientCookie:string;
-function restfuncsClient_fixed<RestService>(url: string, options: Partial<RestfuncsClient<any>> = {}): RestService {
-    return new (class extends RestfuncsClient<RestService>{
+function restfuncsClient_fixed<Service>(url: string, options: Partial<RestfuncsClient<any>> = {}): Service {
+    return new (class extends RestfuncsClient<Service>{
         async httpFetch(url: string, request: RequestInit) {
             const result = await super.httpFetch(url, {...request, headers: {...(request.headers||{}), "Cookie": restfuncsClientCookie}});
             const setCookie = result.headers.get("Set-Cookie");
@@ -347,7 +347,7 @@ test('Safe methods security', async () => {
         function mixin(service: object, id?: string) {
             // @ts-ignore
             if(id) service.id = id;
-            return Service.initializeRestService(service, {checkArguments: false,})
+            return Service.initializeService(service, {checkArguments: false,})
         }
         expect(mixin(new Service(), "service1").methodIsSafe("getIndex")).toBeTruthy()
         expect(mixin(new Service(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
@@ -812,24 +812,24 @@ test('parseQuery', () => {
 
 test('registerIds', () => {
     // Make your services need unique ids
-    Service.initializeRestService({id: "a"}, {checkArguments: false})
-    expect( () => Service.initializeRestService({id: "a"}, {})).toThrow("not unique");
+    Service.initializeService({id: "a"}, {checkArguments: false})
+    expect( () => Service.initializeService({id: "a"}, {})).toThrow("not unique");
 
     class MyService extends Service {
     }
 
     // Use same class twice:
-    Service.initializeRestService(new MyService(), {})
-    expect( () => Service.initializeRestService(new MyService(), {checkArguments: false})).toThrow("used twice");
+    Service.initializeService(new MyService(), {})
+    expect( () => Service.initializeService(new MyService(), {checkArguments: false})).toThrow("used twice");
 
     // Use object without methods twice:
-    Service.initializeRestService({a: false}, {})
-    expect( () => Service.initializeRestService({b: false}, {checkArguments: false})).toThrow("not unique");
+    Service.initializeService({a: false}, {})
+    expect( () => Service.initializeService({b: false}, {checkArguments: false})).toThrow("not unique");
 
 
     // This should work
-    Service.initializeRestService({myFunc1() {}}, {checkArguments: false})
-    Service.initializeRestService({myFunc2() {}}, {checkArguments: false})
+    Service.initializeService({myFunc1() {}}, {checkArguments: false})
+    Service.initializeService({myFunc2() {}}, {checkArguments: false})
 });
 
 test('diagnosis_looksLikeJson', () => {
@@ -1049,7 +1049,7 @@ test('listCallableMethods', () => {
        methodC() {}
    }
 
-    const b = Service.initializeRestService(new B(), {});
+    const b = Service.initializeService(new B(), {});
     expect(b.listCallableMethods().length).toBe(1);
 
 });
