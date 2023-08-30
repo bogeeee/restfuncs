@@ -15,9 +15,10 @@ Nothing more is needed for such a method (no ZOD and no routing @decorators). Re
   - FUTURE (after 1.0):  Also generates an **Openapi spec**.
 - Typesafe browser **sessions**, delivered via JWT cookies TODO.
 - **Callback functions** as usual parameters TODO. Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, ... _Those calls get **pushed** via websockets of course._ There are options for skipping and rate limiting.
-- Out of the box zero-conf **CSRF security** with an option for **CORS** (cross-origin resource sharing). Can be configured per service.
+- **CSRF protection** by default / zero-conf.
+- **CORS** (cross-origin resource sharing). See `ServiceOptions.allowedOrigins`.
 - Simple **file uploads** TODO. You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
-- **Serve/stream resources**: You can also use your service methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a Readable/Buffer/string
+- **Serve/stream resources**: You can also use your service methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
 - **Scales** to a multi node environment (all tokens and JWT cookies are *stateless* / use cryptographic signing)
 - Proper **error handling** and logging.
 - **Basic auth** handler TODO. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/1.x/examples/express-and-vite-with-authentication)
@@ -33,22 +34,22 @@ import {Service, UploadFile} from "restfuncs-server";
 
 export class MyService extends Service {
     
-    session?= new class { myLogonUserId?: string } // Browser session. Shared among all services. It gets serialized into a JWT cookie. The value here becomes the initial/default for every new session (shallowly cloned !).
+    session?= new class { myLogonUserId?: string } // Browser session. Shared (unioned) among all Services. It gets serialized into a JWT cookie. The value here becomes the initial/default for every new session (shallowly cloned !).
 
     /**
      * ---- Write your API method as a plain typescript method... ----
      * This JSDoc also gets outputted in the API browser / OpenAPI spec.
-     * @param someComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
-     * @param myEventCallbackParam You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
-     * @param someFileParam Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
+     * @param myComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
+     * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
+     * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
      */
-    async myAPIMethod(someComplexParam: {id?: number, name: string},   myEventCallbackParam?: (percentDone:number) => void,   someFileParam?: UploadFile) {
+    async myAPIMethod(myComplexParam: {id?: number, name: string},   myCallback?: (percentDone:number) => void,   myUploadFile?: UploadFile) {
         // this.session.... // access the browser session
         
         // ADVANCED:
         // this.req.... // Access the raw (express) request
         // this.res.... // Access the raw (express) response
-        // (<Callback> myEventCallbackParam).... // Access some options for, when dealing with high frequent events.
+        // (myCallback as Callback).... // Access some options under the hood
         
         return `Hello ${user.name}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
     }
@@ -66,7 +67,7 @@ import {MyService} from "MyService";
 
 const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
-app.use("/myAPI", new MyService( {/* RestfuncsOptions */})) // ---- Serve your Service(s) ---- 
+app.use("/myAPI", new MyService( {/* ServiceOptions */}).getExpressHandler()) // ---- Serve your Service(s) ---- 
 // ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a packager like vite, parcel or turbopack. See examples.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyService.
 
@@ -85,20 +86,18 @@ const myRemoteService = new RestfuncsClient<MyService>("/myAPI", {/* options */}
 console.log( await myRemoteService.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
-const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve a browser DOM's file from an <input type="file" />'files list (here) or drag&drop's event.dataTransfer.files list
-await myRemoteService.myAPIMethod(...,  (progress) => console.log(`${progress}% uploaded`),  UploadFile.fromBrowserFile(myFile)) // You must first convert the file into a "descriptor DTO / proxy", then you can pass these to any of your UploadFile-typed parameters.  
+const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
+await myRemoteService.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
 ````
 
 ### Setting up the build (the annoying stuff)
 
 **tsconfig.json**
 ````json
-// ...
 "compilerOptions": {
-    // ...
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "plugins": [{ "transform": "restfuncs/transformer" }], // This bakes in the *type information*, so restfuncs can validate arguments at *runtime*. Backed by the great typescript-rtti library ;)
+    "plugins": [{ "transform": "restfuncs/transformer" }]
 }
 ````
 **package.json**
@@ -107,21 +106,22 @@ await myRemoteService.myAPIMethod(...,  (progress) => console.log(`${progress}% 
     "dev": "nodemon -e ts --exec \"clear && ttsc --build ts-node server.js\"",
     "clean": "ttsc --build --clean",
     "build": "ttsc --build --force",
-    "start": "ts-node server.js",
-    ...
+    "start": "ts-node server.js"
 }
 "devDependencies": {
-    "ttypescript": "^1.5.15",
-    "nodemon": "^2.0.15",
-    "ts-node": "^10.9.1",
-  ...
+    "restfuncs-transformer": "^TODO"
 }
 ````
 _Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
+In some cases where a (configuration) decision must be made 
 See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite packaging for the client/browser._
+
+**Security note:** When using client certificates, you must read the [CSRF protection chapter](#csrf-protection).
 ## &lt;/Boilerplate cheat sheet&gt;
 
-_Congrats, you've got it. The rest ist advanced / exotic :P_
+_Congrats, you've got the concept!  
+Now use your IDE's intellisense and have a quick browse through the `/* XxxOptions */` and also the `Callback` and `UploadFile` description/members. That JSDoc is considered the official documentation and it won't be repeated here.
+In some cases where more configuration needs to be decided for, contextual error messages will guide you. So don't be scared of them and read them and see them as part of the concept._
 
 <br/><br/><br/><br/><br/><br/>
 
@@ -217,17 +217,6 @@ To specify what you want to **receive** in the response, Set the `Accept` header
 
 # Security
 
-## CORS
-
-Restfuncs has built in CORS that plays together with its csrf protection. It is controlled by the `RestfuncsOptions.allowedOrigins` setting. See there for more detail.
-You may set it if you:
-- Host the backend and frontend on different (sub-) domains.
-- Provide authentication methods to other web applications.
-- Consume authentication responses from 3rd party authentication providers. I.e. form- posted SAML responses.
-- Provide client side service methods to other web applications (that need the current user's session).
-- Have a reverse proxy in front of this web app and you get an error cause the same-origin check fails for simple, non preflighted, requests like form posts. Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table (currently this does not work properly with express 4.x)
-
-
 ## CSRF protection
 
 **Tl;dr:** **In a normal situation** (= no basic auth, no client-certs and using the restfuncs-client) **restfuncs already has a very strong CSRF protection** by default (`corsReadToken`, enforced by the client). For other situations, read the following:
@@ -285,17 +274,13 @@ On some requests, the browser will not make preflights for legacy reason. These 
 
 # Performance
 
-## Writes to the session are slow...
+### Writes to the session are slow...
 ... cause they trigger a http (non-websocket) request to update the session.
 
-## Multi server environment
+### Multi server environment
 When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling by default.  
 
 # That's it !
-
-### Things to come
-
-- Conform to OPENAPI/Swagger standards and automatically generate swagger docs
 
 ### Comparison to other RPC frameworks
 [Comparison table](https://github.com/bogeeee/RPCFrameworksComparison)
@@ -310,5 +295,4 @@ Places where your help would be needed
 - Security review this and of typescript-rtti
 - Enhance [testcases for typescript-rtti](runtime-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
 - Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
-- Write a 3rd party `Service` base class for authentication (session based, oauth, SSO).
-- Fork restfuncs and create a good ****framework / concept for multi-page-app routing with server side pre-rendering****. Also have a look at [telefunc](https://telefunc.com/) which is already an RPC that aims there. Also in the [comparison table](https://github.com/bogeeee/RPCFrameworksComparison). There's probably much need for that by the community, and we don't want to let that fall to those frameworks that only shine with 2big2fail'ness (you know which i'm talking about;) ). Restfuncs itself will stay a sole http communication library.    
+- Write a 3rd party `Service` base class for authentication (session based, oauth, SSO).   
