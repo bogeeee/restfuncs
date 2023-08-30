@@ -301,7 +301,7 @@ test('Safe methods security', async () => {
         }
     }
 
-    class Service extends BaseService{
+    class MyService extends BaseService{
         unsafeTest() {
             wasCalled = true;
             return "ok";
@@ -326,7 +326,7 @@ test('Safe methods security', async () => {
         }
     }
 
-    await runRawFetchTests(new Service() , async (baseUrl) => {
+    await runRawFetchTests(new MyService() , async (baseUrl) => {
         async function checkFunctionWasCalled(functionName, expected: boolean) {
             wasCalled = false;
             await fetch(`${baseUrl}/${functionName}`, {method: "GET"});
@@ -349,8 +349,8 @@ test('Safe methods security', async () => {
             if(id) service.id = id;
             return Service.initializeService(service, {checkArguments: false,})
         }
-        expect(mixin(new Service(), "service1").methodIsSafe("getIndex")).toBeTruthy()
-        expect(mixin(new Service(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(mixin(new MyService(), "service1").methodIsSafe("getIndex")).toBeTruthy()
+        expect(mixin(new MyService(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
         expect(mixin({}, "service3").methodIsSafe("getIndex")).toBeTruthy()
 
         // Mixin with overwrite and @safe:
@@ -882,7 +882,7 @@ test("Access 'this' on server service", async () => {
 });
 
 test('Sessions', async () => {
-    class Service extends Service{
+    class MyService extends Service{
         session = {
             counter: 0,
             val: null,
@@ -915,11 +915,11 @@ test('Sessions', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0, {checkArguments: false, exposeErrors: true});
+    const server = restfuncs(new MyService(),0, {checkArguments: false, exposeErrors: true});
     try {
         // @ts-ignore
         const port = server.address().port;
-        const apiProxy = restfuncsClient_fixed<Service>(`http://localhost:${port}`, {})
+        const apiProxy = restfuncsClient_fixed<MyService>(`http://localhost:${port}`, {})
 
         await apiProxy.checkInitialSessionValues();
 
@@ -937,20 +937,20 @@ test('Sessions', async () => {
 test('Intercept with doCall (client side)', async () => {
     resetGlobalState();
 
-    class Service extends Service{
+    class MyService extends Service{
         getSomething(something: any) {
             return something;
         }
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0, {checkArguments: false});
+    const server = restfuncs(new MyService(),0, {checkArguments: false});
 
     // @ts-ignore
     const port = server.address().port;
 
     try {
-        const apiProxy = restfuncsClient_fixed<Service>(`http://localhost:${port}`, {
+        const apiProxy = restfuncsClient_fixed<MyService>(`http://localhost:${port}`, {
             async doCall(funcName: string, args: any[]) {
                 args[0] = "b"
                 return await this[funcName](...args) // Call the original function
@@ -969,20 +969,20 @@ test('Intercept with doCall (client side)', async () => {
 test('Intercept with doFetch (client side)', async () => {
     resetGlobalState()
 
-    class Service extends Service{
+    class MyService extends Service{
         getSomething(something: any) {
             return something;
         }
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new Service(),0, {checkArguments: false});
+    const server = restfuncs(new MyService(),0, {checkArguments: false});
 
     // @ts-ignore
     const port = server.address().port;
 
     try {
-        class MyRestfuncsClient extends RestfuncsClient<Service> {
+        class MyRestfuncsClient extends RestfuncsClient<MyService> {
             async doFetch(funcName: string, args: any[], url: string, req: RequestInit) {
                 args[0] = "b"; // Mangle
                 const r: { result: any, resp: Response } = await super.doFetch(funcName, args, url, req);

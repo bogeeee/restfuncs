@@ -40,7 +40,7 @@ export class ServerError extends Error {
  * </pre>
  * @see restfuncsClient
  */
-export class RestfuncsClient<Service> {
+export class RestfuncsClient<S> {
     readonly [index: string]: any;
 
     /**
@@ -61,7 +61,7 @@ export class RestfuncsClient<Service> {
     /**
      * The proxy that is handed out, where the calls are made on
      */
-    public proxy: Service
+    public proxy: S
 
     protected _corsReadToken?: string
 
@@ -70,7 +70,7 @@ export class RestfuncsClient<Service> {
     private async outer_doCall(funcName: string, args: any[]) {
         // Create a simulated environment, to make user's doCall super convenient:
         // Create the proxy that translates this.myMethod(..args) into this.inner_doCall("myMethod", args)
-        const userProxy = <Service> <any> new Proxy(this, {
+        const userProxy = <S> <any> new Proxy(this, {
             get(target: RestfuncsClient<any>, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
@@ -251,7 +251,7 @@ export class RestfuncsClient<Service> {
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
-        this.proxy = <Service> <any> new Proxy(this, {
+        this.proxy = <S> <any> new Proxy(this, {
             get(target: RestfuncsClient<any>, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
