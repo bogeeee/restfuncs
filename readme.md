@@ -67,7 +67,7 @@ import {MyService} from "MyService";
 
 const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
-app.use("/myAPI", new MyService( {/* ServiceOptions */}).getExpressHandler()) // ---- Serve your Service(s) ---- 
+app.use("/myAPI", new MyService( {/* ServiceOptions */}).createExpressHandler()) // ---- Serve your Service(s) ---- 
 // ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a packager like vite, parcel or turbopack. See examples.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyService.
 

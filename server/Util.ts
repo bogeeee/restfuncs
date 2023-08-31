@@ -1,8 +1,11 @@
 import escapeHtml from "escape-html";
-import {RestError} from "./index";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import crypto from "node:crypto"
-import { Buffer } from 'node:buffer';
+import {Buffer} from 'node:buffer';
+import {Request} from "express";
+import URL from "url";
+import {RestError} from "./RestError";
+import _ from "underscore";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -333,4 +336,201 @@ export function browserMightHaveSecurityIssuseWithCrossOriginRequests(req: { use
     }
 
     return false;
+}
+
+export function diagnosis_isAnonymousObject(o: object) {
+    if (o.constructor?.name === "Object") {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Creates a proxy for the session object that sees the values from the prototype and only writes values to req.session on modification.
+ * @param session the real / target session object
+ * @param sessionPrototype object that contains the initial values
+ */
+export function createProxyWithPrototype(session: Record<string, any>, sessionPrototype: Record<string, any>) {
+    return new Proxy(session, {
+        get(target: Record<string, any>, p: string | symbol, receiver: any): any {
+            // Reject symbols (don't know what it means but we only want strings as property names):
+            if (typeof p != "string") {
+                throw new RestError(`Unhandled : ${String(p)}`)
+            }
+
+            if (target[p] === undefined) {
+                return sessionPrototype[p];
+            }
+            return target[p];
+        },
+        set(target: Record<string, any>, p: string | symbol, newValue: any, receiver: any): boolean {
+            // Reject symbols (don't know what it means but we only want strings as property names):
+            if (typeof p != "string") {
+                throw new RestError(`Unhandled : ${String(p)}`)
+            }
+
+            if (newValue === undefined && sessionPrototype[p] !== undefined) { // Setting a value that exists on the prototype to undefined ?
+                throw new RestError(`Cannot set session.${p} to undefined. Please set it to null instead.`) // We can't allow that because the next get would return the initial value (from the prototype) and that's not an expected behaviour.
+            }
+
+            target[p] = newValue;
+
+            return true;
+        },
+        deleteProperty(target: Record<string, any>, p: string | symbol): boolean {
+            throw new Error("deleteProperty not implemented.");
+        },
+        has(target: Record<string, any>, p: string | symbol): boolean {
+            throw new Error("has (property) not implemented.");
+        },
+        ownKeys(target: Record<string, any>): ArrayLike<string | symbol> {
+            throw new Error("ownKeys not implemented.");
+        }
+
+    });
+}
+
+/**
+ *
+ * @param contentType I.e. text/plain;charset=UTF-8
+ * @return Would result into ["text/plain", {charset: "UTF-8"}]
+ */
+export function parseContentTypeHeader(contentType?: string): [string | undefined, Record<string, string>] {
+    const attributes: Record<string, string> = {};
+
+    if (!contentType) {
+        return [undefined, attributes];
+    }
+    const tokens = contentType.split(";");
+    for (const token of tokens.slice(1)) {
+        if (!token || token.trim() == "") {
+            continue;
+        }
+        if (token.indexOf("=") > -1) {
+            const [key, value] = token.split("=");
+            if (key) {
+                attributes[key.trim()] = value?.trim();
+            }
+        }
+    }
+
+    return [tokens[0], attributes]
+}
+
+/**
+ * Fixes the encoding to a value, compatible with Buffer
+ * @param encoding
+ */
+export function fixTextEncoding(encoding: string): BufferEncoding {
+    const encodingsMap: Record<string, BufferEncoding> = {
+        "us-ascii": 'ascii',
+        'ascii': "ascii",
+        'utf8': 'utf8',
+        'utf-8': 'utf-8',
+        'utf16le': 'utf16le',
+        'ucs2': 'ucs2',
+        'ucs-2': 'ucs2',
+        'base64': 'base64',
+        'base64url': 'base64url',
+        'latin1': 'latin1',
+    };
+    const result = encodingsMap[encoding.toLowerCase()];
+
+    if (!result) {
+        throw new RestError(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
+    }
+
+    return result;
+}
+
+const FAST_JSON_DETECTOR_REGEXP = /^([0-9\[{]|-[0-9]|true|false|null)/;
+
+export function diagnosis_looksLikeJSON(value: string) {
+    return FAST_JSON_DETECTOR_REGEXP.test(value);
+}
+
+export function diagnosis_looksLikeHTML(value: string) {
+    if (typeof value !== "string") {
+        return false;
+    }
+    return value.startsWith("<!DOCTYPE html") || value.startsWith("<html") || value.startsWith("<HTML")
+}
+
+/**
+ * Return If req might be a [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) request.
+ *
+ * Not all headers are checked, so rather returns true / triggers security alarm.
+ *
+ * @param req
+ */
+export function couldBeSimpleRequest(req: Request) {
+    const [contentType] = parseContentTypeHeader(req.header("Content-Type"));
+    return (req.method === "GET" || req.method === "HEAD" || req.method === "POST") &&
+        (!contentType || contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data" || contentType === "text/plain") &&
+        req.header("IsComplex") !== "true"
+
+}
+
+/**
+ *
+ * @param req
+ * @return proto://host[:port] of the origin
+ */
+export function getOrigin(req: Request): string | undefined {
+    if (req.header("Origin")) {
+        return req.header("Origin")
+    }
+
+    const referer = req.header("Referer");
+    if (referer) {
+        const refererUrl = URL.parse(referer);
+        if (refererUrl.protocol && refererUrl.host) {
+            return refererUrl.protocol + "//" + refererUrl.host;
+        }
+    }
+}
+
+/**
+ *
+ * @param req
+ * @return proto://host[:port] of the destination. Or undefined if not (reliably) determined
+ */
+export function getDestination(req: Request): string | undefined {
+    /**
+     * In express 4.x req.host is deprecated but req.hostName only gives the name without the port, so we have to work around as good as we can
+     */
+    function getHost() {
+        // @ts-ignore
+        if (!req.app) {
+            return undefined;
+        }
+
+        if (req.app.enabled('trust proxy')) {
+            return undefined; // We can't reliably determine the port
+        }
+
+        return req.header('Host');
+    }
+
+    const host = getHost();
+
+    if (!req.protocol || !host) {
+        return undefined;
+    }
+
+    return req.protocol + "://" + host;
+}
+
+/**
+ * Nonexisting props and methods get copied to the target.
+ * @param target
+ * @param extension
+ */
+export function extend(target: { [index: string]: any }, extension: { [index: string]: any }) {
+    [...Object.keys(extension), ..._.functions(extension)].map(propName => {
+        if (target[propName] === undefined) {
+            target[propName] = extension[propName];
+        }
+    })
 }

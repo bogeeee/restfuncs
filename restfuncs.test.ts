@@ -1,9 +1,11 @@
-import {diagnosis_looksLikeJSON, RestError, restfuncs, RestfuncsOptions, Service, safe} from "restfuncs-server";
+import {RestfuncsOptions, safe, Service} from "restfuncs-server";
 import express from "express";
-import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
+import {RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
-import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {Readable} from "node:stream";
+import {diagnosis_looksLikeJSON, extend} from "restfuncs-server/Util";
+import {RestError} from "restfuncs-server/RestError";
+
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 function resetGlobalState() {
@@ -16,7 +18,9 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     resetGlobalState();
 
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true}));
+    const service = new Service({checkArguments: false, logErrors: false, exposeErrors: true})
+    extend(service, serverAPI);
+    app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -36,7 +40,11 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
     resetGlobalState();
 
     const app = express();
-    app.use(path, restfuncs(serverAPI, {checkArguments: false, logErrors: false, exposeErrors: true, ...options}));
+
+    const service = new Service({checkArguments: false, logErrors: false, exposeErrors: true, ...options})
+    extend(service, serverAPI);
+
+    app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -51,6 +59,12 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
     }
 }
 
+function createServer(service: Service) {
+    const app = express();
+    // TODO: install session handler or use restfuncsExpress
+    app.use("/", service.createExpressHandler());
+    return app.listen(0);
+}
 
 /**
  * Cookie that's used by restfuncsClient_fixed. Simulated here, cause the current nodejs implementations lacks of support for it.
@@ -115,25 +129,6 @@ test('Simple api call', async () => {
     );
 });
 
-test('Most simple example (standalone http server)', async () => {
-    const server = restfuncs({
-        greet: (name) =>  `Hello ${name} from the server`
-    }, 0, {checkArguments: false});
-
-    try {
-        // @ts-ignore
-        const port = server.address().port;
-
-        const remote = restfuncsClient_fixed(`http://localhost:${port}`)
-        // @ts-ignore
-        expect(await remote.greet("Bob")).toBe("Hello Bob from the server");
-    }
-    finally {
-        // shut down server
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
-    }
-})
 
 test('Proper example with express and type support', async () => {
     resetGlobalState()
@@ -149,7 +144,7 @@ test('Proper example with express and type support', async () => {
 
 
     const app = express();
-    app.use("/greeterAPI", restfuncs( new GreeterService(), {checkArguments: false, logErrors: false, exposeErrors: true} ));
+    app.use("/greeterAPI", new GreeterService({checkArguments: false, logErrors: false, exposeErrors: true} ).createExpressHandler());
     const server = app.listen();
 
     try {
@@ -342,31 +337,29 @@ test('Safe methods security', async () => {
         await checkFunctionWasCalled("overwriteMe1", true);
         await checkFunctionWasCalled("overwriteMe2", false);
 
+        class Service1 extends Service {}
+        class Service2 extends Service {}
+        class Service3 extends Service {}
+        expect(new Service1({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
+        expect(new Service2({checkArguments: false}).methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(new Service3({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
 
-        // Mixins:
-        function mixin(service: object, id?: string) {
-            // @ts-ignore
-            if(id) service.id = id;
-            return Service.initializeService(service, {checkArguments: false,})
-        }
-        expect(mixin(new MyService(), "service1").methodIsSafe("getIndex")).toBeTruthy()
-        expect(mixin(new MyService(), "service2").methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-        expect(mixin({}, "service3").methodIsSafe("getIndex")).toBeTruthy()
-
-        // Mixin with overwrite and @safe:
-        class ServiceA {
+        // With overwrite and @safe:
+        class ServiceA extends Service{
             @safe()
-            getIndex() {
+            async getIndex() {
+                return "";
             }
         }
-        expect(mixin(new ServiceA).methodIsSafe("getIndex")).toBeTruthy()
+        expect(new ServiceA({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
 
-        // Mixin with overwrite but no @safe:
-        class ServiceB {
-            getIndex() {
+        // With overwrite but no @safe:
+        class ServiceB extends Service {
+            async getIndex() {
+                return "";
             }
         }
-        expect(mixin(new ServiceB).methodIsSafe("getIndex")).toBeFalsy()
+        expect(new ServiceB({checkArguments: false}).methodIsSafe("getIndex")).toBeFalsy()
 
     });
 })
@@ -812,24 +805,16 @@ test('parseQuery', () => {
 
 test('registerIds', () => {
     // Make your services need unique ids
-    Service.initializeService({id: "a"}, {checkArguments: false})
-    expect( () => Service.initializeService({id: "a"}, {})).toThrow("not unique");
+    new class extends Service  {declare id: "a"}({checkArguments: false})
+    expect( () => new class extends Service  {declare id: "a"}({checkArguments: false}) ).toThrow("not unique");
 
     class MyService extends Service {
     }
 
     // Use same class twice:
-    Service.initializeService(new MyService(), {})
-    expect( () => Service.initializeService(new MyService(), {checkArguments: false})).toThrow("used twice");
+    new MyService({checkArguments: false}), {}
+    expect( () => new MyService({checkArguments: false})).toThrow("used twice");
 
-    // Use object without methods twice:
-    Service.initializeService({a: false}, {})
-    expect( () => Service.initializeService({b: false}, {checkArguments: false})).toThrow("not unique");
-
-
-    // This should work
-    Service.initializeService({myFunc1() {}}, {checkArguments: false})
-    Service.initializeService({myFunc2() {}}, {checkArguments: false})
 });
 
 test('diagnosis_looksLikeJson', () => {
@@ -914,8 +899,8 @@ test('Sessions', async () => {
         }
     }
 
-    // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new MyService(),0, {checkArguments: false, exposeErrors: true});
+
+    const server = createServer(new MyService({checkArguments: false, exposeErrors: true}));
     try {
         // @ts-ignore
         const port = server.address().port;
@@ -943,8 +928,7 @@ test('Intercept with doCall (client side)', async () => {
         }
     }
 
-    // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new MyService(),0, {checkArguments: false});
+    const server = createServer(new MyService({checkArguments: false}))
 
     // @ts-ignore
     const port = server.address().port;
@@ -976,7 +960,7 @@ test('Intercept with doFetch (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = restfuncs(new MyService(),0, {checkArguments: false});
+    const server = createServer(new MyService({checkArguments: false}));
 
     // @ts-ignore
     const port = server.address().port;
@@ -1002,12 +986,19 @@ test('Intercept with doFetch (client side)', async () => {
 });
 
 test('validateAndDoCall security', async () => {
-   const service = new class extends Service {
+
+   const service: Service & {validateAndDoCall: Service["validateAndDoCall"] /* make the method public */} = new class extends Service {
        x = "string";
        myMethod(a,b) {
            return a + b;
        }
+
+       public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<Service>, options: RestfuncsOptions): Promise<any> {
+           return super.validateAndDoCall(evil_methodName, evil_args, enhancementProps, options);
+       }
    }
+
+
 
     expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", resp: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
 
@@ -1049,7 +1040,7 @@ test('listCallableMethods', () => {
        methodC() {}
    }
 
-    const b = Service.initializeService(new B(), {});
+    const b = new Service({checkArguments: false});
     expect(b.listCallableMethods().length).toBe(1);
 
 });

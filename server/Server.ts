@@ -2,8 +2,9 @@ import type {Server as HttpServer,} from "node:http";
 import http, {createServer} from "node:http";
 import expressApp, {Express} from "express";
 import _ from "underscore";
-import {Service} from "./Service";
-import {RestfuncsOptions} from "./index";
+import {RestfuncsOptions, Service} from "./Service";
+
+export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
 export type SessionHeader = {
     /**
