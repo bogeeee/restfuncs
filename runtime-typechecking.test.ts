@@ -8,20 +8,20 @@ import {extend} from "restfuncs-server/Util";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
-async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
+async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: S) => void, path = "/api") {
     // @ts-ignore
     Service.idToService = new Map<string, Service>() // Reset id registry
 
+    service.options = {logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor.
+
     const app = express();
-    const service = new Service({checkArguments: false, logErrors: false, exposeErrors: true})
-    extend(service, serverAPI);
     app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
 
     try {
-        const client = restfuncsClient<Api>(`http://localhost:${serverPort}${path}`);
+        const client = restfuncsClient<S>(`http://localhost:${serverPort}${path}`);
         await clientTests(client);
     }
     finally {
@@ -68,7 +68,7 @@ test('Test if if rtti is available', async () => {
 });
 
 test('Test arguments', async () => {
-    class ServerAPI {
+    class ServerAPI extends Service{
         myVoidMethod() {
         }
         params1(x: string) {
@@ -136,7 +136,7 @@ test('Test BigInt', async () => {
  * See https://github.com/typescript-rtti/typescript-rtti/issues/92
  */
 test('Test additional properties / overstrict checks', async () => {
-    class ServerAPI {
+    class ServerAPI extends Service {
         setObjWithValues(z: {prop1: boolean}) {
         }
 
@@ -152,7 +152,7 @@ test('Test additional properties / overstrict checks', async () => {
 
 
 test('Test rest arguments', async () => {
-    class ServerAPI {
+    class ServerAPI extends Service {
         restParams(x: string, ...y: number[]) {
 
         }
@@ -214,7 +214,7 @@ test('Test destructuring arguments', async () => {
 */
 
 test('Test visibility', async () => {
-    class BaseServerAPI {
+    class BaseServerAPI extends Service{
         protected myPublic(x: string) {
         }
     }
@@ -255,7 +255,7 @@ test('Test visibility', async () => {
 
 test('Test with anonymous class', async () => {
 
-    await runClientServerTests(new class {
+    await runClientServerTests(new class extends Service{
             params1(x: string) {
             }
         },

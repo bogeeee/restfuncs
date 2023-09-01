@@ -5,6 +5,9 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, extend} from "restfuncs-server/Util";
 import {RestError} from "restfuncs-server/RestError";
+import crypto from "node:crypto";
+import _ from "underscore";
+import session from "express-session";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -14,12 +17,16 @@ function resetGlobalState() {
     restfuncsClientCookie = undefined;
 }
 
+beforeEach(() => {
+    resetGlobalState();
+});
+
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     resetGlobalState();
 
     const app = express();
-    const service = new Service({checkArguments: false, logErrors: false, exposeErrors: true})
-    extend(service, serverAPI);
+    const service = toService(serverAPI);
+    service.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor.
     app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
@@ -36,14 +43,39 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     }
 }
 
-async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options: Partial<RestfuncsOptions> = {}) {
-    resetGlobalState();
+function toService<Api>(serverAPI: Api | (Api & Service), options?: Partial<RestfuncsOptions>) : Api & Service {
 
+    if (serverAPI instanceof Service) {
+        if(options) {
+            throw new Error("Options should be passed here but set when constructing the service.")
+        }
+        return serverAPI;
+    } else {
+        class ServiceWithTypeInfo extends Service { // Plain Service was not compiled with type info but this file is
+        }
+
+        const service = new ServiceWithTypeInfo({
+            checkArguments: false,
+            logErrors: false,
+            exposeErrors: true, ...(options || {})
+        })
+
+
+        if(Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
+            throw new Error("ServerAPI should not be a class without beeing a Service");
+        }
+
+        extend(service, serverAPI);
+
+        // @ts-ignore
+        return service;
+    }
+}
+
+async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options?: Partial<RestfuncsOptions>) {
     const app = express();
-
-    const service = new Service({checkArguments: false, logErrors: false, exposeErrors: true, ...options})
-    extend(service, serverAPI);
-
+    let service = toService(serverAPI, options);
+    service.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
     app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
@@ -61,7 +93,17 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
 
 function createServer(service: Service) {
     const app = express();
-    // TODO: install session handler or use restfuncsExpress
+
+    // Install session handler:
+    app.use(session({
+        secret: crypto.randomBytes(32).toString("hex"),
+        cookie: {sameSite: true},
+        saveUninitialized: false,
+        unset: "destroy",
+        store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
+    }));
+
+
     app.use("/", service.createExpressHandler());
     return app.listen(0);
 }
@@ -131,8 +173,6 @@ test('Simple api call', async () => {
 
 
 test('Proper example with express and type support', async () => {
-    resetGlobalState()
-
     class GreeterService extends Service {
 
         async greet(name: string) {
@@ -271,7 +311,7 @@ test('Safe methods security', async () => {
 
     let wasCalled = false; // TODO: We could simply check if methods returned successfully as the non-browser client shouldn't restrict reading the result. But now to lazy to change that.
 
-    class BaseService {
+    class BaseService extends Service{
         unsafeFromBase() {
             wasCalled = true;
             return "ok";
@@ -366,7 +406,7 @@ test('Safe methods security', async () => {
 
 test('auto convert parameters', async () => {
 
-    await runRawFetchTests(new class {
+    await runRawFetchTests(new class extends Service {
         getNum(num?: number) {
             return num;
         }
@@ -383,7 +423,7 @@ test('auto convert parameters', async () => {
             return date;
         }
 
-    }, async (baseUrl) => {
+    }({checkArguments: true}), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -436,12 +476,12 @@ test('auto convert parameters', async () => {
         expect(await fetchJson(`${baseUrl}/getDate`, {method: "POST", body: JSON.stringify([undefined])})).toStrictEqual(undefined);
 
 
-    }, "/api", {checkArguments: true});
+    }, "/api" );
 })
 
 test('various call styles', async () => {
 
-    await runRawFetchTests(new class {
+    await runRawFetchTests(new class extends Service {
         getBook(name?: string, authorFilter?: string) {
             return [name, authorFilter];
         }
@@ -466,7 +506,7 @@ test('various call styles', async () => {
             return [a, b.toString("utf8"),c];
         }
 
-    }, async (baseUrl) => {
+    }({allowedOrigins: "all"}), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -526,7 +566,7 @@ test('various call styles', async () => {
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
-    }, "/api", {allowedOrigins: "all"});
+    }, "/api");
 })
 
 test('Result Content-Type', async () => {
@@ -555,7 +595,7 @@ test('Result Content-Type', async () => {
             this.resp.contentType("text/html; charset=utf-8");
             return {};
         }
-    }, async (baseUrl) => {
+    }({allowedOrigins: "all", logErrors: false, exposeErrors: true}), async (baseUrl) => {
 
         async function doFetch(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -583,7 +623,7 @@ test('Result Content-Type', async () => {
         const chromesAcceptHeader = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7"
 
 
-    }, "/api", {allowedOrigins: "all"});
+    }, "/api");
 })
 
 test('Http stream and buffer results', async () => {
@@ -632,7 +672,7 @@ test('Http stream and buffer results', async () => {
             this.resp.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
-    }, async (baseUrl) => {
+    }({allowedOrigins: "all"}), async (baseUrl) => {
 
         async function doFetch(input: RequestInfo, init?: RequestInit) {
             return new Promise<string>((resolve, reject) => {
@@ -662,17 +702,17 @@ test('Http stream and buffer results', async () => {
         expect(await doFetch(`${baseUrl}/bufferResult`)).toStrictEqual("resultöä");
 
 
-    }, "/api", {allowedOrigins: "all"});
+    }, "/api");
 })
 
 test('Http multipart file uploads', async () => {
 
-    await runRawFetchTests(new class {
+    await runRawFetchTests(new class extends Service {
         uploadFile(file_name_0: string, file_name_1: string, upload_file_0: Buffer, upload_file_1: Buffer) {
             return [file_name_0, file_name_1, upload_file_0.toString(), upload_file_1.toString()]
         }
 
-    }, async (baseUrl) => {
+    }({allowedOrigins: "all" , checkArguments: true}), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -718,7 +758,7 @@ test('Http multipart file uploads', async () => {
         // TODO: send an incomplete body. Method should complete but (async) stream read events should fail.
         // TODO: files in content body are in diffrent order than parameters. This should set all streams in an error state.
         // TODO: try to pull-read files out of order (in the user method). This should deadlock
-    }, "/api", {allowedOrigins: "all" , checkArguments: true});
+    }, "/api");
 })
 
 const variousDifferentTypes = ["", null, undefined, true, false, 49, 0, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [undefined], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''", "äö\r\n\uFFC0", "\u0000\uFFFFFF", new Date()];
@@ -794,12 +834,13 @@ test('.req, .resp and Resources leaks', async () => {
 });
 
 test('parseQuery', () => {
-    expect(new Service().parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
-    expect(new Service().parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
-    expect(new Service().parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
-    expect(new Service().parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
-    expect(new Service().parseQuery("&c").result).toStrictEqual({"c": "true"});
-    expect(new Service().parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
+    const service = new Service({checkArguments: false});
+    expect(service.parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
+    expect(service.parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
+    expect(service.parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
+    expect(service.parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
+    expect(service.parseQuery("&c").result).toStrictEqual({"c": "true"});
+    expect(service.parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
 
 });
 
@@ -920,8 +961,6 @@ test('Sessions', async () => {
 
 
 test('Intercept with doCall (client side)', async () => {
-    resetGlobalState();
-
     class MyService extends Service{
         getSomething(something: any) {
             return something;
@@ -951,7 +990,6 @@ test('Intercept with doCall (client side)', async () => {
 });
 
 test('Intercept with doFetch (client side)', async () => {
-    resetGlobalState()
 
     class MyService extends Service{
         getSomething(something: any) {
@@ -1035,30 +1073,25 @@ test('listCallableMethods', () => {
    const a = new A;
    expect(a.listCallableMethods().length).toBe(2);
    expect(a.listCallableMethods()[0].name).toBe("methodA");
-
-   class B {
-       methodC() {}
-   }
-
-    const b = new Service({checkArguments: false});
-    expect(b.listCallableMethods().length).toBe(1);
-
 });
 
 test('mayNeedFileUploadSupport', () => {
-    expect(new class extends Service {
+    class Service1 extends Service {
         async methodA() {}
         async methodB(x: string) {}
         async methodC(x: any) {}
         async methodD(x: string | number) {}
-    }().mayNeedFileUploadSupport()).toBeFalsy()
+    }
+    expect(new Service1().mayNeedFileUploadSupport()).toBeFalsy()
 
-    expect(new class extends Service {
+    class Service2 extends Service {
         async methodA(b: Buffer) {}
-    }().mayNeedFileUploadSupport()).toBeTruthy()
+    }
+    expect(new Service2().mayNeedFileUploadSupport()).toBeTruthy()
 
-    expect(new class extends Service {
+    class Service3 extends Service {
         async methodA(...b: Buffer[]) {}
-    }().mayNeedFileUploadSupport()).toBeTruthy()
+    }
+    expect(new Service3().mayNeedFileUploadSupport()).toBeTruthy()
 
 });
