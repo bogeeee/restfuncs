@@ -275,7 +275,6 @@ export type SecurityRelevantSessionFields = {
  * Service base class. Extend it and use {@see restfuncs} on it.
  */
 export class Service {
-    [index: string]: any
 
     /**
      * Uniquely identify this service. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
@@ -1056,7 +1055,7 @@ export class Service {
      * @param enhancementProps These fields will be temporarily added to this during the call.
      * @param options
      */
-    protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<Service>, options: RestfuncsOptions): Promise<any> {
+    protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: object, options: RestfuncsOptions): Promise<any> {
 
         // typing was only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -1119,6 +1118,7 @@ export class Service {
      * @param args args of the function to be called
      */
     protected async doCall(funcName: string, args: any[]) {
+        // @ts-ignore
         return await this[funcName](...args) // Call the original function
     }
 
