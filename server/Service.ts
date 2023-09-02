@@ -371,7 +371,7 @@ export class Service {
      * @protected
      */
     protected postInit() {
-        if(this._sessionConstructor === undefined) { // Not yet initialized
+        if(this._sessionPrototype === undefined) { // Not yet initialized
             // Safety check;
             if(this.session === undefined) {
                 throw new Error("Must not set/declare the session field to undefined. Use {} instead, if you want to store no values in the session.")
