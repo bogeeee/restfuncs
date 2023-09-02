@@ -941,7 +941,7 @@ test('Sessions', async () => {
     }
 
 
-    const server = createServer(new MyService({checkArguments: false, exposeErrors: true}));
+    const server = createServer(new MyService({checkArguments: false, exposeErrors: true, logErrors: false}));
     try {
         // @ts-ignore
         const port = server.address().port;

@@ -140,6 +140,9 @@ class RestfuncsServerOOP {
      * @param httpServerToAttachTo
      */
     constructor(options: ServerOptions) {
+        // TODO: Copy the properties from the default/fallback server to this
+
+
         this.serverOptions = options;
 
         function extend(target: {[index: string]: any }, base: {[index: string]: any }) {

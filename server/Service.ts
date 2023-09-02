@@ -322,11 +322,17 @@ export class Service {
      *
      * When restfuncs is used with express, you must install the session handler in express yourself (follow the no-sessionhandler errormessage for guidance).
      *
-     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * Note: Only available during a request and inside a service method (which runs on a proxyed 'this'). Can't be reached directly from the outside.
      * @protected
      */
     // @ts-ignore
     protected session?: {} = {};
+
+    /**
+     * Internal
+     * @private
+     */
+    _sessionPrototype?: object;
 
     /**
      *
@@ -342,11 +348,9 @@ export class Service {
         }
         this.checkIfIdIsUnique();
 
-        this._sessionPrototype = this.session || {}; // The user maybe has some initialization code for his session: Ie. {counter:0}  - so we want to make that convenient
-
         // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
         // @ts-ignore
-        this.req = null; this.resp = null; this.session = null;
+        this.req = null; this.resp = null; // TODO set to undefined in 1.0 API
 
         this.checkOptionsValidity(this.options);
 
@@ -358,6 +362,23 @@ export class Service {
             else if(this.options.checkArguments === undefined) {
                 console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
             }
+        }
+    }
+
+    /**
+     * Will/must be called, AFTER the subclasses fields have been initialized. We can't call it in the Service.constructor yet.
+     * Calling it twice does not hurt.
+     * @protected
+     */
+    protected postInit() {
+        if(this._sessionConstructor === undefined) { // Not yet initialized
+            // Safety check;
+            if(this.session === undefined) {
+                throw new Error("Must not set/declare the session field to undefined. Use {} instead, if you want to store no values in the session.")
+            }
+
+            this._sessionPrototype = this.session;
+            //this.session = undefined; // No, leave it to the prototype value
         }
     }
 
@@ -388,6 +409,8 @@ export class Service {
      * @param service An object who's methods can be called remotely / are exposed as a rest service.
      */
     public createExpressHandler(): Router {
+
+        this.postInit(); // Help calling this method which the constructor cannot yet call.
 
         const enableMultipartFileUploads = this.options.enableMultipartFileUploads || (this.options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(this) || this.mayNeedFileUploadSupport()))
 
@@ -1606,12 +1629,6 @@ export class Service {
             }) !== undefined;
         }) !== undefined;
     }
-
-    /**
-     * Internal
-     * @private
-     */
-    _sessionPrototype?: object;
 
     public _diagnosisWhyIsRTTINotAvailable() {
         return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
