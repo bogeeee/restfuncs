@@ -1,4 +1,4 @@
-_This is the 1.0 Version (API redesign), planned to be released before November 23. Stay tuned ! Feedback welcome. 
+_This is the 2.0 Version (API redesign), planned to be released before November 2023. Stay tuned ! Feedback welcome. 
 The [release on NPM](https://www.npmjs.com/package/restfuncs) is still an older version. Please refer to the docs there._
 # Restfuncs - HTTP API done proper (coming soon)
 
@@ -28,46 +28,52 @@ Nothing more is needed for such a method (no ZOD and no routing @decorators). Re
 
 # &lt;Boilerplate cheat sheet - all you need to know&gt;
 
-**MyService.ts**
+**MyServerSession.ts**
+
 ````typescript
-import {Service, UploadFile} from "restfuncs-server";
+import {ServerSession, UploadFile} from "restfuncs-server";
 
-export class MyService extends Service {
-    
-    session?= new class { myLogonUserId?: string } // Browser session. Shared (unioned) among all Services. It gets serialized into a JWT cookie. The value here becomes the initial/default for every new session (shallowly cloned !).
+/**
+ * An instance of MyServerSession is created for every browser session.
+ * All the fields are stored in a JWT cookie. If you have multiple ServerSession classes (i.e. for a better file structure organization), the fields will overlap.
+ */
+export class MyServerSession extends ServerSession {
 
-    /**
-     * ---- Write your API method as a plain typescript method... ----
-     * This JSDoc also gets outputted in the API browser / OpenAPI spec.
-     * @param myComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
-     * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
-     * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
-     */
-    async myAPIMethod(myComplexParam: {id?: number, name: string},   myCallback?: (percentDone:number) => void,   myUploadFile?: UploadFile) {
-        // this.session.... // access the browser session
-        
-        // ADVANCED:
-        // this.req.... // Access the raw (express) request
-        // this.res.... // Access the raw (express) response
-        // (myCallback as Callback).... // Access some options under the hood
-        
-        return `Hello ${user.name}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
-    }
+  myLogonUserId?: string // As sayed, stored in the cookie. Make use of the fact that this property is shared with all your ServerSessions classes. It is also adaviced to have a common base class for logon specific fields and methods.
+
+  /**
+   * ---- Write your API method as a plain typescript method... ----
+   * This JSDoc also gets outputted in the API browser / OpenAPI spec.
+   * Use the 'public' modifier to make them callable from a client.
+   * @param myComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
+   * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
+   * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
+   */
+  public async myAPIMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
+    // ADVANCED:
+    // this.req.... // Access the raw (express) request.  Field is simulated at call time.
+    // this.res.... // Access the raw (express) response. Field is simulated at call time.
+    // (myCallback as Callback).... // Access some options under the hood
+
+    return `Hello ${user.name}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
+  }
+
+  // public static async getAllMyItems(...) {} // TODO: do we need it ? Use static methods for serving stuff that doesn't use this sessions's fields. They can also be called by the client marked 'public' !
     
-    // ... <-- More API methods
-    // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
-    // ... <-- Override `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
-    // ... <-- Override other methods from the Service base class for advanced tweaking (use intellisense and read the method description)
+  // ... <-- More API methods  
+  // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
+  // ... <-- Override `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
+  // ... <-- Override other methods from the Service base class for advanced tweaking (use intellisense and read the method description)
 }
 ````
 **server.ts**
 ````typescript
 import {restfuncsExpress} from "restfuncs-server/Server";
-import {MyService} from "MyService";
+import {MyServerSession} from "MyServerSession";
 
 const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
-app.use("/myAPI", new MyService( {/* ServiceOptions */}).createExpressHandler()) // ---- Serve your Service(s) ---- 
+app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- Serve it ---- 
 // ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a packager like vite, parcel or turbopack. See examples.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyService.
 
@@ -78,16 +84,16 @@ app.listen(3000); // Listen on Port 3000
 // Use a packager like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
 import {UploadFile} from "restfuncs-server";
 import {RestfuncsClient} from "restfuncs-client";
-import {MyService} from "../path/to/server/code/or/its/packagename/MyService.js" // Import the class to have full type support on the client
+import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
 
-const myRemoteService = new RestfuncsClient<MyService>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
+const myClient = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
 // ** Finally call your API method: **
-console.log( await myRemoteService.myAPIMethod({name: "Hans"}) );
+console.log( await myClient.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await myRemoteService.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
+await myClient.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
 ````
 
 ### Setting up the build (the annoying stuff)

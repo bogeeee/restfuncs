@@ -272,7 +272,7 @@ export type SecurityRelevantSessionFields = {
 };
 
 /**
- * Service base class. Extend it and use {@see restfuncs} on it.
+ * Usage: app.use("/myAPI",
  */
 export class Service {
     [index: string]: any
@@ -283,7 +283,7 @@ export class Service {
      */
     id: string = Service.generatedId(this)
 
-    options: RestfuncsOptions;
+    static options: RestfuncsOptions;
 
     /**
      * Lists the methods that are flagged as @safe
@@ -339,54 +339,21 @@ export class Service {
      * @param options
      * @param id You must specify it, if you have multiple instances of the same class
      */
-    constructor(options?: RestfuncsOptions, id?: string) {
-        this.options = options || {};
-
-        // ID:
-        if(id) {
-            this.id = id;
-        }
+    constructor() {
         this.checkIfIdIsUnique();
 
         // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
         // @ts-ignore
         this.req = null; this.resp = null; // TODO set to undefined in 1.0 API
 
-        this.checkOptionsValidity(this.options);
 
-        // Warn/error if type info is not available:
-        if(!isTypeInfoAvailable(this)) {
-            if(this.options.checkArguments) {
-                throw new RestError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
-            }
-            else if(this.options.checkArguments === undefined) {
-                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
-            }
-        }
-    }
-
-    /**
-     * Will/must be called, AFTER the subclasses fields have been initialized. We can't call it in the Service.constructor yet.
-     * Calling it twice does not hurt.
-     * @protected
-     */
-    protected postInit() {
-        if(this._sessionConstructor === undefined) { // Not yet initialized
-            // Safety check;
-            if(this.session === undefined) {
-                throw new Error("Must not set/declare the session field to undefined. Use {} instead, if you want to store no values in the session.")
-            }
-
-            this._sessionPrototype = this.session;
-            //this.session = undefined; // No, leave it to the prototype value
-        }
     }
 
     /**
      * Pre checks some of the fields to give meaningful errors in advance.
      * @param options
      */
-    protected checkOptionsValidity(options: RestfuncsOptions) {
+    protected static checkOptionsValidity(options: RestfuncsOptions) {
         function checkAllowedOrigins() {
             if (options.allowedOrigins === undefined) {
             } else if (_.isArray(options.allowedOrigins)) {
@@ -402,15 +369,29 @@ export class Service {
             }
         }
         checkAllowedOrigins();
+
+        // Warn/error if type info is not available:
+        if(!isTypeInfoAvailable(new this)) {
+            if(this.options.checkArguments) {
+                throw new RestError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
+            }
+            else if(this.options.checkArguments === undefined) {
+                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
+            }
+        }
     }
 
     /**
      * Creates a middleware/router to use with express.
      * @param service An object who's methods can be called remotely / are exposed as a rest service.
      */
-    public createExpressHandler(): Router {
+    public static createExpressHandler(): Router {
 
-        this.postInit(); // Help calling this method which the constructor cannot yet call.
+        // Do some global checks:
+        this.checkOptionsValidity(this.options);
+
+
+
 
         const enableMultipartFileUploads = this.options.enableMultipartFileUploads || (this.options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(this) || this.mayNeedFileUploadSupport()))
 
@@ -1119,6 +1100,7 @@ export class Service {
      * @param args args of the function to be called
      */
     protected async doCall(funcName: string, args: any[]) {
+        // @ts-ignore
         return await this[funcName](...args) // Call the original function
     }
 
@@ -1597,7 +1579,7 @@ export class Service {
      * Lists (potentially) callable methods
      * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
      */
-    public listCallableMethods() {
+    public static listCallableMethods() {
 
         return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
             if (emptyService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
@@ -1614,7 +1596,7 @@ export class Service {
         })
     }
 
-    public mayNeedFileUploadSupport() {
+    public static mayNeedFileUploadSupport() {
         // Check if this service has methods that accept buffer
 
         const someBuffer = new Buffer(0);
@@ -1630,8 +1612,8 @@ export class Service {
         }) !== undefined;
     }
 
-    public _diagnosisWhyIsRTTINotAvailable() {
-        return diagnosis_isAnonymousObject(this) ? "Probably this is because your service is an anonymous object and not defined as a class." : "To enable runtime arguments typechecking, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input";
+    public static _diagnosisWhyIsRTTINotAvailable() {
+        return "TODO"
     }
 
 
@@ -1778,6 +1760,17 @@ export class Service {
         }
 
         Service.idToService.set(this.id, this);
+    }
+
+    /**
+     * Access static members from an instance.
+     * <p>
+     * In order to make your special static subclass's members available, override it and change the signature accordingly.
+     * </p>
+     */
+    getClass(): typeof Service {
+        // @ts-ignore
+        return this.constructor
     }
 
     /**
