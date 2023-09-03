@@ -311,7 +311,12 @@ export class Service {
      * </p>
      * @protected
      */
-    protected req?: Request;
+    protected req?: Omit<Request, "session"> & {
+        /**
+         * @deprecated <strong>Caution:</strong> Accessing the *raw* session is not CSRF protected. Use the ServerSessions's fields instead.
+         */
+        session: Request["session"];
+    };
 
     /**
      * Response for the current running (express) request. You can modify any header fields as you like. See {@link }https://expressjs.com/en/4x/api.html#res}
