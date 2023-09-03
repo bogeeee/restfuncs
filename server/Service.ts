@@ -575,13 +575,10 @@ export class Service {
 
                 session.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
-                let fieldsWereModified;
-                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, () => {fieldsWereModified = true}, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
                 let result = await csrfProtectedSession.validateAndDoCall(methodName, methodArguments, {req, resp}, this.options);
-                if(fieldsWereModified) {
-                    _(req.session).extend(session.serializeToObject());
-                }
+                _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
                 sendResult(result, methodName);
             }
             catch (caught) {
@@ -1283,10 +1280,9 @@ export class Service {
      * @param session
      * @param reqFields
      * @param allowedOrigins
-     * @param onWrite Called when a write was made (small feature that's needed for some other purpose)
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(session: Service & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, onWrite: () => void, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+    protected static createCsrfProtectedSessionProxy(session: Service & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
         const checkAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
@@ -1333,7 +1329,6 @@ export class Service {
                 }
 
                 target[p] = newValue;
-                onWrite();
                 return true;
             },
             deleteProperty(target: Service, p: string | symbol): boolean {

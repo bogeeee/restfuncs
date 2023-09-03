@@ -925,6 +925,14 @@ test('Sessions', async () => {
         getValueFromSession() {
             return this.val;
         }
+
+        async setSomeObject_x(value) {
+            this.someObject.x = value;
+        }
+
+        async getSomeObject_x() {
+            return this.someObject.x;
+        }
     }
 
 
