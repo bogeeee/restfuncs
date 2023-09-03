@@ -12,13 +12,11 @@ class NotLoggedInError extends RestError {
 export class MainframeService extends Service {
     // If you have multiple services, you may want to move session, doCall and login into a common baseclass
 
-    session: {
-        logonUser?: string
-    } = {}
+    logonUser?: string
 
     // Interceptor that checks for login on every function call
     protected async doCall(funcName: string, args: any[]) {
-        if(!_(["login", "myUnrestrictedFunction"]).contains(funcName) && !this.session.logonUser) {
+        if(!_(["login", "myUnrestrictedFunction"]).contains(funcName) && !this.logonUser) {
             throw new NotLoggedInError()
         }
         return await super.doCall(funcName, args);
@@ -27,7 +25,7 @@ export class MainframeService extends Service {
     async login(userName: string) {
         const shallPass = _(["admin", "alice", "bob"]).contains(userName.toLowerCase());
         if(shallPass) {
-            this.session.logonUser = userName
+            this.logonUser = userName
         }
         return shallPass
     }

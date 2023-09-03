@@ -900,13 +900,14 @@ test('Sessions', async () => {
 
             counter= 0
             val= null
-            someObject= {x:0}
+            someObject?: {x:number}
+        someUndefined = undefined;
 
 
         async checkInitialSessionValues() {
             expect(this.counter).toBe(0);
             expect(this.val).toBe(null);
-            expect(this.someObject).toStrictEqual({x:0});
+            expect(this.someObject).toStrictEqual(undefined);
             // @ts-ignore
             expect(this.undefinedProp).toBe(undefined);
 
@@ -927,6 +928,9 @@ test('Sessions', async () => {
         }
 
         async setSomeObject_x(value) {
+            if(this.someObject === undefined) {
+                this.someObject = {x:value};
+            }
             this.someObject.x = value;
         }
 

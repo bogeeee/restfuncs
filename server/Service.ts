@@ -526,7 +526,9 @@ export class Service {
 
                 // Create Session object:
                 let session: Service = new this();
+                session.validateFreshInstance();
 
+                // Apply cookie session:
                 // @ts-ignore
                 const reqSession = req.session as Record<string,any>|undefined;
                 if(!reqSession) {
@@ -535,8 +537,6 @@ export class Service {
                 else {
                     _.extend(session, reqSession); // TODO: we might not need all properties
                 }
-
-                if(session.req || session.resp) {throw new Error("Invalid state")} // Safety check
 
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -1738,10 +1738,11 @@ export class Service {
 
 
     /**
-     * Access static members from an instance.
+     * Helper, to access static members from a non-static context.
      * <p>
-     * In order to make your special static subclass's members available, override it and change the signature accordingly.
+     * In order to make your special static subclass members available, override it and change the signature accordingly to:
      * </p>
+     * <code>getClass(): typeof YOUR-SERVERSESSION-SUBCLASS</code>.
      */
     getClass(): typeof Service {
         // @ts-ignore
@@ -1782,6 +1783,17 @@ export class Service {
         }
 
         return result;
+    }
+
+    private validateFreshInstance() {
+        for(const key in this) {
+            const value = this[key];
+            if(value !== null && typeof value === "object") {
+                throw new RestError(`${this.getClass().name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#getClass() helper method).`);
+            }
+        }
+
+        if(this.req || this.resp) {throw new RestError("Invalid state: req or resp must not be set.")}
     }
 }
 
