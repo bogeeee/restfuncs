@@ -27,24 +27,6 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
                 throw new Error(`Unhandled : ${String(p)}`);
             }
 
-            // Output special diagnosis errormessage in case the user hasn't installed a session handler:
-            if(p === "session" && enhancementProps[p] === undefined) {
-                throw new RestError("No session handler has been installed in express. Please install it using the following code snippet:\n" +
-                    "***************\n" +
-                    "import session from \"express-session\";\n" +
-                    "import crypto from \"node:crypto\";\n" +
-                    "...\n" +
-                    "// Install session handler:\n" +
-                    "app.use(session({\n" +
-                    "    secret: crypto.randomBytes(32).toString(\"hex\"),\n" +
-                    "    cookie: {sameSite: true},\n" +
-                    "    saveUninitialized: false, // Only send a cookie when really needed\n" +
-                    "    unset: \"destroy\",\n" +
-                    "    store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session\n" +
-                    "}));\n" +
-                    "***************\n")
-            }
-
             // get a property that should be enhanced ?
             if (enhancementProps[p] !== undefined && {}[p] === undefined) { // In enhancement props but exclude standard props from objects like 'constructor'
                 if (callHasEnded) {

@@ -8,24 +8,21 @@ import {RestError} from "restfuncs-server/RestError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
+import {develop_resetGlobals, restfuncsExpress} from "./server/Server";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 function resetGlobalState() {
+    develop_resetGlobals();
     restfuncsClientCookie = undefined;
 }
 
 
 const standardOptions = { checkArguments: false, logErrors: false, exposeErrors: true }
 
-/**
- * Offers a constructor with an *optional* arg cause this one is used in the tests a lot
- */
+
 class Service extends ServerSession {
     static options: RestfuncsOptions = standardOptions;
-    constructor(plainCookieSession?: Record<string, any>) {
-        super(plainCookieSession);
-    }
 }
 
 beforeEach(() => {
@@ -59,8 +56,8 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
         return serverAPI.getClass();
     } else {
         class ServiceWithTypeInfo extends Service { // Plain Service was not compiled with type info but this file is
-            constructor(...args: any) {
-                super(...args);
+            constructor() {
+                super();
 
                 extendPropsAndFunctions(this, serverAPI);
             }
@@ -97,9 +94,9 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
 }
 
 function createServer(serviceClass: typeof Service) {
-    const app = express();
+    const app = restfuncsExpress();
 
-    // Install session handler:
+    // Install session handler: TODO: this should go into the restuncs server
     app.use(session({
         secret: crypto.randomBytes(32).toString("hex"),
         cookie: {sameSite: true},
@@ -906,13 +903,12 @@ test('Sessions', async () => {
             expect(this.val).toBe(null);
             expect(this.someObject).toStrictEqual({x:0});
             // @ts-ignore
-            expect(this.session.undefinedProp).toBe(undefined);
+            expect(this.undefinedProp).toBe(undefined);
 
             // Test the proxy's setter / getter:
             this.counter = this.counter + 1;
             this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
             expect(this.counter).toBe(2);
-            expect( () => this.counter = undefined).toThrow();
             this.counter = null;
             expect(this.counter).toBe(null);
         }
@@ -937,14 +933,15 @@ test('Sessions', async () => {
 
         // Set a value
         await apiProxy.storeValueInSession(123);
-        expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
+        expect(await apiProxy.getValueFromSession()).toBe(123);
 
         // Set a value to null:
         await apiProxy.storeValueInSession(null);
         expect(await apiProxy.getValueFromSession()).toBe(null);
 
         // Set a value to undefined
-        await expectAsyncFunctionToThrow(async () => await apiProxy.storeValueInSession(undefined), "Cannot set value to undefined");
+        await apiProxy.storeValueInSession(undefined);
+        expect(await apiProxy.getValueFromSession()).toBe(undefined);
     }
     finally {
         // shut down server:

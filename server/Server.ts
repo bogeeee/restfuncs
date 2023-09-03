@@ -350,6 +350,10 @@ export function getServerInstance() {
     return instance;
 }
 
+export function develop_resetGlobals() {
+    instance = undefined;
+}
+
 /*
 export function attach(httpServer: HttpServer, options: ServerOptions) {
     const server = new RestfuncsServerOOP(options);

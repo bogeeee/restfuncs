@@ -7,20 +7,14 @@ import {extendPropsAndFunctions} from "restfuncs-server/Util";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
-/**
- * Offers a constructor with an *optional* arg cause this one is used in the tests a lot
- */
 class Service extends ServerSession {
-    constructor(plainCookieSession?: Record<string, any>) {
-        super(plainCookieSession);
-    }
 }
 
 async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: S) => void, path = "/api") {
 
 
     const serviceClass = service.getClass();
-    serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor.
+    serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options}
 
     const app = express();
     app.use(path, serviceClass.createExpressHandler());

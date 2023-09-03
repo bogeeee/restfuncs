@@ -272,7 +272,7 @@ export type SecurityRelevantSessionFields = {
 };
 
 /**
- * Usage: app.use("/myAPI",
+ * TODO
  */
 export class Service {
 
@@ -326,16 +326,13 @@ export class Service {
     protected resp?: Response;
 
     /**
-     *
-     * @param plainCookieSession The plain, deserialized object from the JWT session cookie. See {@link #serializeToObject}
+     * Must have a no-args constructor
      */
-    constructor(plainCookieSession: Record<string, any>) {
-        if(plainCookieSession) {
-            _.extend(this, plainCookieSession);
-        }
+    constructor() {
     }
 
     /**
+     * Not part of the API. Don't override.
      * @return the object to be stored as the payload of the JWT session-cookie
      */
     serializeToObject(): Record<string, any> {
@@ -365,7 +362,7 @@ export class Service {
         checkAllowedOrigins();
 
         // Warn/error if type info is not available:
-        if(!isTypeInfoAvailable(new this({}))) {
+        if(!isTypeInfoAvailable(new this)) {
             if(this.options.checkArguments) {
                 throw new RestError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
             }
@@ -523,12 +520,17 @@ export class Service {
                 }
 
                 // Create Session object:
+                let session: Service = new this();
+
                 // @ts-ignore
                 const reqSession = req.session as Record<string,any>|undefined;
                 if(!reqSession) {
                     //throw new RestError("No session handler is installed"); // TODO: re-activate
                 }
-                let session: Service = new this(reqSession || {});
+                else {
+                    _.extend(session, reqSession); // TODO: we might not need all properties
+                }
+
                 if(session.req || session.resp) {throw new Error("Invalid state")} // Safety check
 
                 // retrieve method name:
@@ -574,10 +576,9 @@ export class Service {
                 session.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
                 let fieldsWereModified;
-                session = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, () => {fieldsWereModified = true}, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, () => {fieldsWereModified = true}, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
-
-                let result = await session.validateAndDoCall(methodName, methodArguments, {req, resp, session}, this.options);
+                let result = await csrfProtectedSession.validateAndDoCall(methodName, methodArguments, {req, resp}, this.options);
                 if(fieldsWereModified) {
                     _(req.session).extend(session.serializeToObject());
                 }
@@ -1586,7 +1587,7 @@ export class Service {
      */
     public static listCallableMethods() {
 
-        const reflectedClass = reflect(new this({}));
+        const reflectedClass = reflect(new this);
         return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
             if (emptyService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
@@ -2050,4 +2051,4 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
  */
 class EmptyService extends Service {
 }
-const emptyService = new EmptyService({});
+const emptyService = new EmptyService();
