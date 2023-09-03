@@ -14,7 +14,7 @@ export class MainframeService extends Service {
 
     session: {
         logonUser?: string
-    }
+    } = {}
 
     // Interceptor that checks for login on every function call
     protected async doCall(funcName: string, args: any[]) {

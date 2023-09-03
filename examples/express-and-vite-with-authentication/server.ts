@@ -1,12 +1,15 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
 
 (async () => {
     const port = 3000
+
+    MainframeService.options = {
+        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
+    }
 
     const app = express()
 
@@ -20,9 +23,7 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/mainframeAPI", restfuncs( new MainframeService(), {
-        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
-    } ))
+    app.use("/mainframeAPI", MainframeService.createExpressHandler())
 
     // Client web:
     if (process.env.NODE_ENV === 'development') {

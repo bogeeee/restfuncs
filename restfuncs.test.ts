@@ -40,7 +40,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     const serverPort = server.address().port;
 
     try {
-        const client = restfuncsClient_fixed<Api>(`http://localhost:${serverPort}${path}`);
+        const client = new RestfuncsClient_fixed<Api>(`http://localhost:${serverPort}${path}`).proxy;
         await clientTests(client);
     }
     finally {
@@ -111,20 +111,25 @@ function createServer(serviceClass: typeof Service) {
 }
 
 /**
- * Cookie that's used by restfuncsClient_fixed. Simulated here, cause the current nodejs implementations lacks of support for it.
+ * Cookie that's used by restfuncsClient_fixed.
  */
 let restfuncsClientCookie:string;
-function restfuncsClient_fixed<Service>(url: string, options: Partial<RestfuncsClient<any>> = {}): Service {
-    return new (class extends RestfuncsClient<Service>{
-        async httpFetch(url: string, request: RequestInit) {
-            const result = await super.httpFetch(url, {...request, headers: {...(request.headers||{}), "Cookie": restfuncsClientCookie}});
-            const setCookie = result.headers.get("Set-Cookie");
-            if(setCookie) {
-                restfuncsClientCookie = setCookie;
-            }
-            return result;
+
+/**
+ * Implements a cookie, cause the current nodejs implementations lacks of support for it.
+ */
+class RestfuncsClient_fixed<Service> extends RestfuncsClient<Service> {
+    async httpFetch(url: string, request: RequestInit) {
+        const result = await super.httpFetch(url, {
+            ...request,
+            headers: {...(request.headers || {}), "Cookie": restfuncsClientCookie}
+        });
+        const setCookie = result.headers.get("Set-Cookie");
+        if (setCookie) {
+            restfuncsClientCookie = setCookie;
         }
-    })(url, options).proxy;
+        return result;
+    }
 }
 
 async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<any>, expected?: string | RegExp | Error | jest.Constructable) {
@@ -194,7 +199,7 @@ test('Proper example with express and type support', async () => {
         // @ts-ignore
         const serverPort = server.address().port;
 
-        const greeterService = restfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`)
+        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
     }
     finally {
@@ -259,7 +264,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = restfuncsClient_fixed(`http://localhost:${63000}/apiXY`); // Connect to server port that does not yet exist
+            const client = new RestfuncsClient_fixed(`http://localhost:${63000}/apiXY`).proxy; // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
@@ -927,7 +932,7 @@ test('Sessions', async () => {
     try {
         // @ts-ignore
         const port = server.address().port;
-        const apiProxy = restfuncsClient_fixed<MyService>(`http://localhost:${port}`, {})
+        const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {}).proxy
 
         await apiProxy.checkInitialSessionValues();
 
@@ -938,6 +943,9 @@ test('Sessions', async () => {
         // Set a value to null:
         await apiProxy.storeValueInSession(null);
         expect(await apiProxy.getValueFromSession()).toBe(null);
+
+        await apiProxy.setSomeObject_x("test");
+        expect(await apiProxy.getSomeObject_x()).toBe("test");
 
         // Set a value to undefined
         await apiProxy.storeValueInSession(undefined);
@@ -958,18 +966,21 @@ test('Intercept with doCall (client side)', async () => {
         }
     }
 
+    class MyClient extends RestfuncsClient_fixed<MyService> {
+
+        async doCall(funcName: string, args: any[]) {
+            args[0] = "b"
+            return await super.doCall(funcName, args) // Call the original function
+        }
+    }
+
     const server = createServer(MyService)
 
     // @ts-ignore
     const port = server.address().port;
 
     try {
-        const apiProxy = restfuncsClient_fixed<MyService>(`http://localhost:${port}`, {
-            async doCall(funcName: string, args: any[]) {
-                args[0] = "b"
-                return await this[funcName](...args) // Call the original function
-            }
-        });
+        const apiProxy = new MyClient(`http://localhost:${port}`).proxy;
 
         expect(await apiProxy.getSomething("a")).toBe("b");
     }

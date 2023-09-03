@@ -1,9 +1,9 @@
 import 'reflect-metadata'
 import {isTypeInfoAvailable, Service as ServerSession} from "restfuncs-server/Service";
 import express from "express";
-import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
+import {RestfuncsClient} from "restfuncs-client";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -23,8 +23,8 @@ async function runClientServerTests<S extends Service>(service: S, clientTests: 
     const serverPort = server.address().port;
 
     try {
-        const client = restfuncsClient<S>(`http://localhost:${serverPort}${path}`);
-        await clientTests(client);
+        const client = new RestfuncsClient<S>(`http://localhost:${serverPort}${path}`);
+        await clientTests(client.proxy);
     }
     finally {
         // shut down server

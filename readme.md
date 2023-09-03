@@ -88,14 +88,14 @@ import {UploadFile} from "restfuncs-server";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
 
-const myClient = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
+const remote = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
 // ** Finally call your API method: **
-console.log( await myClient.myAPIMethod({name: "Hans"}) );
+console.log( await remote.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await myClient.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
+await remote.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
 ````
 
 ### Setting up the build (the annoying stuff)
