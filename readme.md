@@ -39,7 +39,9 @@ import {ServerSession, UploadFile} from "restfuncs-server";
  */
 export class MyServerSession extends ServerSession {
 
-  myLogonUserId?: string // As sayed, stored in the cookie. Make use of the fact that this property is shared with all your ServerSessions classes. It is also adaviced to have a common base class for logon specific fields and methods.
+  static options: ServerSessionOptions = {/* ServerSessionOptions */}
+
+  myLogonUserId?: string // As sayed, stored in the cookie. Make use of the fact that this property is shared with all your ServerSessions classes. It is adviced to have a common base class for all logon specific fields and methods.
 
   /**
    * ---- Write your API method as a plain typescript method... ----

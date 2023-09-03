@@ -1,9 +1,9 @@
-import {RestfuncsOptions, safe, Service} from "restfuncs-server";
+import {RestfuncsOptions, safe, Service as ServerSession} from "restfuncs-server";
 import express from "express";
 import {RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
-import {diagnosis_looksLikeJSON, extend} from "restfuncs-server/Util";
+import {diagnosis_looksLikeJSON, extendPropsAndFunctions} from "restfuncs-server/Util";
 import {RestError} from "restfuncs-server/RestError";
 import crypto from "node:crypto";
 import _ from "underscore";
@@ -12,21 +12,31 @@ import session from "express-session";
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 function resetGlobalState() {
-    // @ts-ignore
-    Service.idToService = new Map<string, Service>() // Reset id registry
     restfuncsClientCookie = undefined;
+}
+
+
+const standardOptions = { checkArguments: false, logErrors: false, exposeErrors: true }
+
+/**
+ * Offers a constructor with an *optional* arg cause this one is used in the tests a lot
+ */
+class Service extends ServerSession {
+    static options: RestfuncsOptions = standardOptions;
+    constructor(plainCookieSession?: Record<string, any>) {
+        super(plainCookieSession);
+    }
 }
 
 beforeEach(() => {
     resetGlobalState();
-});
-
+});;
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
     resetGlobalState();
 
     const app = express();
-    const service = toService(serverAPI);
-    service.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor.
+    const service = toServiceClass(serverAPI);
+    service.options = {...standardOptions, ...service.options}
     app.use(path, service.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
@@ -43,40 +53,35 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     }
 }
 
-function toService<Api>(serverAPI: Api | (Api & Service), options?: Partial<RestfuncsOptions>) : Api & Service {
+function toServiceClass<Api>(serverAPI: Api) : typeof Service {
 
     if (serverAPI instanceof Service) {
-        if(options) {
-            throw new Error("Options should be passed here but set when constructing the service.")
-        }
-        return serverAPI;
+        return serverAPI.getClass();
     } else {
         class ServiceWithTypeInfo extends Service { // Plain Service was not compiled with type info but this file is
+            constructor(...args: any) {
+                super(...args);
+
+                extendPropsAndFunctions(this, serverAPI);
+            }
         }
-
-        const service = new ServiceWithTypeInfo({
-            checkArguments: false,
-            logErrors: false,
-            exposeErrors: true, ...(options || {})
-        })
-
 
         if(Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
             throw new Error("ServerAPI should not be a class without beeing a Service");
         }
 
-        extend(service, serverAPI);
-
         // @ts-ignore
-        return service;
+        return ServiceWithTypeInfo;
     }
 }
 
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options?: Partial<RestfuncsOptions>) {
+    resetGlobalState();
+
     const app = express();
-    let service = toService(serverAPI, options);
-    service.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
-    app.use(path, service.createExpressHandler());
+    let serviceClass = toServiceClass(serverAPI);
+    serviceClass.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
+    app.use(path, serviceClass.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;
@@ -91,7 +96,7 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
     }
 }
 
-function createServer(service: Service) {
+function createServer(serviceClass: typeof Service) {
     const app = express();
 
     // Install session handler:
@@ -104,7 +109,7 @@ function createServer(service: Service) {
     }));
 
 
-    app.use("/", service.createExpressHandler());
+    app.use("/", serviceClass.createExpressHandler());
     return app.listen(0);
 }
 
@@ -172,6 +177,7 @@ test('Simple api call', async () => {
 });
 
 
+
 test('Proper example with express and type support', async () => {
     class GreeterService extends Service {
 
@@ -184,7 +190,7 @@ test('Proper example with express and type support', async () => {
 
 
     const app = express();
-    app.use("/greeterAPI", new GreeterService({checkArguments: false, logErrors: false, exposeErrors: true} ).createExpressHandler());
+    app.use("/greeterAPI", GreeterService.createExpressHandler());
     const server = app.listen();
 
     try {
@@ -377,12 +383,13 @@ test('Safe methods security', async () => {
         await checkFunctionWasCalled("overwriteMe1", true);
         await checkFunctionWasCalled("overwriteMe2", false);
 
-        class Service1 extends Service {}
-        class Service2 extends Service {}
-        class Service3 extends Service {}
-        expect(new Service1({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
-        expect(new Service2({checkArguments: false}).methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-        expect(new Service3({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
+        const options = {checkArguments: false, logErrors: false, exposeErrors: true}
+        class Service1 extends Service { static options = options}
+        class Service2 extends Service { static options = options}
+        class Service3 extends Service { static options = options}
+        expect(new Service1().methodIsSafe("getIndex")).toBeTruthy()
+        expect(new Service2().methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(new Service3().methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite and @safe:
         class ServiceA extends Service{
@@ -391,7 +398,7 @@ test('Safe methods security', async () => {
                 return "";
             }
         }
-        expect(new ServiceA({checkArguments: false}).methodIsSafe("getIndex")).toBeTruthy()
+        expect(new ServiceA().methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite but no @safe:
         class ServiceB extends Service {
@@ -399,7 +406,7 @@ test('Safe methods security', async () => {
                 return "";
             }
         }
-        expect(new ServiceB({checkArguments: false}).methodIsSafe("getIndex")).toBeFalsy()
+        expect(new ServiceB().methodIsSafe("getIndex")).toBeFalsy()
 
     });
 })
@@ -407,6 +414,7 @@ test('Safe methods security', async () => {
 test('auto convert parameters', async () => {
 
     await runRawFetchTests(new class extends Service {
+        static options = {checkArguments: true}
         getNum(num?: number) {
             return num;
         }
@@ -423,7 +431,7 @@ test('auto convert parameters', async () => {
             return date;
         }
 
-    }({checkArguments: true}), async (baseUrl) => {
+    }(), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -481,7 +489,9 @@ test('auto convert parameters', async () => {
 
 test('various call styles', async () => {
 
-    await runRawFetchTests(new class extends Service {
+    class TheService extends Service {
+        static options: RestfuncsOptions = {allowedOrigins: "all"}
+
         getBook(name?: string, authorFilter?: string) {
             return [name, authorFilter];
         }
@@ -506,7 +516,10 @@ test('various call styles', async () => {
             return [a, b.toString("utf8"),c];
         }
 
-    }({allowedOrigins: "all"}), async (baseUrl) => {
+    }
+
+
+    await runRawFetchTests(new TheService(), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -572,6 +585,7 @@ test('various call styles', async () => {
 test('Result Content-Type', async () => {
 
     await runRawFetchTests(new class extends Service{
+        static options: RestfuncsOptions = {allowedOrigins: "all", logErrors: false, exposeErrors: true}
         async getString() {
             return "test";
         }
@@ -595,7 +609,7 @@ test('Result Content-Type', async () => {
             this.resp.contentType("text/html; charset=utf-8");
             return {};
         }
-    }({allowedOrigins: "all", logErrors: false, exposeErrors: true}), async (baseUrl) => {
+    }(), async (baseUrl) => {
 
         async function doFetch(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -629,6 +643,7 @@ test('Result Content-Type', async () => {
 test('Http stream and buffer results', async () => {
 
     await runRawFetchTests(new class extends Service{
+        static options: RestfuncsOptions = {allowedOrigins: "all"}
         async readableResult() {
             this.resp.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
@@ -672,7 +687,7 @@ test('Http stream and buffer results', async () => {
             this.resp.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
-    }({allowedOrigins: "all"}), async (baseUrl) => {
+    }(), async (baseUrl) => {
 
         async function doFetch(input: RequestInfo, init?: RequestInit) {
             return new Promise<string>((resolve, reject) => {
@@ -708,11 +723,12 @@ test('Http stream and buffer results', async () => {
 test('Http multipart file uploads', async () => {
 
     await runRawFetchTests(new class extends Service {
+        static options: RestfuncsOptions = {allowedOrigins: "all" , checkArguments: true};
         uploadFile(file_name_0: string, file_name_1: string, upload_file_0: Buffer, upload_file_1: Buffer) {
             return [file_name_0, file_name_1, upload_file_0.toString(), upload_file_1.toString()]
         }
 
-    }({allowedOrigins: "all" , checkArguments: true}), async (baseUrl) => {
+    }(), async (baseUrl) => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit) {
             const response = await fetch(input, {
@@ -834,7 +850,7 @@ test('.req, .resp and Resources leaks', async () => {
 });
 
 test('parseQuery', () => {
-    const service = new Service({checkArguments: false});
+    const service = new class extends Service{static options = {checkArguments: false}}();
     expect(service.parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
     expect(service.parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
     expect(service.parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
@@ -845,17 +861,7 @@ test('parseQuery', () => {
 });
 
 test('registerIds', () => {
-    // Make your services need unique ids
-    new class extends Service  {declare id: "a"}({checkArguments: false})
-    expect( () => new class extends Service  {declare id: "a"}({checkArguments: false}) ).toThrow("not unique");
-
-    class MyService extends Service {
-    }
-
-    // Use same class twice:
-    new MyService({checkArguments: false}), {}
-    expect( () => new MyService({checkArguments: false})).toThrow("used twice");
-
+    // TODO
 });
 
 test('diagnosis_looksLikeJson', () => {
@@ -887,61 +893,41 @@ test('Reserved names', async () => {
     });
 });
 
-test("Access 'this' on server service", async () => {
-    await runClientServerTests(new class extends Service{
-        a = "test";
-        myServiceFields= {
-            val: null
-        }
-
-        async storeValue(value) {
-            this.myServiceFields.val = value;
-        }
-
-        getValue() {
-            return this.myServiceFields.val;
-        }
-    },async apiProxy => {
-        await apiProxy.storeValue(123);
-        expect(await apiProxy.getValue()).toBe(123);
-    });
-});
-
 test('Sessions', async () => {
     class MyService extends Service{
-        session = {
-            counter: 0,
-            val: null,
-            someObject: {x:0}
-        }
+
+            counter= 0
+            val= null
+            someObject= {x:0}
+
 
         async checkInitialSessionValues() {
-            expect(this.session.counter).toBe(0);
-            expect(this.session.val).toBe(null);
-            expect(this.session.someObject).toStrictEqual({x:0});
+            expect(this.counter).toBe(0);
+            expect(this.val).toBe(null);
+            expect(this.someObject).toStrictEqual({x:0});
             // @ts-ignore
             expect(this.session.undefinedProp).toBe(undefined);
 
             // Test the proxy's setter / getter:
-            this.session.counter = this.session.counter + 1;
-            this.session.counter = this.session.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
-            expect(this.session.counter).toBe(2);
-            expect( () => this.session.counter = undefined).toThrow();
-            this.session.counter = null;
-            expect(this.session.counter).toBe(null);
+            this.counter = this.counter + 1;
+            this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
+            expect(this.counter).toBe(2);
+            expect( () => this.counter = undefined).toThrow();
+            this.counter = null;
+            expect(this.counter).toBe(null);
         }
 
         async storeValueInSession(value) {
-            this.session.val = value;
+            this.val = value;
         }
 
         getValueFromSession() {
-            return this.session.val;
+            return this.val;
         }
     }
 
 
-    const server = createServer(new MyService({checkArguments: false, exposeErrors: true, logErrors: false}));
+    const server = createServer(MyService);
     try {
         // @ts-ignore
         const port = server.address().port;
@@ -949,8 +935,16 @@ test('Sessions', async () => {
 
         await apiProxy.checkInitialSessionValues();
 
+        // Set a value
         await apiProxy.storeValueInSession(123);
         expect(await apiProxy.getValueFromSession()).toBe(123); // Test currently fails. We account this to node's unfinished / experimental implementation of the fetch api
+
+        // Set a value to null:
+        await apiProxy.storeValueInSession(null);
+        expect(await apiProxy.getValueFromSession()).toBe(null);
+
+        // Set a value to undefined
+        await expectAsyncFunctionToThrow(async () => await apiProxy.storeValueInSession(undefined), "Cannot set value to undefined");
     }
     finally {
         // shut down server:
@@ -967,7 +961,7 @@ test('Intercept with doCall (client side)', async () => {
         }
     }
 
-    const server = createServer(new MyService({checkArguments: false}))
+    const server = createServer(MyService)
 
     // @ts-ignore
     const port = server.address().port;
@@ -998,7 +992,7 @@ test('Intercept with doFetch (client side)', async () => {
     }
 
     // Use with standalone server cause there should be a session handler installed:
-    const server = createServer(new MyService({checkArguments: false}));
+    const server = createServer(MyService);
 
     // @ts-ignore
     const port = server.address().port;
@@ -1071,8 +1065,8 @@ test('listCallableMethods', () => {
    }
 
    const a = new A;
-   expect(a.listCallableMethods().length).toBe(2);
-   expect(a.listCallableMethods()[0].name).toBe("methodA");
+   expect(A.listCallableMethods().length).toBe(2);
+   expect(A.listCallableMethods()[0].name).toBe("methodA");
 });
 
 test('mayNeedFileUploadSupport', () => {
@@ -1082,16 +1076,16 @@ test('mayNeedFileUploadSupport', () => {
         async methodC(x: any) {}
         async methodD(x: string | number) {}
     }
-    expect(new Service1().mayNeedFileUploadSupport()).toBeFalsy()
+    expect(Service1.mayNeedFileUploadSupport()).toBeFalsy()
 
     class Service2 extends Service {
         async methodA(b: Buffer) {}
     }
-    expect(new Service2().mayNeedFileUploadSupport()).toBeTruthy()
+    expect(Service2.mayNeedFileUploadSupport()).toBeTruthy()
 
     class Service3 extends Service {
         async methodA(...b: Buffer[]) {}
     }
-    expect(new Service3().mayNeedFileUploadSupport()).toBeTruthy()
+    expect(Service3.mayNeedFileUploadSupport()).toBeTruthy()
 
 });

@@ -1,21 +1,29 @@
 import 'reflect-metadata'
-import {Service} from "restfuncs-server";
-import {isTypeInfoAvailable} from "restfuncs-server/Service";
+import {isTypeInfoAvailable, Service as ServerSession} from "restfuncs-server/Service";
 import express from "express";
 import {RestfuncsClient, restfuncsClient} from "restfuncs-client";
 import {reflect} from "typescript-rtti";
-import {extend} from "restfuncs-server/Util";
+import {extendPropsAndFunctions} from "restfuncs-server/Util";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
-async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: S) => void, path = "/api") {
-    // @ts-ignore
-    Service.idToService = new Map<string, Service>() // Reset id registry
+/**
+ * Offers a constructor with an *optional* arg cause this one is used in the tests a lot
+ */
+class Service extends ServerSession {
+    constructor(plainCookieSession?: Record<string, any>) {
+        super(plainCookieSession);
+    }
+}
 
-    service.options = {logErrors: false, exposeErrors: true, ...service.options} // Not the clean way. It should all go through the constructor.
+async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: S) => void, path = "/api") {
+
+
+    const serviceClass = service.getClass();
+    serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor.
 
     const app = express();
-    app.use(path, service.createExpressHandler());
+    app.use(path, serviceClass.createExpressHandler());
     const server = app.listen();
     // @ts-ignore
     const serverPort = server.address().port;

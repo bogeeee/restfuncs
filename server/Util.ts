@@ -527,7 +527,7 @@ export function getDestination(req: Request): string | undefined {
  * @param target
  * @param extension
  */
-export function extend(target: { [index: string]: any }, extension: { [index: string]: any }) {
+export function extendPropsAndFunctions(target: { [index: string]: any }, extension: { [index: string]: any }) {
     [...Object.keys(extension), ..._.functions(extension)].map(propName => {
         if (target[propName] === undefined) {
             target[propName] = extension[propName];

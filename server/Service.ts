@@ -277,12 +277,21 @@ export type SecurityRelevantSessionFields = {
 export class Service {
 
     /**
-     * Uniquely identify this service. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
+     * Uniquely identify this class. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
      * Normally the class name is used and not a random ID, cause we want to allow for multi-server environments with client handover
+     *
+     * Change the implementation if you need to support multiple ServerSession classes with the same name.
      */
-    id: string = Service.generatedId(this)
+    static get id() {
+        return this.name; // In the future we might add
+    }
 
-    static options: RestfuncsOptions;
+    static options: RestfuncsOptions = {};
+
+    /**
+     * Don't use. Use the <strong>static</strong> field instead.
+     */
+    options?: never;
 
     /**
      * Lists the methods that are flagged as @safe
@@ -296,57 +305,43 @@ export class Service {
     static whitelistedMethodNames = new Set(["getIndex", "getCorsReadToken"])
 
     /**
-     * The currently running (express) request. See https://expressjs.com/en/4x/api.html#req
-     *
-     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * The current running (express) request. See {@link https://expressjs.com/en/4x/api.html#req}
+     * <p>
+     * <i>It is made available through a proxied 'this' at runtime during a client call.</i>
+     * </p>
      * @protected
      */
-        // @ts-ignore // TODO: make req | undefined in 1.0 API
-    protected req!: Request = null;
+    protected req?: Request;
 
     /**
-     * Response for the currently running (express) request. You can modify any header fields as you like. See https://expressjs.com/en/4x/api.html#res
+     * Response for the current running (express) request. You can modify any header fields as you like. See {@link }https://expressjs.com/en/4x/api.html#res}
      *
-     * Note: Only available during a request and inside a method of this service (which runs on a proxyed 'this'). Can't be reached directly from the outside.
+     * <p>
+     * <i>It is made available through a proxied 'this' at runtime during a client call.</i>
+     * </p>
      * @protected
      */
      // @ts-ignore // TODO: make req | undefined in 1.0 API
     // TODO: rename to res
-    protected resp!: Response = null;
-
-
-    /**
-     * The browser/client session (for the currently running request). You can add any user defined content to it.
-     * What you set as initial value here will also be the initial value of EVERY new session. Note that this initial session is not deeply cloned.
-     *
-     * When restfuncs is used with express, you must install the session handler in express yourself (follow the no-sessionhandler errormessage for guidance).
-     *
-     * Note: Only available during a request and inside a service method (which runs on a proxyed 'this'). Can't be reached directly from the outside.
-     * @protected
-     */
-    // @ts-ignore
-    protected session?: {} = {};
-
-    /**
-     * Internal
-     * @private
-     */
-    _sessionPrototype?: object;
+    protected resp?: Response;
 
     /**
      *
-     * @param options
-     * @param id You must specify it, if you have multiple instances of the same class
+     * @param plainCookieSession The plain, deserialized object from the JWT session cookie. See {@link #serializeToObject}
      */
-    constructor() {
-        this.checkIfIdIsUnique();
-
-        // Safety: Any non-null value for these may be confusing when (illegally) accessed from the outside.
-        // @ts-ignore
-        this.req = null; this.resp = null; // TODO set to undefined in 1.0 API
-
-
+    constructor(plainCookieSession: Record<string, any>) {
+        if(plainCookieSession) {
+            _.extend(this, plainCookieSession);
+        }
     }
+
+    /**
+     * @return the object to be stored as the payload of the JWT session-cookie
+     */
+    serializeToObject(): Record<string, any> {
+        return this;
+    }
+
 
     /**
      * Pre checks some of the fields to give meaningful errors in advance.
@@ -370,7 +365,7 @@ export class Service {
         checkAllowedOrigins();
 
         // Warn/error if type info is not available:
-        if(!isTypeInfoAvailable(new this)) {
+        if(!isTypeInfoAvailable(new this({}))) {
             if(this.options.checkArguments) {
                 throw new RestError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
             }
@@ -381,8 +376,8 @@ export class Service {
     }
 
     /**
-     * Creates a middleware/router to use with express.
-     * @param service An object who's methods can be called remotely / are exposed as a rest service.
+     * Creates handler that allows all public (instance-) methods to be called by http. This can be by the restfuncs client
+     * A new instance if this class is created for every (allowed) http call and its fields are filled with the fields of the JWT session cookie (if present)
      */
     public static createExpressHandler(): Router {
 
@@ -527,10 +522,19 @@ export class Service {
                     resp.header("Access-Control-Allow-Credentials", "true")
                 }
 
+                // Create Session object:
+                // @ts-ignore
+                const reqSession = req.session as Record<string,any>|undefined;
+                if(!reqSession) {
+                    //throw new RestError("No session handler is installed"); // TODO: re-activate
+                }
+                let session: Service = new this(reqSession || {});
+                if(session.req || session.resp) {throw new Error("Invalid state")} // Safety check
+
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
-                const methodName = this.getMethodNameForCall(req.method, methodNameFromPath);
+                const methodName = session.getMethodNameForCall(req.method, methodNameFromPath);
                 if(!methodName) {
                     if(!methodNameFromPath) {
                         throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
@@ -538,7 +542,7 @@ export class Service {
                     throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
                 }
 
-                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
+                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = session.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
                 cleanupStreamsAfterRequest = c;
 
 
@@ -558,7 +562,7 @@ export class Service {
                     const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        this.checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        session.checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
                             acceptedResponseContentTypes,
                             contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
                             isSessionAccess: false
@@ -567,17 +571,16 @@ export class Service {
                 }
 
 
-                this.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
+                session.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
-                let session = null;
-                // @ts-ignore
-                const reqSession = req.session as Record<string,any>|undefined;
-                if(reqSession !== undefined) { // Express runs a session handler ?
-                    session = createProxyWithPrototype(reqSession, this._sessionPrototype!); // Create the this.session object which is a proxy that writes/reads to req.session but shows this.session's initial values. This way we can comply with the session's saveUninitialized=true / privacy friendliness
-                    session = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                let fieldsWereModified;
+                session = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, () => {fieldsWereModified = true}, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+
+
+                let result = await session.validateAndDoCall(methodName, methodArguments, {req, resp, session}, this.options);
+                if(fieldsWereModified) {
+                    _(req.session).extend(session.serializeToObject());
                 }
-
-                let result = await this.validateAndDoCall(methodName, methodArguments, {req, resp, session}, this.options);
                 sendResult(result, methodName);
             }
             catch (caught) {
@@ -619,9 +622,7 @@ export class Service {
         return router;
     }
 
-
-
-    public get server(): RestfuncsServer {
+    public static get server(): RestfuncsServer {
         if(this.options.app) {
             return this.options.app;
         }
@@ -669,9 +670,9 @@ export class Service {
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     // TODO: make httponly
     async getCorsReadToken(): Promise<string> {
-        const session = this.req.session;
+        const session = this.req!.session;
         if(!session) {
-            throw new RestError(`No session handler installed. Please see https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session`)
+            throw new RestError(`No session handler installed. Please see TODO`)
         }
 
         return this.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
@@ -704,17 +705,18 @@ export class Service {
 
 
     /**
-     * Get's the complete session, encrypted, so it can be transferred to the websocket connection
+     * Get's this complete session, encrypted, so it can be transferred to the websocket connection
      */
     // TODO: make httponly
     async getSession(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
-        if(!this.server) {
+        const server = this.getClass().server;
+        if(!server) {
             throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
-        const sessionRequestToken = this.server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
+        const sessionRequestToken = server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
         // Security check:
-        if(sessionRequestToken.serviceId !== this.id) {
+        if(sessionRequestToken.serviceId !== this.getClass().id) {
             throw new RestError(`SessionRequestToken from another service`)
         }
 
@@ -722,9 +724,9 @@ export class Service {
 
         const token: SessionTransferToken = {
             request: sessionRequestToken,
-            session: this.session || null
+            session: this.serializeToObject() || null
         }
-        return this.server.encryptToken(token, "SessionTransferToken")
+        return server.encryptToken(token, "SessionTransferToken")
     }
 
     /**
@@ -733,12 +735,13 @@ export class Service {
      */
     // TODO: make httponly
     async updateSession(sessionBox: Server2ServerEncryptedBox<UpdateSessionToken>) {
-        if(!this.server) {
+        const server = this.getClass().server;
+        if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
-        const token = this.server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
-        if(token.serviceId !== this.id) {
+        const token = server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
+        if(token.serviceId !== this.getClass().id) {
             throw new RestError(`updateSession came from another service`)
         }
 
@@ -747,17 +750,18 @@ export class Service {
 
     // TODO: make httponly
     async areCallsAllowed(encryptedQuestion: Server2ServerEncryptedBox<AreCallsAllowedQuestion>): Promise<Server2ServerEncryptedBox<AreCallsAllowedAnswer>> {
-        if(!this.server) {
+        const server = this.getClass().server;
+        if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
-        const question = this.server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
+        const question = server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
         // Security check:
-        if(question.serviceId !== this.id) {
+        if(question.serviceId !== this.getClass().id) {
             throw new RestError(`Question came from another service`)
         }
 
-        return this.server.encryptToken({
+        return server.encryptToken({
             question,
             value: true
         }, "AreCallsAllowedAnswer");
@@ -781,9 +785,9 @@ export class Service {
         // initialize the session:
         session.csrfProtectionMode = csrfProtectionMode;
         const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
-        checkIfSessionIsValid(session);
+        checkIfSecurityFieldsAreValid(session);
 
-        const securityGroupId = this.getSecurityGroupId();
+        const securityGroupId = this.getClass().getSecurityGroupId();
         if (tokens[securityGroupId] === undefined) {
             // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
             // So store a hash(token + server.secret) in the session instead.
@@ -800,13 +804,14 @@ export class Service {
         return shieldTokenAgainstBREACH(rawToken);
     }
 
-    protected getSecurityGroupId(): string {
+    protected static getSecurityGroupId(): string {
+        const server = this.server;
         return this.id; // TODO: remove this line when implemented
 
-        if(!this.server) { // Used without RestfuncsExpress server (with classic express) ?
+        if(!server) { // Used without RestfuncsExpress server (with classic express) ?
             throw new Error("this.server not set. Please report this as a bug"); // Should we always expect that one server exists ?
         }
-        return this.server.getSecurityGroupIdOfService(this)
+        return server.getSecurityGroupIdOfService(this)
     }
 
     /**
@@ -892,7 +897,7 @@ export class Service {
                     }
 
                     if(!reflectedMethod) {
-                        throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${this._diagnosisWhyIsRTTINotAvailable()}`)
+                        throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${Service._diagnosisWhyIsRTTINotAvailable()}`)
                     }
 
                     const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
@@ -1161,13 +1166,13 @@ export class Service {
                     return false;
                 }
 
-                if (!sessionTokens[this.id]) {
+                if (!sessionTokens[this.getClass().id]) {
                     errorHints.push(`No ${tokenType} was stored in the session for the Service, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 try {
-                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
+                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.getClass().id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                         return true;
                     } else {
                         errorHints.push(`${tokenType} incorrect`);
@@ -1277,20 +1282,21 @@ export class Service {
      * @param session
      * @param reqFields
      * @param allowedOrigins
+     * @param onWrite Called when a write was made (small feature that's needed for some other purpose)
      * @param diagnosis
      */
-    protected createCsrfProtectedSessionProxy(session: Record<string, any> & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+    protected static createCsrfProtectedSessionProxy(session: Service & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, onWrite: () => void, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
         const checkAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
 
-            this.checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
+            session.checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
         }
 
         return new Proxy(session, {
-            get(target: Record<string, any>, p: string | symbol, receiver: any): any {
+            get(target: Service, p: string | symbol, receiver: any): any {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new RestError(`Unhandled : ${String(p)}`)
@@ -1304,7 +1310,7 @@ export class Service {
 
                 return target[p];
             },
-            set(target: Record<string, any>, p: string | symbol, newValue: any, receiver: any): boolean {
+            set(target: Service, p: string | symbol, newValue: any, receiver: any): boolean {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new RestError(`Unhandled : ${String(p)}`)
@@ -1319,25 +1325,25 @@ export class Service {
                         corsReadTokens: (reqFields.csrfProtectionMode === "corsReadToken")?{}:undefined,
                         csrfTokens: (reqFields.csrfProtectionMode === "csrfToken")?{}:undefined
                     }
-                    checkIfSessionIsValid(newFields);
+                    checkIfSecurityFieldsAreValid(newFields);
                     _(session).extend(newFields)
 
                     checkAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
                 }
 
                 target[p] = newValue;
-
+                onWrite();
                 return true;
             },
-            deleteProperty(target: Record<string, any>, p: string | symbol): boolean {
+            deleteProperty(target: Service, p: string | symbol): boolean {
                 checkAccess(false);
                 throw new Error("deleteProperty not implemented.");
             },
-            has(target: Record<string, any>, p: string | symbol): boolean {
-                checkAccess(true);
-                throw new Error("has (property) not implemented.");
+            has(target: Service, p: string | symbol): boolean {
+                //checkAccess(true); // validateAndDoCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
+                return p in target;
             },
-            ownKeys(target: Record<string, any>): ArrayLike<string | symbol> {
+            ownKeys(target: Service): ArrayLike<string | symbol> {
                 checkAccess(true);
                 throw new Error("ownKeys not implemented.");
             }
@@ -1580,7 +1586,8 @@ export class Service {
      */
     public static listCallableMethods() {
 
-        return reflect(this).methodNames.map(methodName => reflect(this).getMethod(methodName)).filter(reflectedMethod => {
+        const reflectedClass = reflect(new this({}));
+        return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
             if (emptyService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
             }
@@ -1621,7 +1628,7 @@ export class Service {
      * @param error
      * @param req For retrieving info for logging
      */
-    protected logAndConcealError(error: Error, req: Request) {
+    protected static logAndConcealError(error: Error, req: Request) {
         /**
          * Removes usual error properties (leaving all custom properties)
          */
@@ -1700,7 +1707,7 @@ export class Service {
      * Eventually logs the error and returns a line that is safe for pasting into a stream, meaning it contains no craftable content.
      * @param error
      */
-    protected logAndGetErrorLineForPasteIntoStreams(error: Error, req: Request) {
+    protected static logAndGetErrorLineForPasteIntoStreams(error: Error, req: Request) {
 
         // TODO: if(this.options.disableSecurity) { return full message }
 
@@ -1728,38 +1735,6 @@ export class Service {
 
     }
 
-
-    /**
-     * Registry to make ensure that IDs are unique
-     * @private
-     * TODO: move to Server.services
-     */
-    private static idToService = new Map<string, Service>()
-
-    /**
-     * ..., therefore, ids are registered within here.
-     * @private
-     */
-    private checkIfIdIsUnique() {
-        if(!this.id) {
-            throw new Error("id not set. Please specify an id property on your service.")
-        }
-
-        const registered = Service.idToService.get(this.id);
-        if(registered === this) {
-            return;
-        }
-
-        if(registered !== undefined ) { // Duplicate ?
-            if(this.constructor?.name === this.id) {
-                throw new Error(`A \`class ${this.id}\` is used twice as a service. Please set the 'id' property in your instances to make them unique.`)
-            }
-
-            throw new Error(`Current (generated) id is not unique: '${this.id}'`)
-        }
-
-        Service.idToService.set(this.id, this);
-    }
 
     /**
      * Access static members from an instance.
@@ -2047,7 +2022,7 @@ export type SecurityRelevantRequestFields = {
  * Will be called on each write to security relevant fields
  * @param session
  */
-function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
+function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
     if(session.csrfProtectionMode === "corsReadToken") {
         if(!session.corsReadTokens || session.csrfTokens) {
             throw new Error("Illegal state");
@@ -2075,4 +2050,4 @@ function checkIfSessionIsValid(session: SecurityRelevantSessionFields) {
  */
 class EmptyService extends Service {
 }
-const emptyService = new EmptyService({checkArguments: false});
+const emptyService = new EmptyService({});
