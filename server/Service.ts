@@ -672,7 +672,7 @@ export class Service {
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     // TODO: make httponly
-    async getCorsReadToken(): Promise<string> {
+    public getCorsReadToken(): string {
         const session = this.req!.session;
         if(!session) {
             throw new RestError(`No session handler installed. Please see TODO`)
@@ -711,7 +711,7 @@ export class Service {
      * Get's this complete session, encrypted, so it can be transferred to the websocket connection
      */
     // TODO: make httponly
-    async getSession(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
+    public getSession(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
@@ -737,7 +737,7 @@ export class Service {
      * @param sessionBox
      */
     // TODO: make httponly
-    async updateSession(sessionBox: Server2ServerEncryptedBox<UpdateSessionToken>) {
+    public updateSession(sessionBox: Server2ServerEncryptedBox<UpdateSessionToken>) {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
@@ -752,7 +752,7 @@ export class Service {
     }
 
     // TODO: make httponly
-    async areCallsAllowed(encryptedQuestion: Server2ServerEncryptedBox<AreCallsAllowedQuestion>): Promise<Server2ServerEncryptedBox<AreCallsAllowedAnswer>> {
+    public areCallsAllowed(encryptedQuestion: Server2ServerEncryptedBox<AreCallsAllowedQuestion>): Server2ServerEncryptedBox<AreCallsAllowedAnswer> {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
@@ -1363,7 +1363,7 @@ export class Service {
      *      containsStringValuesOnly: true // decides, which of the autoConvertValueForParameter_... methods is used.
      * }
      */
-    parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
+    protected parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
         // Query is a list i.e: "a,b,c" ?
         if(query.indexOf(",") > query.indexOf("=")) { // , before = means, we assume it is a comma separated list
             return {
@@ -1400,7 +1400,7 @@ export class Service {
      * @see RestfuncsOptions.allowGettersFromAllOrigins
      * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only !
      */
-    public methodIsSafe(methodName: string) {
+    protected methodIsSafe(methodName: string) {
 
         if(this[methodName] === Service.prototype[methodName]) { // Method was unmodifiedly taken from the Service mixin. I.e. "getIndex". See Service.initializeService(). ?
             return methodIsMarkedSafeAtActualImplementationLevel(Service, methodName); // Look at Service level
@@ -1417,7 +1417,7 @@ export class Service {
      * You can override this as part of the API
      * @param methodName
      */
-    public hasMethod(methodName: string) {
+    protected hasMethod(methodName: string) {
         return this[methodName] && (typeof this[methodName] === "function");
     }
 
@@ -1428,7 +1428,7 @@ export class Service {
      * @param httpMethod
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
-    public getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
+    protected getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
         if(path === "") {
             path = "index";
         }
@@ -1471,7 +1471,7 @@ export class Service {
      * @see #autoConvertValueForParameter_fromString
      * @see #autoConvertValueForParameter_fromJson
      */
-    public autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
+    protected autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
         if(source === "string") {
             if(typeof value !== "string") {
                 throw new Error(`${parameter.name} parameter should be a string`)
@@ -1504,7 +1504,7 @@ export class Service {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    public autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
+    protected autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
         // TODO: number|bool and other ambiguous types could be auto converted to
         try {
             if (parameter.type.isClass(Number)) {
@@ -1557,7 +1557,7 @@ export class Service {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    public autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
+    protected autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
         // *** Help us make this method convert to nested dates like myFunc(i: {someDate: Date})
         // *** You can use [this nice little playground](https://typescript-rtti.org) to quickly see how the ReflectedMethodParameter works ;)
         try {

@@ -385,16 +385,23 @@ test('Safe methods security', async () => {
         await checkFunctionWasCalled("overwriteMe1", true);
         await checkFunctionWasCalled("overwriteMe2", false);
 
-        const options = {checkArguments: false, logErrors: false, exposeErrors: true}
-        class Service1 extends Service { static options = options}
-        class Service2 extends Service { static options = options}
-        class Service3 extends Service { static options = options}
+        class BaseService extends Service {
+            static options = {checkArguments: false, logErrors: false, exposeErrors: true}
+
+            // Escalate to 'public'
+            public methodIsSafe(...args: Parameters<Service["methodIsSafe"]>) {
+                return super.methodIsSafe(...args);
+            }
+        }
+        class Service1 extends BaseService {}
+        class Service2 extends BaseService {}
+        class Service3 extends BaseService {}
         expect(new Service1().methodIsSafe("getIndex")).toBeTruthy()
         expect(new Service2().methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
         expect(new Service3().methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite and @safe:
-        class ServiceA extends Service{
+        class ServiceA extends BaseService{
             @safe()
             async getIndex() {
                 return "";
@@ -403,7 +410,7 @@ test('Safe methods security', async () => {
         expect(new ServiceA().methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite but no @safe:
-        class ServiceB extends Service {
+        class ServiceB extends BaseService {
             async getIndex() {
                 return "";
             }
@@ -852,7 +859,14 @@ test('.req, .resp and Resources leaks', async () => {
 });
 
 test('parseQuery', () => {
-    const service = new class extends Service{static options = {checkArguments: false}}();
+    const service = new class extends Service{
+        static options = {checkArguments: false}
+
+        // Escalate to 'public'
+        public parseQuery(...args: Parameters<Service["parseQuery"]>) {
+            return super.parseQuery(...args);
+        }
+    }();
     expect(service.parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
     expect(service.parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
     expect(service.parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
