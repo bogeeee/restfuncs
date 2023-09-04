@@ -28,7 +28,16 @@ export class ServerError extends Error {
     }
 }
 
-
+/**
+ * A filter / mapper for the service:
+ * - Only methods (no fields)
+ * - Sync methods are mapped to async methods, so you get an error if you forget the 'await'
+ */
+export type ClientProxy<S> = {
+    [K in keyof S]: S[K] extends (...args: any) => Promise<any> ? S[K] : // All async methods
+        S[K] extends (...args: infer P) => infer R ? (...args: P) => Promise<R> : // + remap the sync methods to async ones, so we must await them
+            never;
+};
 
 /**
  * A method that's called here (on .proxy) get's send as a REST call to the server.
@@ -61,9 +70,9 @@ export class RestfuncsClient<S> {
     csrfProtectionMode: CSRFProtectionMode = "corsReadToken"
 
     /**
-     * The proxy that is handed out, where the calls are made on
+     * Remotely call (sync or async) methods on your ServerSession instance.
      */
-    public proxy: S
+    public proxy: ClientProxy<S>
 
     protected _corsReadToken?: string
 
@@ -223,7 +232,7 @@ export class RestfuncsClient<S> {
 
         const client = this;
         // Create the proxy that translates this.myMethod(..args) into this.remoteMethodCall("myMethod", args)
-        this.proxy = <S> <any> new Proxy({}, {
+        this.proxy = new Proxy({}, {
             get(target: {}, p: string | symbol, receiver: any): any {
 
                 // Reject symbols (don't know what it means but we only want strings as property names):
@@ -234,7 +243,7 @@ export class RestfuncsClient<S> {
                 // Handle the rest: p is the name of the remote method
                 return function(...args: any) { return client.doCall(p, args)}
             }
-        });
+        }) as ClientProxy<S>;
     }
 
 }

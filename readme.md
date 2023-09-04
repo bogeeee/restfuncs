@@ -51,7 +51,7 @@ export class MyServerSession extends ServerSession {
    * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
    * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
    */
-  public async myAPIMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
+  public myAPIMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
     // ADVANCED:
     // this.req.... // Access the raw (express) request.  Field is simulated at call time.
     // this.res.... // Access the raw (express) response. Field is simulated at call time.

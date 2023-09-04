@@ -3,14 +3,14 @@ import {isTypeInfoAvailable, Service as ServerSession} from "restfuncs-server/Se
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
-import {RestfuncsClient} from "restfuncs-client";
+import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 class Service extends ServerSession {
 }
 
-async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: S) => void, path = "/api") {
+async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: ClientProxy<S>) => void, path = "/api") {
 
 
     const serviceClass = service.getClass();

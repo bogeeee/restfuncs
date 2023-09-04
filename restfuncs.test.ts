@@ -1,6 +1,6 @@
 import {RestfuncsOptions, safe, Service as ServerSession} from "restfuncs-server";
 import express from "express";
-import {RestfuncsClient} from "restfuncs-client";
+import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, extendPropsAndFunctions} from "restfuncs-server/Util";
@@ -28,7 +28,7 @@ class Service extends ServerSession {
 beforeEach(() => {
     resetGlobalState();
 });;
-async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: Api) => void, path = "/api") {
+async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, path = "/api") {
     resetGlobalState();
 
     const app = express();
