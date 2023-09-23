@@ -24,6 +24,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import {Readable} from "node:stream";
 import {isRestError, RestError} from "./RestError";
 import busboy from "busboy";
+import { AsyncLocalStorage } from 'node:async_hooks'
 
 export function isTypeInfoAvailable(service: object) {
     const r = reflect(service);
@@ -271,6 +272,10 @@ export type SecurityRelevantSessionFields = {
     csrfTokens?: Record<string, string>
 };
 
+type ClassOf<T> = {
+    new(...args: unknown[]): T
+}
+
 /**
  * TODO
  */
@@ -329,6 +334,41 @@ export class Service {
      // @ts-ignore // TODO: make req | undefined in 1.0 API
     // TODO: rename to res
     protected resp?: Response;
+
+    private static current = new AsyncLocalStorage<Service>();
+
+    /**
+     * Use <code>MyService.getCurrent()</code>
+     * <p>
+     *     It uses the node's AsyncLocalStorage to associate this session to your current (sync or async) call stack.
+     * </p>
+     * <p>
+     *     SECURITY note: AsyncLocalStorage's values are sticking very strong ! Even a setTimeout does not shake them off. When using this method, make sure that you're not coming from a callback from someone else's management code (i.e: A function that informs all other users after a post was edited) or some message queue util library or similar.
+     *     You can use {@link exitCurrent} to invoke such management functions safely, but be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023.
+     * </p>
+     */
+    public static getCurrent<T extends Service>(this: ClassOf<T>): T | undefined {
+        return Service.current.getStore() as T;
+    }
+
+    /**
+     * Use, if you call into management code for all users which must not be associated to this session for security reasons.
+     * @see getCurrent
+     * <p>
+     * Be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023. so don't rely your security completely on it and rather see it as an extra measure.
+     * </p>
+     * @param sessionFreeFn function in which getCurrent() will return undefined.
+     */
+    public static exitCurrent(sessionFreeFn: () => void) {
+        Service.current.exit(() => {
+            // As mentioned, the API is still marked as experimental. So we do a quick test, if it works:
+            if(this.getCurrent() !== undefined) {
+                throw new Error("this.getCurrent() is still defined");
+            }
+
+            sessionFreeFn();
+        });
+    }
 
     /**
      * Must have a no-args constructor
@@ -1089,7 +1129,13 @@ export class Service {
 
         let result;
         await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .resp safely available during call
-            result = await service.doCall(methodName, args); // Call method with user's doCall interceptor;
+            // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
+            let resultPromise;
+            Service.current.run(service, () => {
+                resultPromise = service.doCall(methodName, args); // Call method with user's doCall interceptor;
+            })
+
+            result = await resultPromise;
         }, methodName);
 
         return result

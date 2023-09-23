@@ -984,6 +984,11 @@ test('Sessions', async () => {
     }
 });
 
+test('getCurrent', async () => {
+    await runClientServerTests({}, async proxy => {
+        throw new Error("TODO");
+    })
+});
 
 test('Intercept with doCall (client side)', async () => {
     class MyService extends Service{
