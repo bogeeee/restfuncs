@@ -727,7 +727,7 @@ export class Service {
 
         const token: SessionTransferToken = {
             request: sessionRequestToken,
-            session: this.serializeToObject() || null
+            session: this.serializeToObject() || null // TODO: include the req, so we can access the basicauth username etc from the webservice. (Or should it always be include in the session, if af session is created per req)
         }
         return server.encryptToken(token, "SessionTransferToken")
     }
