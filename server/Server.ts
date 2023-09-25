@@ -23,6 +23,16 @@ export type SessionHeader = {
     version: number
 }
 
+/**
+ * A plugin that allows you to keep track valid session tokens (whitelist). I.e. you could use a central (Redis) database.
+ * <p>
+ * Like Set (partial). The string argument to the methods is a composition of the session-id + version.
+ * </p>
+ *
+ */
+export type SessionValidator = Pick<Set<string>, "has" | "add" | "delete">
+
+
 export type ServerOptions = {
     /**
      * TODO: like session
@@ -35,22 +45,21 @@ export type ServerOptions = {
     /**
      * TODO: Implement
      * TODO: If secret is set, we assume a multi-node environment. Force this option to be explicitly set then.
+     * TODO: Implement / mention timeouts.
      * How to track, that an attacker cannot switch / replay the session to an old state by presenting an old jwt session token ?
-     *   - memory (default). A list of valid tokens is kept in memory. This does not work on multi-node setting !
-     *   - false: No tracking. Sessions can be replayed as mentioned. Be aware of this in your app design. I.e. by just storing only userId in the session and other stuff like the basket items in the database.
-     *
+     *   - memory (default): A whitelist of valid tokens is kept in memory. This is as safe as traditional non-JWT sessions but does not work on a multi-node environment !
+     *   - {@link SessionValidator}: Plug in your own. I.e. use a fast Redis database.
+     *   - false: No tracking. Sessions can be replayed as mentioned. Be aware of this in your app design. I.e. by just storing only the userId and eventually permissions in the session and other replay-sensitive stuff, like the basket items, in the database.
      * <p>
-     * NOTE: Blacklisting through external server / database is not offered by restfuncs:
-     * We've seen some JWT implementations and suggestions in the wild that offer those but let's be honest: This will never scale, be fast and keep security at the same time.
-     * First: Imagine the time gap between the central database having the blacklisting transaction saved and published to all nodes. An attacker will just target that gap (i.e. try this a 1000 times on 2 nodes and you'll very likely get a lucky hit on that microsecond gap - it's just statistics)
+     * {@link https://redis.com/blog/json-web-tokens-jwt-are-dangerous-for-user-sessions/ More info on security and performance}
      * </p>
      * <p>
-     * Second: You could go for whitelisting instead but then you'd need *one central* atomic transaction capable server that holds the 'definite' whitelist and that one must be asked *before* every call to your service method.
-     * Sounds like a big bottleneck instead of the stateless and scalable spirit of JWT, right ?
-     * You'd be better of with syncing entities on the business logic level, i.e. before a user puts something in the basket, you ask the db for the latest basket.
+     * Note ob blacklisting: Blacklisting (through external server / database) is not offered by restfuncs:
+     * We've seen some JWT implementations and suggestions in the wild that offer those but let's be honest: This will never scale, be fast and keep security at the same time.
+     * Imagine the time gap between the central database having the blacklisting transaction saved and published to all nodes. An attacker will just target that gap (i.e. try this a 1000 times on 2 nodes and you'll very likely get a lucky hit on that microsecond gap - it's just statistics)
      * </p>
      */
-    sessionValidityTracking?: "memory"
+    sessionValidityTracking?: "memory" | SessionValidator | false
 }
 
 /*

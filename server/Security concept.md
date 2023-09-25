@@ -31,7 +31,7 @@ All the above applies to traditional http and all this seems fine but now come W
 
 The answer to all this is: We don't secure websocket connections themselves (+they're CORS allowed to all origins)
 Instead, the client pulls the context in which it operates from the main trusted http service to the websocket connection via encrypted tokens.
-Context means: "Can the client make requests to the service ?" + the full content of the session.
+Context means: "Can the client make requests to the service ?" + the full content of the session + the req (http request) object, which may contain the basicAuth user + clientcert info + other identifying stuff.
 
 See the types: AreCallsAllowedQuestion, AreCallsAllowedAnswer and corresponding methods in the Service
 For session transfer, see: SessionTransferRequest, SessionTransferToken, UpdateSessionToken. and corresponding methods in the Service
