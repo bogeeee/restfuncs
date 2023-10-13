@@ -1086,7 +1086,7 @@ export class Service {
      */
     protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: object, options: RestfuncsOptions): Promise<any> {
 
-        // typing was only for the caller. We go back to "any" so must check again:
+        // types were only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
         const args = <any> evil_args;
 
@@ -1142,12 +1142,10 @@ export class Service {
     }
 
     /**
-     * Allows you to intercept calls. Override and implement it with the default body:
-     * <pre>
-     *      return  await this[funcName](...args) // Call the original function
-     * </pre>
+     * Allows you to intercept calls by overriding this method.
      *
-     * You have access to this.req, this.resp and this.session as usual.
+     *
+     * You have access to this.req, this.resp as usual.
      *
      * @param funcName name of the function to be called
      * @param args args of the function to be called

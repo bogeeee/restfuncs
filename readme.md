@@ -57,10 +57,10 @@ export class MyServerSession extends ServerSession {
     // this.res.... // Access the raw (express) response. Field is simulated at call time.
     // (myCallback as Callback).... // Access some options under the hood
 
-    return `Hello ${user.name}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
+    return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
   }
 
-  // public static async getAllMyItems(...) {} // TODO: do we need it ? Use static methods for serving stuff that doesn't use this sessions's fields. They can also be called by the client marked 'public' !
+  public static async myStaticAPIMethod() {} // Also static methods can be called. TODO: do we need it ? Pro: we don't need the CSRF security check on-access cause we just assume that all non-static methods actually access the session. Con: we need to make a lot of methods static
     
   // ... <-- More API methods  
   // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
@@ -248,8 +248,8 @@ Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csr
   It doesn't state that a browser has to stop the request after a negative preflight. The following actual request will again contain the info whether it's allowed to read the result and browsers could legally use this as point to bail. But at that point it's already too late: The request has been executed and makes a CSRF attacker happy.
 * `corsReadToken` (**used by restfuncs-client**) This is a safer mode which works around this unclear in-spec/in-practice situation. The client must (if not already clear by `Origin` or `Referrer` headers) prove to have made a successful read, before the call is allowed to execute.  
   In detail (if you want to implement it yourself):
-  - The Client calls the `getCorsReadToken()` service method to get a token string. Every service has that method inherited from the Service base class. This the *read-proof*.
-  - Every http request now includes the fields `csrfProtectionMode=corsReadToken` and `corsReadToken=<the token>` in the headers, in the query (GET only) or in the body like [usual named parameters](#rest-interface). See the `devForceTokenCheck` option for development. A http response code `480` is sent when the token was missing/incorrect.
+  - The Client calls the `getCorsReadToken()` ServerSession method to get a token string. This the *read-proof*.
+  - Every further http request now includes the fields `csrfProtectionMode=corsReadToken` and `corsReadToken=<the token>` in the headers, in the query (GET only) or in the body like [usual named parameters](#rest-interface). See the `devForceTokenCheck` option for development. A http response code `480` is sent when the token was missing/incorrect.
 
 * `csrfToken`
   Strictly checks for a token that's been delivered in the start page (by your implementation). It's checked on every call / every session access _(enforced by client / enforced by server)_. The advantage is just that it relies less on in-depth defence / reflection of browser-behaviour and is commonly considered a simple-and-effective industry standard.
