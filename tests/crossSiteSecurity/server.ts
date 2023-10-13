@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs, RestfuncsOptions, ServerSession} from "restfuncs-server"
+import {restfuncs, ServerSessionOptions, ServerSession} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
@@ -12,7 +12,7 @@ import {ControlService} from "./ControlService.js";
     {
         // *** Main site: ****
         const port = 3000 // Adjust this in clientTests.ts also
-        const commonOptions: RestfuncsOptions = {
+        const commonOptions: ServerSessionOptions = {
             checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production
             exposeErrors: true,
             logErrors: false
@@ -31,7 +31,7 @@ import {ControlService} from "./ControlService.js";
         }));
 
         // Remote service(s): Register them
-        const services: {[name: string]: { service: ServerSession, options?:RestfuncsOptions} } = {
+        const services: {[name: string]: { service: ServerSession, options?:ServerSessionOptions} } = {
             "mainframeAPI":  { service:new MainframeService(), options: commonOptions},
             "testsService":  { service:new TestsService(), options: commonOptions},
             "allowedTestsService": { service:new TestsService(), options: {...commonOptions, allowedOrigins: ["http://localhost:3666"]}},

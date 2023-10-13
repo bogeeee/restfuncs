@@ -1,4 +1,4 @@
-import {RestfuncsOptions, safe, ServerSession as ServerSession} from "restfuncs-server";
+import {ServerSessionOptions, safe, ServerSession as ServerSession} from "restfuncs-server";
 import express from "express";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -22,7 +22,7 @@ const standardOptions = { checkArguments: false, logErrors: false, exposeErrors:
 
 
 class Service extends ServerSession {
-    static options: RestfuncsOptions = standardOptions;
+    static options: ServerSessionOptions = standardOptions;
 }
 
 beforeEach(() => {
@@ -72,7 +72,7 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
     }
 }
 
-async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options?: Partial<RestfuncsOptions>) {
+async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options?: Partial<ServerSessionOptions>) {
     resetGlobalState();
 
     const app = express();
@@ -499,7 +499,7 @@ test('auto convert parameters', async () => {
 test('various call styles', async () => {
 
     class TheService extends Service {
-        static options: RestfuncsOptions = {allowedOrigins: "all"}
+        static options: ServerSessionOptions = {allowedOrigins: "all"}
 
         getBook(name?: string, authorFilter?: string) {
             return [name, authorFilter];
@@ -594,7 +594,7 @@ test('various call styles', async () => {
 test('Result Content-Type', async () => {
 
     await runRawFetchTests(new class extends Service{
-        static options: RestfuncsOptions = {allowedOrigins: "all", logErrors: false, exposeErrors: true}
+        static options: ServerSessionOptions = {allowedOrigins: "all", logErrors: false, exposeErrors: true}
         async getString() {
             return "test";
         }
@@ -652,7 +652,7 @@ test('Result Content-Type', async () => {
 test('Http stream and buffer results', async () => {
 
     await runRawFetchTests(new class extends Service{
-        static options: RestfuncsOptions = {allowedOrigins: "all"}
+        static options: ServerSessionOptions = {allowedOrigins: "all"}
         async readableResult() {
             this.res.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
@@ -732,7 +732,7 @@ test('Http stream and buffer results', async () => {
 test('Http multipart file uploads', async () => {
 
     await runRawFetchTests(new class extends Service {
-        static options: RestfuncsOptions = {allowedOrigins: "all" , checkArguments: true};
+        static options: ServerSessionOptions = {allowedOrigins: "all" , checkArguments: true};
         uploadFile(file_name_0: string, file_name_1: string, upload_file_0: Buffer, upload_file_1: Buffer) {
             return [file_name_0, file_name_1, upload_file_0.toString(), upload_file_1.toString()]
         }
@@ -1064,7 +1064,7 @@ test('validateAndDoCall security', async () => {
            return a + b;
        }
 
-       public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<Service>, options: RestfuncsOptions): Promise<any> {
+       public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<Service>, options: ServerSessionOptions): Promise<any> {
            return super.validateAndDoCall(evil_methodName, evil_args, enhancementProps, options);
        }
    }

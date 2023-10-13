@@ -230,13 +230,13 @@ To specify what you want to **receive** in the response, Set the `Accept` header
 **Tl;dr:** **In a normal situation** (= no basic auth, no client-certs and using the restfuncs-client) **restfuncs already has a very strong CSRF protection** by default (`corsReadToken`, enforced by the client). For other situations, read the following:
 
 Restfuncs has the following 3 protection levels (weakest to hardest) to protect against CSRF attacks. See list below.
-You can enforce it by the `RestfuncsOptions.csrfProtectionMode` setting.  
+You can enforce it by the `ServerSessionOptions.csrfProtectionMode` setting.  
 **By default/ undefined, the client can decide the protection mode**. _"wait a minute, how can this be secure ?" See explanation_. This way, all sorts of clients can be served. Think of non-browser clients where CSRF does not have relevance, so their devs are not bugged with implementing token fetches.  
 _Explanation: Restfuncs will raise an error, if browser clients (or i.e an attacker from another browser tab) with different protection modes try to [access the (same) session](#store-values-in-the-http--browser-session). Meaning, once the session is created, it stores from which protection mode it came from, and all following requests, that access this session, must pass the check / show the token accordingly. Also they must at first indicate that they play the same csrfProtection mode (think of attacker creating the session first)._
 
 The above policy (let the clients decide) only covers sessions. So <strong>when using client-certificates or basic auth, you must explicitly decide for a setting</strong>, and you should use at least set it to `readToken` when dealing with browser clients.
 
-Here are the modes. `RestfuncsOptions.csrfProtectionMode` / `RestfuncsClient.csrfProtectionMode` can be set to:
+Here are the modes. `ServerSessionOptions.csrfProtectionMode` / `RestfuncsClient.csrfProtectionMode` can be set to:
 
 * `preflight` (**default**): Relies on the browser to make a CORS-preflight before doing the actual request and bail if that preflight failed.
   The [~1.5% browsers which don't implement CORS](https://caniuse.com/cors) are blacklisted. This also works with all non-browser clients and they don't need to implement any measurements.
@@ -270,7 +270,7 @@ On some requests, the browser will not make preflights for legacy reason. These 
 
 ## Hardening security for the paranoid
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
-- Set `RestfuncsOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
+- Set `ServerSessionOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 - TODO: List all sorts of disableXXX options to disable unneeded features
 
 ## Old: Security note**

@@ -1,4 +1,4 @@
-import {RestfuncsOptions, ServerSession} from "restfuncs-server";
+import {ServerSessionOptions, ServerSession} from "restfuncs-server";
 import session from "express-session";
 import express from "express"
 import _ from "underscore";

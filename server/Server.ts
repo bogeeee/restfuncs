@@ -2,7 +2,7 @@ import type {Server as HttpServer,} from "node:http";
 import http, {createServer} from "node:http";
 import expressApp, {Express} from "express";
 import _ from "underscore";
-import {RestfuncsOptions, ServerSession} from "./ServerSession";
+import {ServerSessionOptions, ServerSession} from "./ServerSession";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -283,9 +283,9 @@ class RestfuncsServerOOP {
             return this.cache_service2SecurityGroupIdMap
         }
 
-        const relevantProperties: (keyof RestfuncsOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
+        const relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
         // Go through all services and collect the groups
-        const groups: {options: RestfuncsOptions, members: (typeof ServerSession)[]}[] = []
+        const groups: {options: ServerSessionOptions, members: (typeof ServerSession)[]}[] = []
         this.services.forEach((service) => {
             for(const group of groups) {
                 if(  _(relevantProperties).find( key => group.options[key] !== service.options[key] ) === undefined ) { // Found a group where all relevantProperties match ?

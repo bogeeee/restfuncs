@@ -125,7 +125,7 @@ export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
 
 export type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, destination?: string) => boolean);
-export type RestfuncsOptions = {
+export type ServerSessionOptions = {
     /**
      * If using multiple RestfuncsServers(=apps), you must explicitly specify which one this service belongs to.
      */
@@ -291,7 +291,7 @@ export class ServerSession {
         return this.name; // In the future we might add
     }
 
-    static options: RestfuncsOptions = {};
+    static options: ServerSessionOptions = {};
 
     /**
      * Don't use. Use the <strong>static</strong> field instead.
@@ -388,7 +388,7 @@ export class ServerSession {
      * Pre checks some of the fields to give meaningful errors in advance.
      * @param options
      */
-    protected static checkOptionsValidity(options: RestfuncsOptions) {
+    protected static checkOptionsValidity(options: ServerSessionOptions) {
         function checkAllowedOrigins() {
             if (options.allowedOrigins === undefined) {
             } else if (_.isArray(options.allowedOrigins)) {
@@ -702,7 +702,7 @@ export class ServerSession {
     }
 
     /**
-     * Returns a token which you show in later requests, to prove that your browser allowed requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link RestfuncsOptions.allowedOrigins}
+     * Returns a token which you show in later requests, to prove that your browser allowed requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link ServerSessionOptions.allowedOrigins}
      * The created read token is stored in the session (so it can be matched with later requests)
      *
      * <p>
@@ -834,7 +834,7 @@ export class ServerSession {
             // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
             // So store a hash(token + server.secret) in the session instead.
             // For a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all. Similar to Server2ServerEncryptedBox
-            // The RestfuncsOptions should may be moved to a field inside this class then (easier API).
+            // The ServerSessionOptions should may be moved to a field inside this class then (easier API).
             // When having multiple Services, all should use the same key(s), like all session related stuff is global.
 
             // Create a token:
@@ -1009,7 +1009,7 @@ export class ServerSession {
             }
             else if(contentType == "multipart/form-data") {
                 if(!enableMultipartFileUploads) {
-                    throw new RestError("Please set enableMultipartFileUploads=true in the RestfuncsOptions.")
+                    throw new RestError("Please set enableMultipartFileUploads=true in the ServerSessionOptions.")
                 }
                 let bb = busboy({ headers: req.headers });
             }
@@ -1083,7 +1083,7 @@ export class ServerSession {
      * @param enhancementProps These fields will be temporarily added to this during the call.
      * @param options
      */
-    protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: object, options: RestfuncsOptions): Promise<any> {
+    protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: object, options: ServerSessionOptions): Promise<any> {
 
         // types were only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -1167,7 +1167,7 @@ export class ServerSession {
      * @param diagnosis
      */
     protected checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
-        // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the RestfuncsOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
+        // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
         const errorHints: string[] = [];
         /**
@@ -1440,7 +1440,7 @@ export class ServerSession {
     /**
      * You can override this as part of the API
      * @param methodName method/function name
-     * @see RestfuncsOptions.allowGettersFromAllOrigins
+     * @see ServerSessionOptions.allowGettersFromAllOrigins
      * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only ! Looks, if it's marked with a @safe decorator.
      */
     protected methodIsSafe(methodName: string) {
@@ -2027,7 +2027,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
 
 
     if (false) { // TODO x-forwarded-by header == getDestination(req)
-        // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to RestfuncsOptions.allowedOrigins`)
+        // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to ServerSessionOptions.allowedOrigins`)
     }
 
     errorHints?.push(`Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to allowedOrigins.`)
