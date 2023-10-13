@@ -331,9 +331,8 @@ export class Service {
      * </p>
      * @protected
      */
-     // @ts-ignore // TODO: make req | undefined in 1.0 API
-    // TODO: rename to res
-    protected resp?: Response;
+     // @ts-ignore
+    protected res?: Response;
 
     private static current = new AsyncLocalStorage<Service>();
 
@@ -435,7 +434,7 @@ export class Service {
 
         router.use(express.raw({limit: Number.MAX_VALUE, inflate: false, type: req => true})) // parse application/brillout-json and make it available in req.body
 
-        router.use(async (req, resp, next) => {
+        router.use(async (req, res, next) => {
             let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json" // TODO: add options
             acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
 
@@ -447,31 +446,31 @@ export class Service {
             const sendResult = (result: any, diagnosis_methodName?: string) => {
                 const contextPrefix = diagnosis_methodName ? `${diagnosis_methodName}: ` : ""; // Reads better. I.e. the user doesnt see on first glance that the error came from the getIndex method
 
-                // Determine contentTypeFromCall: The content type that was explicitly set during the call via resp.contentType(...):
-                const contentTypeHeader = resp.getHeader("Content-Type");
+                // Determine contentTypeFromCall: The content type that was explicitly set during the call via res.contentType(...):
+                const contentTypeHeader = res.getHeader("Content-Type");
                 if(typeof contentTypeHeader == "number" || _.isArray(contentTypeHeader)) {
                     throw new Error(`${contextPrefix}Unexpected content type header. Should be a single string`);
                 }
                 const [contentTypeFromCall, contentTypeOptionsFromCall] = parseContentTypeHeader(contentTypeHeader);
 
                 if(contentTypeFromCall == "application/brillout-json") {
-                    resp.send(brilloutJsonStringify(result));
+                    res.send(brilloutJsonStringify(result));
                 }
                 else if(contentTypeFromCall == "application/json") {
-                    resp.json(result);
+                    res.json(result);
                 }
                 else if(contentTypeFromCall) { // Other ?
                     if(typeof result === "string") {
-                        resp.send(result);
+                        res.send(result);
                     }
                     else if(result instanceof Readable) {
                         if(result.errored) {
                             throw result.errored;
                         }
                         result.on("error", (err) => {
-                            resp.end(this.logAndGetErrorLineForPasteIntoStreams(err, req));
+                            res.end(this.logAndGetErrorLineForPasteIntoStreams(err, req));
                         })
-                        result.pipe(resp);
+                        result.pipe(res);
                     }
                     else if(result instanceof ReadableStream) {
                         throw new RestError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`)
@@ -480,7 +479,7 @@ export class Service {
                         throw new RestError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`)
                     }
                     else if(result instanceof Buffer) {
-                        resp.send(result);
+                        res.send(result);
                     }
                     else {
                         throw new RestError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)
@@ -488,22 +487,22 @@ export class Service {
                 }
                 else { // Content type was not explicitly set in the call ?
                     if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
-                        throw new RestError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.resp?.contentType(...); `);
+                        throw new RestError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.res?.contentType(...); `);
                     }
 
                     // Send what best matches the Accept header (defaults to json):
                     acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
                         if (accept == "application/brillout-json") { // The better json ?
-                            resp.contentType("application/brillout-json")
-                            resp.send(brilloutJsonStringify(result));
+                            res.contentType("application/brillout-json")
+                            res.send(brilloutJsonStringify(result));
                         }
                         else if(accept == "application/json") {
                             result = result!==undefined?result:null; // Json does not support undefined
-                            resp.json(result);
+                            res.json(result);
                         }
                         else if(accept == "text/html") {
                             if(diagnosis_looksLikeHTML(result)) {
-                                throw new RestError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.resp?.contentType(\"text/html; charset=utf-8\"); `);
+                                throw new RestError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.res?.contentType(\"text/html; charset=utf-8\"); `);
                             }
                             return false;
                         }
@@ -520,11 +519,11 @@ export class Service {
 
             try {
                 // Set headers to prevent caching: (before method invocation so the user has the ability to change the headers)
-                resp.header("Expires","-1");
-                resp.header("Pragma", "no-cache");
+                res.header("Expires","-1");
+                res.header("Pragma", "no-cache");
 
-                resp.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
-                resp.header("Access-Control-Expose-Headers", "restfuncs-protocol")
+                res.header("restfuncs-protocol",  PROTOCOL_VERSION); // Let older clients know when the interface changed
+                res.header("Access-Control-Expose-Headers", "restfuncs-protocol")
 
                 if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE" && req.method !== "OPTIONS") {
                     throw new RestError("Unhandled http method: " + req.method)
@@ -538,30 +537,30 @@ export class Service {
                 if(req.method === "OPTIONS") {
                     if(originAllowed) {
                         if(req.header("Access-Control-Request-Method")) { // Request is a  CORS preflight (we don't care which actual method) ?
-                            resp.header("Access-Control-Allow-Origin", origin)
-                            resp.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
-                            resp.header("Access-Control-Allow-Headers", ["content-type", "accept", "iscomplex", ...Array.from(metaParameterNames).map( v=> v.toLowerCase())].join(", "));
-                            resp.header("Access-Control-Allow-Credentials", "true")
+                            res.header("Access-Control-Allow-Origin", origin)
+                            res.header("Access-Control-Allow-Methods", "GET,HEAD,POST,PUT,DELETE")
+                            res.header("Access-Control-Allow-Headers", ["content-type", "accept", "iscomplex", ...Array.from(metaParameterNames).map(v=> v.toLowerCase())].join(", "));
+                            res.header("Access-Control-Allow-Credentials", "true")
 
-                            resp.header("Vary", "Origin")
-                            //resp.header("Access-Control-Max-Age", "3600") // Stick with the defaults / pros + cons not researched
+                            res.header("Vary", "Origin")
+                            //res.header("Access-Control-Max-Age", "3600") // Stick with the defaults / pros + cons not researched
 
-                            resp.status(204);
+                            res.status(204);
                         }
                     }
                     else {
                         throw new RestError(diagnosis_originNotAllowedErrors.join("; "));
                     }
 
-                    resp.end();
+                    res.end();
                     return;
                 }
 
                 // Add cors header:
                 if(originAllowed) {
                     // Send CORS headers (like preflight)
-                    resp.header("Access-Control-Allow-Origin", origin);
-                    resp.header("Access-Control-Allow-Credentials", "true")
+                    res.header("Access-Control-Allow-Origin", origin);
+                    res.header("Access-Control-Allow-Credentials", "true")
                 }
 
                 // Create Session object:
@@ -622,13 +621,13 @@ export class Service {
 
                 const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
-                let result = await csrfProtectedSession.validateAndDoCall(methodName, methodArguments, {req, resp}, this.options);
+                let result = await csrfProtectedSession.validateAndDoCall(methodName, methodArguments, {req, res}, this.options);
                 _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
                 sendResult(result, methodName);
             }
             catch (caught) {
                 if(caught instanceof Error) {
-                    resp.status( isRestError(caught) && (<RestError>caught).httpStatusCode || 500);
+                    res.status( isRestError(caught) && (<RestError>caught).httpStatusCode || 500);
 
                     fixErrorStack(caught)
                     let error = this.logAndConcealError(caught, req);
@@ -636,15 +635,15 @@ export class Service {
                     // Format error and send it:
                     acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
                         if(accept == "application/json") {
-                            resp.json(error);
+                            res.json(error);
                         }
                         else if(accept == "text/html") {
-                            resp.contentType("text/html; charset=utf-8")
-                            resp.send(`<!DOCTYPE html><html>${errorToHtml(error)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
+                            res.contentType("text/html; charset=utf-8")
+                            res.send(`<!DOCTYPE html><html>${errorToHtml(error)}${"\n"}<!-- HINT: You can have JSON here when setting the 'Accept' header tp application/json.--></html>`);
                         }
                         else if(accept.startsWith("text/")) {
-                            resp.contentType(`text/plain; charset=utf-8`)
-                            resp.send(errorToString(error))
+                            res.contentType(`text/plain; charset=utf-8`)
+                            res.send(errorToString(error))
                         }
                         else {
                             return false; // not handled ?
@@ -653,7 +652,7 @@ export class Service {
                     });
                 }
                 else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
-                    resp.status(550); // Indicate "throw legal value" to the client
+                    res.status(550); // Indicate "throw legal value" to the client
                     sendResult(caught); // Just send it.
                 }
             }
@@ -686,13 +685,13 @@ export class Service {
             '    @safe()\n' +
             '    getIndex() {\n\n' +
             '        //... must perform non-state-changing operations only !\n\n' +
-            '        this.resp?.contentType("text/html; charset=utf-8");\n' +
+            '        this.res?.contentType("text/html; charset=utf-8");\n' +
             '        return "<!DOCTYPE html><html><body>I\'m aliiife !</body></html>"\n' +
             '    }\n\n' +
             '    // ...'
 
 
-        this.resp?.contentType("text/html; charset=utf-8");
+        this.res?.contentType("text/html; charset=utf-8");
         return "<!DOCTYPE html>" +
             "<html>" +
             `    <head><title>${escapeHtml(title)}</title></head>` +
@@ -1124,11 +1123,11 @@ export class Service {
         if(!enhancementProps || typeof enhancementProps !== "object" || _.functions(enhancementProps).length > 0) {
             throw new Error("Invalid enhancementProps argument");
         }
-        const allowed: Record<string, boolean> = {req:true, resp: true, session: true}
+        const allowed: Record<string, boolean> = {req:true, res: true, session: true}
         Object.keys(enhancementProps).map(key => {if(!allowed[key]) { throw new Error(`${key} not allowed in enhancementProps`)}})
 
         let result;
-        await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .resp safely available during call
+        await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .res safely available during call
             // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
             let resultPromise;
             Service.current.run(service, () => {
@@ -1145,7 +1144,7 @@ export class Service {
      * Allows you to intercept calls by overriding this method.
      *
      *
-     * You have access to this.req, this.resp as usual.
+     * You have access to this.req, this.res as usual.
      *
      * @param funcName name of the function to be called
      * @param args args of the function to be called
@@ -1828,7 +1827,7 @@ export class Service {
             }
         }
 
-        if(this.req || this.resp) {throw new RestError("Invalid state: req or resp must not be set.")}
+        if(this.req || this.res) {throw new RestError("Invalid state: req or res must not be set.")}
     }
 }
 
@@ -1852,7 +1851,7 @@ export class Service {
  *
  *         // ... SECURITY: code in @safe() methods must perform read operations only !
  *
- *         this.resp?.contentType("text/html; charset=utf-8");
+ *         this.res?.contentType("text/html; charset=utf-8");
  *         return `<html>
  *             isLoggedOn: ${isLoggedOn},
  *             yourLibraryKey: ${escapeHtml(xy)} // You can still send sensitive information because a browser script from a non allowed origins can't extract the contents of simple/non-preflighted GET requests

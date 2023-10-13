@@ -36,7 +36,7 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
             }
 
             if (callHasEnded) {
-                throw new Error(`You must not hand out the this object from inside your ${diagnosis_funcName}(...) function. This is because 'this' is only a proxy (to make req, resp, ... available) but it MUST NOT be referenced after the call to prevent resources leaks.`);
+                throw new Error(`You must not hand out the this object from inside your ${diagnosis_funcName}(...) function. This is because 'this' is only a proxy (to make req, res, ... available) but it MUST NOT be referenced after the call to prevent resources leaks.`);
             }
 
             return target[p]; // normal property

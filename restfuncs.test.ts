@@ -600,7 +600,7 @@ test('Result Content-Type', async () => {
         }
 
         async getHtml() {
-            this.resp.contentType("text/html; charset=utf-8");
+            this.res.contentType("text/html; charset=utf-8");
             return "<html/>";
         }
 
@@ -610,12 +610,12 @@ test('Result Content-Type', async () => {
 
 
         async getTextPlain() {
-            this.resp.contentType("text/plain; charset=utf-8");
+            this.res.contentType("text/plain; charset=utf-8");
             return "plain text";
         }
 
         async returnNonStringAsHtml() {
-            this.resp.contentType("text/html; charset=utf-8");
+            this.res.contentType("text/html; charset=utf-8");
             return {};
         }
     }(), async (baseUrl) => {
@@ -654,7 +654,7 @@ test('Http stream and buffer results', async () => {
     await runRawFetchTests(new class extends Service{
         static options: RestfuncsOptions = {allowedOrigins: "all"}
         async readableResult() {
-            this.resp.contentType("text/plain; charset=utf-8");
+            this.res.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -667,7 +667,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithError() {
-            this.resp.contentType("text/html; charset=utf-8");
+            this.res.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -681,7 +681,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithEarlyError() {
-            this.resp.contentType("text/html; charset=utf-8");
+            this.res.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -693,7 +693,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async bufferResult() {
-            this.resp.contentType("text/plain; charset=utf-8");
+            this.res.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
     }(), async (baseUrl) => {
@@ -827,14 +827,14 @@ test('Parameter types', async () => {
     }
 });
 
-test('.req, .resp and Resources leaks', async () => {
+test('.req, .res and Resources leaks', async () => {
         await new Promise<void>(async (resolve, reject) => {
             try {
                 const serverAPI = new class extends Service {
                     async myMethod() {
                         // test ac
                         expect(this.req.path).toContain("/myMethod");
-                        this.resp.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+                        this.res.setHeader("myHeader", "123"); // test setting headers before the content is sent.
                     }
 
                     async leakerMethod() {
@@ -896,7 +896,7 @@ test('Reserved names', async () => {
     await runClientServerTests(new class extends Service{
 
     },async apiProxy => {
-        for(const forbiddenName of ["req", "resp", "session", "doCall","methodIsSafe"]) {
+        for(const forbiddenName of ["req", "res", "session", "doCall","methodIsSafe"]) {
             // @ts-ignore
             await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
         }
@@ -1071,7 +1071,7 @@ test('validateAndDoCall security', async () => {
 
 
 
-    expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", resp: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
+    expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", res: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
 
     // Malformed method name:
     await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("validateAndDoCall", [], {}, {}),"reserved name");

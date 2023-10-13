@@ -73,7 +73,7 @@ export class TestsService extends Service {
     }
 
     getTestImage() {
-        this.resp?.contentType("image/x-png")
+        this.res?.contentType("image/x-png")
         return fs.createReadStream("teeest.png")
     }
 
