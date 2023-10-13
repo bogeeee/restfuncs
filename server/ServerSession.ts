@@ -634,7 +634,7 @@ export class ServerSession implements IServerSession {
                     const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityPropertiesOfRequest.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        session.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
                             acceptedResponseContentTypes,
                             contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
                             isSessionAccess: false
@@ -643,7 +643,7 @@ export class ServerSession implements IServerSession {
                 }
 
 
-                session.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
+                this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
                 session.validateCall(methodName, methodArguments);
 
@@ -1190,7 +1190,7 @@ export class ServerSession implements IServerSession {
      * @param session holds the tokens
      * @param diagnosis
      */
-    protected checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
+    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
         const errorHints: string[] = [];
@@ -1236,13 +1236,13 @@ export class ServerSession implements IServerSession {
                     return false;
                 }
 
-                if (!sessionTokens[this.clazz.id]) {
+                if (!sessionTokens[this.id]) {
                     errorHints.push(`No ${tokenType} was stored in the session for the Service, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 try {
-                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.clazz.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
+                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                         return true;
                     } else {
                         errorHints.push(`${tokenType} incorrect`);
@@ -1361,7 +1361,7 @@ export class ServerSession implements IServerSession {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
 
-            session.checkIfRequestIsAllowedToRunCredentialed(reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
+            this.checkIfRequestIsAllowedToRunCredentialed(reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
         }
 
         return new Proxy(session, {
