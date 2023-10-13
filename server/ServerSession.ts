@@ -606,7 +606,7 @@ export class ServerSession implements IServerSession {
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
-                const methodName = session.getMethodNameForCall(req.method, methodNameFromPath);
+                const methodName = this.getMethodNameForCall(req.method, session, methodNameFromPath);
                 if(!methodName) {
                     if(!methodNameFromPath) {
                         throw new CommunicationError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
@@ -1480,33 +1480,36 @@ export class ServerSession implements IServerSession {
 
     /**
      * You can override this as part of the API
+     * @param target Either the instance or the class (as you can call instance + static methods)
      * @param methodName
      */
-    protected hasMethod(methodName: string) {
+    protected static hasMethod(target: ServerSession | ClassOf<ServerSession>, methodName: string) {
         // @ts-ignore
-        return this[methodName] && (typeof this[methodName] === "function");
+        return target[methodName] && (typeof target[methodName] === "function");
     }
 
     /**
      * Retrieves, which method should be picked. I.e GET user -> getUser
-     *
-     * You can override this as part of the API
+     * <p>
+     * You can override this as part of the API. Note that you must not access properties here, since this could be called on the prototype.
+     * </p>
      * @param httpMethod
+     * @param target Either the instance or the class (as you can call instance + static methods)
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
-    protected getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | undefined {
+    protected static getMethodNameForCall(httpMethod: RegularHttpMethod, target: ServerSession | ClassOf<ServerSession>, path: string): string | undefined {
         if(path === "") {
             path = "index";
         }
 
-        if (this.hasMethod(path)) { // Direct hit
+        if (this.hasMethod(target, path)) { // Direct hit
             return path; // We are done and don't lose performance on other checks
         }
 
         // check: GET user -> getUser
         {
             const candidate = `${httpMethod.toLowerCase()}${Camelize(path)}`;
-            if (this.hasMethod(candidate)) {
+            if (this.hasMethod(target, candidate)) {
                 return candidate;
             }
         }
@@ -1516,7 +1519,7 @@ export class ServerSession implements IServerSession {
             // check: PUT user -> updateUser
             {
                 const candidate = `update${Camelize(path)}`;
-                if (this.hasMethod(candidate)) {
+                if (this.hasMethod(target, candidate)) {
                     return candidate;
                 }
             }
@@ -1524,7 +1527,7 @@ export class ServerSession implements IServerSession {
             // check: PUT user -> setUser
             {
                 const candidate = `set${Camelize(path)}`;
-                if (this.hasMethod(candidate)) {
+                if (this.hasMethod(target, candidate)) {
                     return candidate;
                 }
             }
