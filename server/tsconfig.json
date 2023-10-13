@@ -20,7 +20,6 @@
     "strict": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "suppressImplicitAnyIndexErrors": true
   },
   "exclude": ["dist"]
 }

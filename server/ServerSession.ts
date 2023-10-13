@@ -280,6 +280,7 @@ type ClassOf<T> = {
  * TODO
  */
 export class ServerSession {
+    [index: string]: unknown
 
     /**
      * Uniquely identify this class. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
