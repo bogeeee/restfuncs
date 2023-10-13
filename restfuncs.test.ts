@@ -386,10 +386,54 @@ test('Exceptions', async () => {
     });
 });
 
-test('Safe methods security', async () => {
+test('Safe methods decorators', async () => {
+
+    class BaseService extends Service {
+        static options = {checkArguments: false, logErrors: false, exposeErrors: true}
+
+        // Escalate to 'public'
+        public static methodIsSafe(...args: any) {
+            // @ts-ignore
+            return super.methodIsSafe(...args);
+        }
+    }
+
+    class Service1 extends BaseService {
+    }
+
+    class Service2 extends BaseService {
+    }
+
+    class Service3 extends BaseService {
+    }
+
+    expect(Service1.methodIsSafe("getIndex")).toBeTruthy()
+    expect(Service2.methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+    expect(Service3.methodIsSafe("getIndex")).toBeTruthy()
+
+    // With overwrite and @safe:
+    class ServiceA extends BaseService {
+        @safe()
+        async getIndex() {
+            return "";
+        }
+    }
+
+    expect(ServiceA.methodIsSafe("getIndex")).toBeTruthy()
+
+    // With overwrite but no @safe:
+    class ServiceB extends BaseService {
+        async getIndex() {
+            return "";
+        }
+    }
+
+    expect(ServiceB.methodIsSafe("getIndex")).toBeFalsy()
+});
+
+test('Safe methods call', async () => {
 
     let wasCalled = false; // TODO: We could simply check if methods returned successfully as the non-browser client shouldn't restrict reading the result. But now to lazy to change that.
-
     class BaseService extends Service{
         unsafeFromBase() {
             wasCalled = true;
@@ -440,6 +484,8 @@ test('Safe methods security', async () => {
         }
     }
 
+
+
     await runRawFetchTests(new MyService() , async (baseUrl) => {
         async function checkFunctionWasCalled(functionName, expected: boolean) {
             wasCalled = false;
@@ -455,39 +501,6 @@ test('Safe methods security', async () => {
 
         await checkFunctionWasCalled("overwriteMe1", true);
         await checkFunctionWasCalled("overwriteMe2", false);
-
-        class BaseService extends Service {
-            static options = {checkArguments: false, logErrors: false, exposeErrors: true}
-
-            // Escalate to 'public'
-            public methodIsSafe(...args: Parameters<Service["methodIsSafe"]>) {
-                return super.methodIsSafe(...args);
-            }
-        }
-        class Service1 extends BaseService {}
-        class Service2 extends BaseService {}
-        class Service3 extends BaseService {}
-        expect(new Service1().methodIsSafe("getIndex")).toBeTruthy()
-        expect(new Service2().methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-        expect(new Service3().methodIsSafe("getIndex")).toBeTruthy()
-
-        // With overwrite and @safe:
-        class ServiceA extends BaseService{
-            @safe()
-            async getIndex() {
-                return "";
-            }
-        }
-        expect(new ServiceA().methodIsSafe("getIndex")).toBeTruthy()
-
-        // With overwrite but no @safe:
-        class ServiceB extends BaseService {
-            async getIndex() {
-                return "";
-            }
-        }
-        expect(new ServiceB().methodIsSafe("getIndex")).toBeFalsy()
-
     });
 })
 
