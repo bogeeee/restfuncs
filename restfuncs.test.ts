@@ -930,20 +930,21 @@ test('.req, .res and Resources leaks', async () => {
 });
 
 test('parseQuery', () => {
-    const service = new class extends Service{
+    class TestSession extends Service{
         static options = {checkArguments: false}
 
         // Escalate to 'public'
-        public parseQuery(...args: Parameters<Service["parseQuery"]>) {
+        public static parseQuery(...args: any) {
+            // @ts-ignore
             return super.parseQuery(...args);
         }
-    }();
-    expect(service.parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
-    expect(service.parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
-    expect(service.parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
-    expect(service.parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
-    expect(service.parseQuery("&c").result).toStrictEqual({"c": "true"});
-    expect(service.parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
+    }
+    expect(TestSession.parseQuery("book=1984&&author=George%20Orwell&keyWithoutValue").result).toStrictEqual({ book: "1984", author:"George Orwell", keyWithoutValue:"true" })
+    expect(TestSession.parseQuery("1984,George%20Orwell").result).toStrictEqual(["1984", "George Orwell"]);
+    expect(TestSession.parseQuery("a%20=1&b%20x=2&c%20").result).toStrictEqual({"a ": "1", "b x": "2", "c ": "true"}); // uricomponent encoded keys
+    expect(TestSession.parseQuery("a=1&b=2&c").result).toStrictEqual({a: "1", b: "2", "c": "true"});
+    expect(TestSession.parseQuery("&c").result).toStrictEqual({"c": "true"});
+    expect(TestSession.parseQuery("George%20Orwell").result).toStrictEqual(["George Orwell"]);
 
 });
 
