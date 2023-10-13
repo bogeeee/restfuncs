@@ -65,7 +65,7 @@ export class MyServerSession extends ServerSession {
   // ... <-- More API methods  
   // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
   // ... <-- Override `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
-  // ... <-- Override other methods from the Service base class for advanced tweaking (use intellisense and read the method description)
+  // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description)
 }
 ````
 **server.ts**
@@ -176,7 +176,7 @@ The following example service method...
 | GET | _/**getBook**/1984/George%20Orwell_ | | **List** arguments in the **path**
 | GET | _/**getBook**?1984,George%20Orwell_ | | **List** arguments in the **query**
 | GET | _/**getBook**?name=1984&authorFilter=George%20Orwell_ | | **Name** arguments in the **query**
-| GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your Service subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
+| GET | _/**getBook**?__&lt;custom implementation&gt;_ | | Override the `parseQuery` method in your ServerSession subclass. See JSDoc.  [Here's a discussion about different url serializers](https://stackoverflow.com/questions/15872658/standardized-way-to-serialize-json-to-query-string) 
 | GET | _/**book** ..._ | | Read **"GET book"** like `getBook`. Applies to other http verbs also. Additionally **"PUT book"** will try to call `updateBook` or `setBook` cause this sounds more common in programming languages.
 | POST | _/**getBook**_ | `{"name": "1984", "authorFilter":"George Orwell"}` | **Name** arguments inside JSON body
 | POST | _/**getBook**_ | `["1984", "George Orwell"]` | **List** arguments inside JSON body
@@ -212,7 +212,7 @@ To specify what you **send** and how it should be interpreted, set the `Content-
 Parameter values will be **reasonably** auto converted to the actual declared type.
 - The **query or path** can only carry strings, so they **will auto convert to boolean, number, Date, BigInt** types.
 - **JSON**'s unsupported `undefined` (in arrays), `BigInt` and `Date` values will auto convert.   
-  _Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `Service.autoConvertValueForParameter_fromJson` method to improve it._
+  _Note that it currently doesn't support nested properties like `myFunc(i: {someDate: Date})`. Set and Map are also not supported. Have a look at the source of `ServerSession.autoConvertValueForParameter_fromJson` method to improve it._
 
 _Restfuncs won't try to convert to ambiguous types like `string|bool` cause that would be too much magic and could cause unwanted behaviour flipping in your app (i.e., someone evil enters 'true' as username and this makes its way to a query param)._
 
@@ -303,4 +303,4 @@ Places where your help would be needed
 - Security review this and of typescript-rtti
 - Enhance [testcases for typescript-rtti](runtime-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
 - Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
-- Write a 3rd party `Service` base class for authentication (session based, oauth, SSO).   
+- Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).   

@@ -1,4 +1,4 @@
-import {RestError, Service} from "restfuncs-server";
+import {RestError, ServerSession} from "restfuncs-server";
 import _ from "underscore";
 
 class NotLoggedInError extends RestError {
@@ -9,7 +9,7 @@ class NotLoggedInError extends RestError {
     }
 }
 
-export class MainframeService extends Service {
+export class MainframeService extends ServerSession {
     // If you have multiple services, you may want to move session, doCall and login into a common baseclass
 
     logonUser?: string

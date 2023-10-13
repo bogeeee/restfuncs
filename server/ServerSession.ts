@@ -216,7 +216,7 @@ export type RestfuncsOptions = {
      * </p>
      * To still allow interoperability, you can:
      * - if the method is read only, see {@link safe()}.
-     * - implement the access token logic yourself, see {@link Service.proofRead()}
+     * - implement the access token logic yourself, see {@link ServerSession.proofRead()}
      * - disable this feature and trust on browsers to make preflights and bail if they fail.
      *
      * Note: For client developers with tokenized modes: You may wonder wonder why some requests will still pass without token checks. They may be already considered safe according the the origin/referrer headers or for @safe methods.
@@ -260,14 +260,14 @@ export type SecurityRelevantSessionFields = {
 
     /**
      * One for each service
-     * Service id -> token
+     * ServerSession id -> token
      */
     corsReadTokens?: Record<string, string>
 
     /**
      * One for each service
      *
-     * Service id -> token
+     * ServerSession id -> token
      */
     csrfTokens?: Record<string, string>
 };
@@ -279,7 +279,7 @@ type ClassOf<T> = {
 /**
  * TODO
  */
-export class Service {
+export class ServerSession {
 
     /**
      * Uniquely identify this class. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
@@ -305,7 +305,7 @@ export class Service {
     static safeMethods?: Set<string>
 
     /**
-     * Those methods directly here on Service are allowed to be called
+     * Those methods directly here on ServerSession are allowed to be called
      */
     static whitelistedMethodNames = new Set(["getIndex", "getCorsReadToken"])
 
@@ -334,7 +334,7 @@ export class Service {
      // @ts-ignore
     protected res?: Response;
 
-    private static current = new AsyncLocalStorage<Service>();
+    private static current = new AsyncLocalStorage<ServerSession>();
 
     /**
      * Use <code>MyService.getCurrent()</code>
@@ -346,8 +346,8 @@ export class Service {
      *     You can use {@link exitCurrent} to invoke such management functions safely, but be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023.
      * </p>
      */
-    public static getCurrent<T extends Service>(this: ClassOf<T>): T | undefined {
-        return Service.current.getStore() as T;
+    public static getCurrent<T extends ServerSession>(this: ClassOf<T>): T | undefined {
+        return ServerSession.current.getStore() as T;
     }
 
     /**
@@ -359,7 +359,7 @@ export class Service {
      * @param sessionFreeFn function in which getCurrent() will return undefined.
      */
     public static exitCurrent(sessionFreeFn: () => void) {
-        Service.current.exit(() => {
+        ServerSession.current.exit(() => {
             // As mentioned, the API is still marked as experimental. So we do a quick test, if it works:
             if(this.getCurrent() !== undefined) {
                 throw new Error("this.getCurrent() is still defined");
@@ -564,7 +564,7 @@ export class Service {
                 }
 
                 // Create Session object:
-                let session: Service = new this();
+                let session: ServerSession = new this();
                 session.validateFreshInstance();
 
                 // Apply cookie session:
@@ -681,7 +681,7 @@ export class Service {
         const title = className?`Index of class ${className}`:`Index of {}`
 
         const example = 'import {safe} from "restfuncs-server"; // dont forget that import\n\n' +
-            (className?`class ${className} {`:'    //...inside your Service class: ') +' \n\n' +
+            (className?`class ${className} {`:'    //...inside your ServerSession class: ') +' \n\n' +
             '    @safe()\n' +
             '    getIndex() {\n\n' +
             '        //... must perform non-state-changing operations only !\n\n' +
@@ -722,7 +722,7 @@ export class Service {
 
     /**
      * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
-     * @param session req.session (from inside express handler) or this.req.session (from inside a Service call).
+     * @param session req.session (from inside express handler) or this.req.session (from inside a ServerSession call).
      * It must be the RAW session object (and not the proxy that protects it from csrf)
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
@@ -861,7 +861,7 @@ export class Service {
      *
      * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously
      *
-     * @see Service#validateAndDoCall use this method to check the security on the result
+     * @see ServerSession#validateAndDoCall use this method to check the security on the result
      * @param methodName
      * @param req
      */
@@ -939,7 +939,7 @@ export class Service {
                     }
 
                     if(!reflectedMethod) {
-                        throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${Service._diagnosisWhyIsRTTINotAvailable()}`)
+                        throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosisWhyIsRTTINotAvailable()}`)
                     }
 
                     const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
@@ -1096,7 +1096,7 @@ export class Service {
         if(typeof methodName !== "string") {
             throw new RestError(`methodName is not a string`)
         }
-        if( (emptyService[methodName] !== undefined || {}[methodName] !== undefined) && !Service.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
+        if( (emptyService[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
             throw new RestError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if(this[methodName] === undefined) {
@@ -1130,7 +1130,7 @@ export class Service {
         await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .res safely available during call
             // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
             let resultPromise;
-            Service.current.run(service, () => {
+            ServerSession.current.run(service, () => {
                 resultPromise = service.doCall(methodName, args); // Call method with user's doCall interceptor;
             })
 
@@ -1330,7 +1330,7 @@ export class Service {
      * @param allowedOrigins
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(session: Service & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
         const checkAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
@@ -1341,7 +1341,7 @@ export class Service {
         }
 
         return new Proxy(session, {
-            get(target: Service, p: string | symbol, receiver: any): any {
+            get(target: ServerSession, p: string | symbol, receiver: any): any {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new RestError(`Unhandled : ${String(p)}`)
@@ -1355,7 +1355,7 @@ export class Service {
 
                 return target[p];
             },
-            set(target: Service, p: string | symbol, newValue: any, receiver: any): boolean {
+            set(target: ServerSession, p: string | symbol, newValue: any, receiver: any): boolean {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new RestError(`Unhandled : ${String(p)}`)
@@ -1379,15 +1379,15 @@ export class Service {
                 target[p] = newValue;
                 return true;
             },
-            deleteProperty(target: Service, p: string | symbol): boolean {
+            deleteProperty(target: ServerSession, p: string | symbol): boolean {
                 checkAccess(false);
                 throw new Error("deleteProperty not implemented.");
             },
-            has(target: Service, p: string | symbol): boolean {
+            has(target: ServerSession, p: string | symbol): boolean {
                 //checkAccess(true); // validateAndDoCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
                 return p in target;
             },
-            ownKeys(target: Service): ArrayLike<string | symbol> {
+            ownKeys(target: ServerSession): ArrayLike<string | symbol> {
                 checkAccess(true);
                 throw new Error("ownKeys not implemented.");
             }
@@ -1563,7 +1563,7 @@ export class Service {
             }
 
             if (parameter.type.isClass(Boolean)) {
-                return Service.STRING_TO_BOOL_MAP[value];
+                return ServerSession.STRING_TO_BOOL_MAP[value];
             }
 
             if (parameter.type.isClass(Date)) {
@@ -1778,13 +1778,13 @@ export class Service {
      * </p>
      * <code>getClass(): typeof YOUR-SERVERSESSION-SUBCLASS</code>.
      */
-    getClass(): typeof Service {
+    getClass(): typeof ServerSession {
         // @ts-ignore
         return this.constructor
     }
 
     /**
-     * Returns an id for this Service.
+     * Returns an id for this ServerSession.
      *
      * It's not checked for uniqueness.
      * @see checkIfIdIsUnique
@@ -2038,7 +2038,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
 export type SecurityRelevantRequestFields = {
     httpMethod: string,
     /**
-     * The / your Service's method name that's about to be called
+     * The / your ServerSession's method name that's about to be called
      */
     serviceMethodName: string,
     /**
@@ -2098,6 +2098,6 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
 /**
  * Needed for security checks.
  */
-class EmptyService extends Service {
+class EmptyService extends ServerSession {
 }
 const emptyService = new EmptyService();

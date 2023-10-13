@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {isTypeInfoAvailable, Service as ServerSession} from "restfuncs-server/Service";
+import {isTypeInfoAvailable, ServerSession as ServerSession} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";

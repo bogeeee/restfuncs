@@ -2,7 +2,7 @@ import type {Server as HttpServer,} from "node:http";
 import http, {createServer} from "node:http";
 import expressApp, {Express} from "express";
 import _ from "underscore";
-import {RestfuncsOptions, Service} from "./Service";
+import {RestfuncsOptions, ServerSession} from "./ServerSession";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -131,12 +131,12 @@ class RestfuncsServerOOP {
 
     /**
      * id -> service
-     * The Service constructor registers itself here. TODO
+     * The ServerSession constructor registers itself here. TODO
      */
-    private services = new Map<string, typeof Service>()
+    private services = new Map<string, typeof ServerSession>()
 
     // Hope we don't get to the point where we need the group object (not only the id) - as it will always turn out so ;)
-    private cache_service2SecurityGroupIdMap?: Map<typeof Service, string>
+    private cache_service2SecurityGroupIdMap?: Map<typeof ServerSession, string>
 
     expressApp: Express;
 
@@ -207,7 +207,7 @@ class RestfuncsServerOOP {
             instance = <RestfuncsServer> <any> this;
         }
         else {
-            // TODO: if(instance.diagnosis_isFallback) throw new Error("A fallback RestfuncsExpress already exists. Make sure to initialize 'app = RestfuncsExpress()' before any Service is instantiated."); // TODO: include the stacktrace in diagnosis_isFallback
+            // TODO: if(instance.diagnosis_isFallback) throw new Error("A fallback RestfuncsExpress already exists. Make sure to initialize 'app = RestfuncsExpress()' before any ServerSession is instantiated."); // TODO: include the stacktrace in diagnosis_isFallback
             instance = "multipleInstancesExist"
         }
     }
@@ -254,12 +254,12 @@ class RestfuncsServerOOP {
         throw new Error("TODO")
     }
 
-    public registerService(service: typeof Service) {
+    public registerService(service: typeof ServerSession) {
         if(this.cache_service2SecurityGroupIdMap) {
             throw new Error("Cannot add a service after cache_service2SecurityGroupIdMap has been computed");
         }
 
-        // TODO: check uniqueness and stuff like in Service.checkIfIdIsUnique()
+        // TODO: check uniqueness and stuff like in ServerSession.checkIfIdIsUnique()
 
         this.services.set(service.id, service);
     }
@@ -270,7 +270,7 @@ class RestfuncsServerOOP {
      * @return A hash that groups together services with the same security relevant settings.
      * TODO: write testcases
      */
-    public getSecurityGroupIdOfService(serviceClass: typeof Service): string {
+    public getSecurityGroupIdOfService(serviceClass: typeof ServerSession): string {
         const result = this.getService2SecurityGroupIdMap().get(serviceClass);
         if(result === undefined) {
             throw new Error("Illegal state: serviceClass not inside service2SecurityGroupIdMap. Was it registered for another server ?")
@@ -285,7 +285,7 @@ class RestfuncsServerOOP {
 
         const relevantProperties: (keyof RestfuncsOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
         // Go through all services and collect the groups
-        const groups: {options: RestfuncsOptions, members: (typeof Service)[]}[] = []
+        const groups: {options: RestfuncsOptions, members: (typeof ServerSession)[]}[] = []
         this.services.forEach((service) => {
             for(const group of groups) {
                 if(  _(relevantProperties).find( key => group.options[key] !== service.options[key] ) === undefined ) { // Found a group where all relevantProperties match ?
@@ -298,7 +298,7 @@ class RestfuncsServerOOP {
         });
 
         // Compose result:
-        this.cache_service2SecurityGroupIdMap = new Map<typeof Service, string>()
+        this.cache_service2SecurityGroupIdMap = new Map<typeof ServerSession, string>()
         for(const group of groups) {
             // Calculate groupId:
             let tokens = relevantProperties.map(key => {

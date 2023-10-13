@@ -1,4 +1,4 @@
-import {RestfuncsOptions, Service} from "restfuncs-server";
+import {RestfuncsOptions, ServerSession} from "restfuncs-server";
 import session from "express-session";
 import express from "express"
 import _ from "underscore";
@@ -7,10 +7,10 @@ import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 const app = express()
 
 
-export class ControlService extends Service {
-    services: { [name: string]: { service: Service;} }
+export class ControlService extends ServerSession {
+    services: { [name: string]: { service: ServerSession;} }
 
-    constructor(services: { [p: string]: { service: Service } }) {
+    constructor(services: { [p: string]: { service: ServerSession } }) {
         super();
         this.services = services;
     }

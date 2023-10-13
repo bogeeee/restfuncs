@@ -1,6 +1,6 @@
 import 'reflect-metadata' // Must import
 
-export {Service, RestfuncsOptions, safe} from "./Service";
+export {ServerSession, RestfuncsOptions, safe} from "./ServerSession";
 export {RestError} from "./RestError";
 
 

@@ -1,4 +1,4 @@
-import {RestfuncsOptions, safe, Service as ServerSession} from "restfuncs-server";
+import {RestfuncsOptions, safe, ServerSession as ServerSession} from "restfuncs-server";
 import express from "express";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -55,7 +55,7 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
     if (serverAPI instanceof Service) {
         return serverAPI.getClass();
     } else {
-        class ServiceWithTypeInfo extends Service { // Plain Service was not compiled with type info but this file is
+        class ServiceWithTypeInfo extends Service { // Plain ServerSession was not compiled with type info but this file is
             constructor() {
                 super();
 
@@ -64,7 +64,7 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
         }
 
         if(Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
-            throw new Error("ServerAPI should not be a class without beeing a Service");
+            throw new Error("ServerAPI should not be a class without beeing a ServerSession");
         }
 
         // @ts-ignore
@@ -927,7 +927,7 @@ test('Sessions', async () => {
 
             // Test the proxy's setter / getter:
             this.counter = this.counter + 1;
-            this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See Service.ts -> Sessions#note1
+            this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See ServerSession.ts -> Sessions#note1
             expect(this.counter).toBe(2);
             this.counter = null;
             expect(this.counter).toBe(null);

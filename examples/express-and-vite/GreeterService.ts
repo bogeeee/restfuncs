@@ -1,6 +1,6 @@
-import {Service} from "restfuncs-server";
+import {ServerSession} from "restfuncs-server";
 
-export class GreeterService extends Service {
+export class GreeterService extends ServerSession {
 
     async greet(name: string) {
         return `Hello ${name} from the server`
