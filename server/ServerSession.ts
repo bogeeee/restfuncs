@@ -302,7 +302,7 @@ export class ServerSession {
      * Lists the methods that are flagged as @safe
      * filled on annotation loading: for each concrete subclass such a static field is created
      */
-    static safeMethods?: Set<string>
+    static safeInstanceMethods?: Set<string>
 
     /**
      * Those methods directly here on ServerSession are allowed to be called
@@ -1443,8 +1443,23 @@ export class ServerSession {
      * @see RestfuncsOptions.allowGettersFromAllOrigins
      * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only ! Looks, if it's marked with a @safe decorator.
      */
-    protected methodIsSafe(methodName: string) {
-        return methodIsMarkedSafeAtActualImplementationLevel(this.constructor, methodName);
+    protected static methodIsSafe(methodName: string) : boolean {
+       if(this.prototype.hasOwnProperty(methodName)) { // Instance method defined at this level  ?
+            if(!this.hasOwnProperty("safeInstanceMethods")) { // Class does not have a static safeInstanceMethods property on its own ?
+                return false;
+            }
+
+            return this.safeInstanceMethods !== undefined &&  this.safeInstanceMethods.has(methodName);
+       }
+       // TODO: check static method
+
+        // Check at parent level
+        const baseClass = Object.getPrototypeOf(this);
+        if(baseClass) {
+            return this.methodIsSafe.apply(baseClass, [methodName]);
+        }
+
+        return false;
     }
 
     /**
@@ -1861,45 +1876,17 @@ export class ServerSession {
  */
 export function safe() {
     return function (target: any, methodName: string, descriptor: PropertyDescriptor) {
-        const constructor = target.constructor;
-        if(!Object.getOwnPropertyDescriptor(constructor,"safeMethods")?.value) { // constructor does not have it's OWN .safeMethods initialized yet ?
-            constructor.safeMethods = new Set<string>();
+        // TODO: handle static methods
+        const clazz = target.constructor;
+        if(!Object.getOwnPropertyDescriptor(clazz,"safeInstanceMethods")?.value) { // clazz does not have it's OWN .safeInstanceMethods initialized yet ?
+            clazz.safeInstanceMethods = new Set<string>();
         }
 
-        constructor.safeMethods.add(methodName);
+        clazz.safeInstanceMethods.add(methodName);
     };
 }
 
-/**
- * Meaning, if an overwritten method does not also explicitly have @safe, it's not considered safe
- * @param classConstructor
- * @param methodName
- * @return true if the method was decorated @safe at this
- */
-function methodIsMarkedSafeAtActualImplementationLevel(classConstructor: Function, methodName: string): boolean {
-    if(!classConstructor.prototype) { // Don't know / unhandled
-        return false;
-    }
 
-    if(classConstructor.prototype.hasOwnProperty(methodName)) { // Method defined at this level ?
-        if(!Object.getOwnPropertyDescriptor(classConstructor, "safeMethods")) { // Class does not have a static safeMethods property on its own ?
-            return false;
-        }
-
-        // Check that is was decorated @safe at this level:
-        // @ts-ignore
-        const safeMethods = <Set<string> | undefined> classConstructor?.safeMethods;
-        return safeMethods !== undefined && safeMethods.has(methodName);
-    }
-
-    // Check at parent level
-    const baseConstructor = Object.getPrototypeOf(classConstructor);
-    if(baseConstructor) {
-        return methodIsMarkedSafeAtActualImplementationLevel(baseConstructor, methodName);
-    }
-
-    return false;
-}
 
 /**
  * To hin with error messages

@@ -389,16 +389,17 @@ test('Safe methods security', async () => {
             static options = {checkArguments: false, logErrors: false, exposeErrors: true}
 
             // Escalate to 'public'
-            public methodIsSafe(...args: Parameters<Service["methodIsSafe"]>) {
+            public static methodIsSafe(...args: any) {
+                // @ts-ignore
                 return super.methodIsSafe(...args);
             }
         }
         class Service1 extends BaseService {}
         class Service2 extends BaseService {}
         class Service3 extends BaseService {}
-        expect(new Service1().methodIsSafe("getIndex")).toBeTruthy()
-        expect(new Service2().methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-        expect(new Service3().methodIsSafe("getIndex")).toBeTruthy()
+        expect(Service1.methodIsSafe("getIndex")).toBeTruthy()
+        expect(Service2.methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
+        expect(Service3.methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite and @safe:
         class ServiceA extends BaseService{
@@ -407,7 +408,7 @@ test('Safe methods security', async () => {
                 return "";
             }
         }
-        expect(new ServiceA().methodIsSafe("getIndex")).toBeTruthy()
+        expect(ServiceA.methodIsSafe("getIndex")).toBeTruthy()
 
         // With overwrite but no @safe:
         class ServiceB extends BaseService {
@@ -415,9 +416,13 @@ test('Safe methods security', async () => {
                 return "";
             }
         }
-        expect(new ServiceB().methodIsSafe("getIndex")).toBeFalsy()
+        expect(ServiceB.methodIsSafe("getIndex")).toBeFalsy()
 
     });
+})
+
+test('Safe methods security for static methods', async () => {
+    fail("TODO");
 })
 
 test('auto convert parameters', async () => {
