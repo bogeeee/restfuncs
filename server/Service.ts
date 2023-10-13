@@ -748,10 +748,10 @@ export class Service {
 
 
     /**
-     * Get's this complete session, encrypted, so it can be transferred to the websocket connection
+     * Get's this http request, including the complete session, encrypted, so it can be transferred to the websocket connection
      */
     // TODO: make httponly
-    public getSession(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
+    public getHttpRequest(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
