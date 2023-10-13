@@ -588,7 +588,7 @@ export class ServerSession {
                     throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
                 }
 
-                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = session.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
+                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
                 cleanupStreamsAfterRequest = c;
 
 
@@ -865,7 +865,7 @@ export class ServerSession {
      * @param methodName
      * @param req
      */
-    protected collectParamsFromRequest(methodName: string, req: Request, enableMultipartFileUploads: boolean) {
+    protected static collectParamsFromRequest(methodName: string, req: Request, enableMultipartFileUploads: boolean) {
         // Determine path tokens:
         const url = URL.parse(req.url);
         const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -1406,7 +1406,7 @@ export class ServerSession {
      *      containsStringValuesOnly: true // decides, which of the autoConvertValueForParameter_... methods is used.
      * }
      */
-    protected parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
+    protected static parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
         // Query is a list i.e: "a,b,c" ?
         if(query.indexOf(",") > query.indexOf("=")) { // , before = means, we assume it is a comma separated list
             return {
@@ -1505,7 +1505,7 @@ export class ServerSession {
      * @see #autoConvertValueForParameter_fromString
      * @see #autoConvertValueForParameter_fromJson
      */
-    protected autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
+    protected static autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
         if(source === "string") {
             if(typeof value !== "string") {
                 throw new Error(`${parameter.name} parameter should be a string`)
@@ -1538,7 +1538,7 @@ export class ServerSession {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    protected autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
+    protected static autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
         // TODO: number|bool and other ambiguous types could be auto converted to
         try {
             if (parameter.type.isClass(Number)) {
@@ -1591,7 +1591,7 @@ export class ServerSession {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    protected autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
+    protected static autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
         // *** Help us make this method convert to nested dates like myFunc(i: {someDate: Date})
         // *** You can use [this nice little playground](https://typescript-rtti.org) to quickly see how the ReflectedMethodParameter works ;)
         try {
