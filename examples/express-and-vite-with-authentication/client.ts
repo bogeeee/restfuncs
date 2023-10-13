@@ -1,5 +1,5 @@
 import {RestfuncsClient} from "restfuncs-client"
-import {MainframeService} from "./MainframeService.js" // Import to have types
+import {MainframeSession} from "./MainframeSession.js" // Import to have types
 
 interface WithLogin {
     login(userName: string): Promise<boolean>;
@@ -36,7 +36,7 @@ class RestfuncsClientWithLogin<S extends WithLogin> extends RestfuncsClient<S> {
     }
 }
 
-const mainframeService = new RestfuncsClientWithLogin<MainframeService>("/mainframeAPI").proxy // This is the way to use a subclassed RestfuncsClient
+const mainframeService = new RestfuncsClientWithLogin<MainframeSession>("/mainframeAPI").proxy // This is the way to use a subclassed RestfuncsClient
 
 // Click handler for multiply button:
 document.getElementById("multiplyButton").onclick = async function() {

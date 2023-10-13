@@ -1,13 +1,13 @@
 import express from "express"
 import vite from "vite"
-import {MainframeService} from "./MainframeService.js"
+import {MainframeSession} from "./MainframeSession.js"
 import session from "express-session";
 import crypto from "node:crypto";
 
 (async () => {
     const port = 3000
 
-    MainframeService.options = {
+    MainframeSession.options = {
         checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
     }
 
@@ -23,7 +23,7 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/mainframeAPI", MainframeService.createExpressHandler())
+    app.use("/mainframeAPI", MainframeSession.createExpressHandler())
 
     // Client web:
     if (process.env.NODE_ENV === 'development') {

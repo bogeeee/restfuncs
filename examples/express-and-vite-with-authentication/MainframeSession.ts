@@ -9,7 +9,7 @@ class NotLoggedInError extends RestError {
     }
 }
 
-export class MainframeService extends ServerSession {
+export class MainframeSession extends ServerSession {
     // If you have multiple services, you may want to move session, doCall and login into a common baseclass
 
     logonUser?: string

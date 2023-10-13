@@ -1,7 +1,7 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs} from "restfuncs-server"
-import {GreeterService} from "./GreeterService.js"
+import {ServerSession} from "restfuncs-server"
+import {GreeterSession} from "./GreeterSession.js"
 import session from "express-session";
 import crypto from "node:crypto";
 
@@ -20,9 +20,7 @@ import crypto from "node:crypto";
     }));
 
     // Remote service(s):
-    app.use("/greeterAPI", restfuncs( new GreeterService(), {
-        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
-    } ))
+    app.use("/greeterAPI", GreeterSession.createExpressHandler() )
 
     // Client web:
     if(process.env.NODE_ENV === 'development') {
@@ -33,9 +31,8 @@ import crypto from "node:crypto";
             },
             root: "../client",
             base: "/",
-
         });
-        app.use(viteDevServer.middlewares);
+        app.use(viteDevServer.middlewares)
     } else {
         app.use(express.static('../client/dist')); // Serve pre-built web (cd ../client && npm run build)
     }
