@@ -504,6 +504,10 @@ test('Safe methods call', async () => {
     });
 })
 
+test('Safe methods security for static methods', async () => {
+    fail("TODO");
+})
+
 test('auto convert parameters', async () => {
 
     await runRawFetchTests(new class extends Service {
