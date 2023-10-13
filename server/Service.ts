@@ -1444,18 +1444,9 @@ export class Service {
      * You can override this as part of the API
      * @param methodName method/function name
      * @see RestfuncsOptions.allowGettersFromAllOrigins
-     * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only !
+     * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only ! Looks, if it's marked with a @safe decorator.
      */
     protected methodIsSafe(methodName: string) {
-
-        if(this[methodName] === Service.prototype[methodName]) { // Method was unmodifiedly taken from the Service mixin. I.e. "getIndex". See Service.initializeService(). ?
-            return methodIsMarkedSafeAtActualImplementationLevel(Service, methodName); // Look at Service level
-        }
-
-        if(!this.constructor) { // No class ?
-            return false; // Non-classes can't have @decorators.
-        }
-
         return methodIsMarkedSafeAtActualImplementationLevel(this.constructor, methodName);
     }
 
@@ -1894,10 +1885,13 @@ function methodIsMarkedSafeAtActualImplementationLevel(classConstructor: Functio
     }
 
     if(classConstructor.prototype.hasOwnProperty(methodName)) { // Method defined at this level ?
+        if(!Object.getOwnPropertyDescriptor(classConstructor, "safeMethods")) { // Class does not have a static safeMethods property on its own ?
+            return false;
+        }
+
         // Check that is was decorated @safe at this level:
         // @ts-ignore
-        const safeMethods = <Set<string>> classConstructor?.safeMethods;
-
+        const safeMethods = <Set<string> | undefined> classConstructor?.safeMethods;
         return safeMethods !== undefined && safeMethods.has(methodName);
     }
 
