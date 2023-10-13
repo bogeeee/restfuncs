@@ -78,7 +78,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     const errors: string[] = [];
     function validateAndCollectErrors(parameter: ReflectedMethodParameter, arg: any) {
         const collectedErrorsForThisParam: Error[] = [];
-        const ok = parameter.type.matchesValue(arg, collectedErrorsForThisParam); // Check value
+        const ok = parameter.type.matchesValue(arg,  {errors: collectedErrorsForThisParam, allowExtraProperties: false} ); // Check value
         if (!ok || collectedErrorsForThisParam.length > 0) {
             errors.push(`Invalid value for parameter ${parameter.name}: ${diagnisis_shortenValue(arg)}${collectedErrorsForThisParam.length > 0?`. Reason: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`:""}`);
         }

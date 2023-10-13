@@ -16,13 +16,13 @@
   },
   "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity"],
   "dependencies": {
-    "typescript-rtti": "^0.8.2",
+    "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",
-    "typescript": "4.6",
+    "typescript": "4.9",
     "ttypescript": "^1.5.15"
   },
   "keywords": [],
