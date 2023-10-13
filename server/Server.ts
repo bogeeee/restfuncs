@@ -70,11 +70,15 @@ export type TransportToken = {
 
 
 /**
+ * The content is encrypted and can only be read by this server, or another server that shares {@link Server#secret}
+ * <p>
  * Encrypted (+MAC'ed) value in a box that points to the correct secret key that should be used to decrypt it.
+ * </p>
  * - The box was encrypted by the server and it's authenticity can be trusted. It's meant to be decrypted by the server again / the client can't see the content.
- * - it stores a content type to prevent spoofing with different types
+ * - It stores a content type to prevent spoofing with a token on stock with a different types
+ *
  */
-export type Server2ServerEncryptedBox<Content> = {
+export type ServerPrivateBox<Content> = {
     /**
      * Key index (keep names short to fit in cookie JWT's)
      */
@@ -232,7 +236,7 @@ class RestfuncsServerOOP {
      * @param token
      * @param tokenType
      */
-    public encryptToken<T>(token: T, tokenType: string): Server2ServerEncryptedBox<T> {
+    public encryptToken<T>(token: T, tokenType: string): ServerPrivateBox<T> {
         const content: Server2ServerEncryptedBox_inner = {
             type: tokenType,
             value: token
@@ -245,7 +249,7 @@ class RestfuncsServerOOP {
      * @param encryptedToken
      * @param expectedType
      */
-    public decryptToken<T extends object>(encryptedToken: Server2ServerEncryptedBox<T>, expectedType: string): T{
+    public decryptToken<T extends object>(encryptedToken: ServerPrivateBox<T>, expectedType: string): T{
         // TODO: check expectedType
         throw new Error("TODO")
     }

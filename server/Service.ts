@@ -19,7 +19,7 @@ import {
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
-import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, Server2ServerEncryptedBox} from "./Server";
+import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, ServerPrivateBox} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
 import {isRestError, RestError} from "./RestError";
@@ -751,7 +751,7 @@ export class Service {
      * Get's this http request, including the complete session, encrypted, so it can be transferred to the websocket connection
      */
     // TODO: make httponly
-    public getHttpRequest(encryptedSessionRequest: Server2ServerEncryptedBox<SessionTransferRequest>) {
+    public getHttpRequest(encryptedSessionRequest: ServerPrivateBox<SessionTransferRequest>) {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
@@ -777,7 +777,7 @@ export class Service {
      * @param sessionBox
      */
     // TODO: make httponly
-    public updateSession(sessionBox: Server2ServerEncryptedBox<UpdateSessionToken>) {
+    public updateSession(sessionBox: ServerPrivateBox<UpdateSessionToken>) {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
@@ -792,7 +792,7 @@ export class Service {
     }
 
     // TODO: make httponly
-    public areCallsAllowed(encryptedQuestion: Server2ServerEncryptedBox<AreCallsAllowedQuestion>): Server2ServerEncryptedBox<AreCallsAllowedAnswer> {
+    public areCallsAllowed(encryptedQuestion: ServerPrivateBox<AreCallsAllowedQuestion>): ServerPrivateBox<AreCallsAllowedAnswer> {
         const server = this.getClass().server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
