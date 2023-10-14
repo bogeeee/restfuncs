@@ -292,6 +292,12 @@ export class ServerSession {
         return this.name; // In the future we might add
     }
 
+    /**
+     * The options.
+     * <p>
+     * <i>If it's more handy to set these from your server.ts, you can do so <strong>before</strong> the first call to {@link ServerSession#createExpressHandler()}</i>
+     * </p>
+     */
     static options: ServerSessionOptions = {};
 
     /**
