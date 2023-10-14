@@ -14,4 +14,4 @@ for both, check the status (main/cross site + if tests succeeded).
 
 ### Development
 
-See clientTests.ts/runAlltests function
+See client.ts/runAlltests function
