@@ -718,7 +718,7 @@ export class ServerSession {
             throw new RestError(`No session handler installed. Please see TODO`)
         }
 
-        return this.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
+        return ServerSession.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
     }
 
     /**
@@ -729,7 +729,7 @@ export class ServerSession {
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
      * </p>
      */
-    getCsrfToken(session: object): string {
+    static getCsrfToken(session: object): string {
         // Check for valid input
         if(!session) {
             throw new Error(`session not set. Do you have no session handler installed like [here](https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session)`)
@@ -818,7 +818,7 @@ export class ServerSession {
      * @param csrfProtectionMode
      * @private
      */
-    private getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken"): string {
+    private static getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken"): string {
         if (session.csrfProtectionMode !== undefined && session.csrfProtectionMode !== csrfProtectionMode) {
             throw new RestError(`Session is already initialized with csrfProtectionMode=${session.csrfProtectionMode} but this request wants to use ${csrfProtectionMode}. Please make sure that all browser clients (for this session) use the same mode.`)
         }
@@ -830,7 +830,7 @@ export class ServerSession {
         const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
         checkIfSecurityFieldsAreValid(session);
 
-        const securityGroupId = this.getClass().getSecurityGroupId();
+        const securityGroupId = this.getSecurityGroupId();
         if (tokens[securityGroupId] === undefined) {
             // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
             // So store a hash(token + server.secret) in the session instead.
