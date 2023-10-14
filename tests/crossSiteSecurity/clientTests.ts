@@ -1,7 +1,7 @@
 import {RestfuncsClient} from "restfuncs-client"
 import {TestsService} from "./TestsService";
-import {MainframeService} from "./MainframeService";
 import {ControlService} from "./ControlService";
+import {createRestfuncsClient} from "./client";
 
 export const mainSiteUrl = "http://localhost:3000";
 export const isMainSite = window.location.href.startsWith(mainSiteUrl);
@@ -149,16 +149,6 @@ export async function runAlltests() {
     }
 
     const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {}).proxy
-
-    async function createRestfuncsClient(serviceName: string, csrfProtectionMode: string) {
-        // @ts-ignore
-        const result = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {csrfProtectionMode});
-        if(csrfProtectionMode === "csrfToken") {
-            // Fetch the token first:
-            result.csrfToken = await controlService.getCsrfTokenForService(serviceName)
-        }
-        return result;
-    }
 
 
     // Test CORS and simple requests. All with "preflight" security:
