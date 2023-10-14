@@ -1,4 +1,4 @@
-import {RestfuncsClient, restfuncsClient} from "restfuncs-client"
+import {RestfuncsClient} from "restfuncs-client"
 import {TestsService} from "./TestsService";
 import {MainframeService} from "./MainframeService";
 import {ControlService} from "./ControlService";

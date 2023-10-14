@@ -1,6 +1,6 @@
 import express from "express"
 import vite from "vite"
-import {restfuncs, ServerSessionOptions, ServerSession} from "restfuncs-server"
+import {ServerSessionOptions, ServerSession} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
@@ -12,11 +12,7 @@ import {ControlService} from "./ControlService.js";
     {
         // *** Main site: ****
         const port = 3000 // Adjust this in clientTests.ts also
-        const commonOptions: ServerSessionOptions = {
-            checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production
-            exposeErrors: true,
-            logErrors: false
-        }
+
 
 
         const app = express()
@@ -30,29 +26,53 @@ import {ControlService} from "./ControlService.js";
             store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
         }));
 
+        const commonOptions: ServerSessionOptions = {
+            checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production
+            exposeErrors: true,
+            logErrors: false
+        }
+
+        MainframeService.options = commonOptions;
+        TestsService.options = commonOptions;
+
         // Remote service(s): Register them
-        const services: {[name: string]: { service: ServerSession, options?:ServerSessionOptions} } = {
-            "mainframeAPI":  { service:new MainframeService(), options: commonOptions},
-            "testsService":  { service:new TestsService(), options: commonOptions},
-            "allowedTestsService": { service:new TestsService(), options: {...commonOptions, allowedOrigins: ["http://localhost:3666"]}},
-            "testsService_forceTokenCheck": { service:new TestsService(), options: {...commonOptions, devForceTokenCheck: true}},
-            "allowedTestsService_forceTokenCheck": { service:new TestsService(), options: {...commonOptions, allowedOrigins: ["http://localhost:3666"], devForceTokenCheck: true}},
+        const services: { [name: string]: { service: typeof ServerSession } } = {
+            "mainframeAPI": {service: MainframeService},
+            "testsService": {service: TestsService},
+            "allowedTestsService": {
+                service: class extends TestsService {
+                    static options = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
+                }
+            },
+            "testsService_forceTokenCheck": {
+                service: class extends TestsService {
+                    static options = { ...commonOptions, devForceTokenCheck: true }
+                }
+            },
+            "allowedTestsService_forceTokenCheck": {
+                service: class extends TestsService {
+                    static options = { ...commonOptions, allowedOrigins: ["http://localhost:3666"], devForceTokenCheck: true }
+                }
+            },
         }
 
         for(const name in services) {
             const service = services[name].service;
-            service.id = name;
-            app.use(`/${name}`, restfuncs(service, services[name].options))
+            //service.id = name;
+            app.use(`/${name}`,  service.createExpressHandler())
         }
 
-        app.use("/controlService", restfuncs(new ControlService(services), {allowedOrigins: "all", exposeErrors: true}))
+        ControlService.services = services;
+        app.use("/controlService", ControlService.createExpressHandler())
 
 
 
         // Pretend the browser does not send an origin:
-        const allowedTestsService_eraseOrigin = new TestsService();
-        app.use("/allowedTestsService_eraseOrigin", eraseOrigin, restfuncs(allowedTestsService_eraseOrigin, {...commonOptions, allowedOrigins: ["http://localhost:3666"]}))
-        services["/allowedTestsService_eraseOrigin"] = {service: allowedTestsService_eraseOrigin};
+        class AllowedTestsService_eraseOrigin extends TestsService {
+            static options: ServerSessionOptions = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
+        }
+        app.use("/allowedTestsService_eraseOrigin", eraseOrigin, AllowedTestsService_eraseOrigin.createExpressHandler())
+        services["/allowedTestsService_eraseOrigin"] = {service: AllowedTestsService_eraseOrigin};
 
 
         // Client web:

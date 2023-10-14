@@ -8,22 +8,19 @@ const app = express()
 
 
 export class ControlService extends ServerSession {
-    services: { [name: string]: { service: ServerSession;} }
+    static services: { [name: string]: { service: typeof ServerSession;} }
 
-    constructor(services: { [p: string]: { service: ServerSession } }) {
-        super();
-        this.services = services;
-    }
+    static options: ServerSessionOptions = {allowedOrigins: "all", exposeErrors: true}
 
     async resetSession() {
-        if(!this.req.session) {
+        if(!this.req?.session) {
             return;
         }
 
-        const session = this.req.session;
+        const session = this.req.session as any;
 
         await new Promise<void>(function executor(resolve, reject) { // with an arrow function, it gives some super strange compile error
-            session.destroy((err) => {if(!err) resolve(); else reject(err)})
+            session.destroy((err: any) => {if(!err) resolve(); else reject(err)})
         })
     }
     async getCorsReadTokenForService(name: string) {
@@ -41,15 +38,19 @@ export class ControlService extends ServerSession {
             })
         }
 
-        const service = {req: this.req, session: this.session}
-        baseOn(service, this.services[name].service);
-        // @ts-ignore
-        return await service.getCorsReadToken();
+        this.req?.session
+
+        const ServiceClass = ControlService.services[name].service
+        const instance = new ServiceClass;
+        _.extend(instance, this.req?.session)
+
+
+        return instance.getCorsReadToken();
     }
 
 
     async getCsrfTokenForService(name: string) {
-        return this.services[name].service.getCsrfToken(this.req.session)
+        return ControlService.services[name].service.getCsrfToken(this.req!.session)
     }
 
     /**
@@ -59,5 +60,6 @@ export class ControlService extends ServerSession {
     async shieldTokenAgainstBREACH_unwrap(shieldedToken: string): Promise<string> {
         return shieldTokenAgainstBREACH_unwrap(shieldedToken).toString("hex");
     }
+
 
 }

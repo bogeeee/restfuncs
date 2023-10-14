@@ -1,59 +1,58 @@
-import {ServerSession, safe} from "restfuncs-server";
+import {ServerSession, safe, ServerSessionOptions} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
 
-export class TestServiceSession {
+export class TestServiceSessionBase extends ServerSession {
     user?: string;
     bankAccounts?: Record<string, number>;
 }
 
-export class TestsService extends ServerSession {
-    session= new TestServiceSession()
+export class TestsService extends TestServiceSessionBase {
 
     unsafeMethod() {
         return "test"
     }
 
     async logon(user: string) {
-        this.session.user = user;
+        this.user = user;
 
-        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize
+        if(!this.bankAccounts) this.bankAccounts = {} // initialize
 
         // give user some money:
-        this.session.bankAccounts[this.session.user] = 5000;
+        this.bankAccounts[this.user] = 5000;
     }
 
     async spendMoney() {
-        if(!this.session.user) {
+        if(!this.user) {
             throw new Error("Not logged it");
         }
 
-        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+        if(!this.bankAccounts) this.bankAccounts = {} // initialize. We need a better session concept from restfuncs
 
-        this.session.bankAccounts[this.session.user] = 0;
+        this.bankAccounts[this.user] = 0;
     }
 
 
     @safe()
     async spendMoneyAccidentlyMarkedAsSafe() {
-        if(!this.session.user) {
+        if(!this.user) {
             throw new Error("Not logged it");
         }
 
 
-        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+        if(!this.bankAccounts) this.bankAccounts = {} // initialize. We need a better session concept from restfuncs
 
-        this.session.bankAccounts[this.session.user] = 0;
+        this.bankAccounts[this.user] = 0;
     }
 
     async getBalance(user: string) {
-        if(!this.session.user) {
+        if(!this.user) {
             throw new Error("Not logged it");
         }
 
-        if(!this.session.bankAccounts) this.session.bankAccounts = {} // initialize. We need a better session concept from restfuncs
+        if(!this.bankAccounts) this.bankAccounts = {} // initialize. We need a better session concept from restfuncs
 
-        return this.session.bankAccounts[this.session.user];
+        return this.bankAccounts[this.user];
     }
 
 
