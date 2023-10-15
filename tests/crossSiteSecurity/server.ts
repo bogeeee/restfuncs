@@ -11,7 +11,7 @@ import {ControlService} from "./ControlService.js";
 (async () => {
     {
         // *** Main site: ****
-        const port = 3000 // Adjust this in client.ts also
+        const port = 3000 // Adjust this in clientTests.ts also
 
 
 
