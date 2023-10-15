@@ -1,5 +1,5 @@
 import {RestfuncsClient} from "restfuncs-client"
-import {MainframeSession} from "./MainframeSession.js" // Import to have types
+import {MainframeSession} from "../MainframeSession.js" // Import to have types
 
 interface WithLogin {
     login(userName: string): Promise<boolean>;

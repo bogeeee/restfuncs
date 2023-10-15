@@ -1,5 +1,5 @@
 /node_modules/
-/dist/
+/client/dist/
 /**/*.js
 /**/*.map
 /tsconfig.tsbuildinfo
