@@ -1,5 +1,5 @@
 import express from "express"
-import vite from "vite"
+import {createServer} from "vite"
 import {ServerSessionOptions, ServerSession} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
@@ -78,9 +78,9 @@ import {ControlService} from "./ControlService.js";
         // Client web:
         if (process.env.NODE_ENV === 'development') {
             // Serve client web through vite dev server:
-            const viteDevServer = await vite.createServer({
+            const viteDevServer = await createServer({
                 server: {
-                    middlewareMode: 'html'
+                    middlewareMode: true
                 },
                 base: "/",
             });
@@ -100,9 +100,9 @@ import {ControlService} from "./ControlService.js";
         // Client web:
         if (process.env.NODE_ENV === 'development') {
             // Serve client web through vite dev server:
-            const viteDevServer = await vite.createServer({
+            const viteDevServer = await createServer({
                 server: {
-                    middlewareMode: 'html'
+                    middlewareMode: true
                 },
                 base: "/",
             });
@@ -122,9 +122,9 @@ import {ControlService} from "./ControlService.js";
         // Client web:
         if (process.env.NODE_ENV === 'development') {
             // Serve client web through vite dev server:
-            const viteDevServer = await vite.createServer({
+            const viteDevServer = await createServer({
                 server: {
-                    middlewareMode: 'html'
+                    middlewareMode: true
                 },
                 base: "/",
             });

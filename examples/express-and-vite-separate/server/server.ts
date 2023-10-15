@@ -1,5 +1,5 @@
 import express from "express"
-import vite from "vite"
+import {createServer} from "vite"
 import {ServerSession} from "restfuncs-server"
 import {GreeterSession} from "./GreeterSession.js"
 import session from "express-session";
@@ -25,9 +25,9 @@ import crypto from "node:crypto";
     // Client web:
     if(process.env.NODE_ENV === 'development') {
         // Serve client web through vite dev server:
-        const viteDevServer = await vite.createServer({
+        const viteDevServer = await createServer({
             server: {
-                middlewareMode: 'html'
+                middlewareMode: true
             },
             root: "../client",
             base: "/",
