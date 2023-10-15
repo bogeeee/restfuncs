@@ -1,7 +1,6 @@
 import {RestfuncsClient} from "restfuncs-client"
 import {MainframeService} from "./MainframeService.js"
-import {isMainSite, mainSiteUrl , runAlltests} from "./clientTests";
-import {ControlService} from "./ControlService"; // Import to have types
+import {isMainSite, mainSiteUrl , runAlltests} from "./clientTests"; // Import to have types
 
 /**
  * This example subclasses the RestfuncsClient so you have a reusable client class for all your services (if you have multiple).
@@ -53,15 +52,3 @@ document.getElementById("statusSite")!.textContent = `On ${isMainSite?" main sit
 
     document.title = `${isMainSite?'Main':'Cross'}: ${ok?'ok':'fail'}`
 })()
-
-// *** For clientTests.js: ***
-const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {}).proxy
-export async function createRestfuncsClient(serviceName: string, csrfProtectionMode: string) { // We must place it here. When this function is placed in clientTests.ts, vite does not properly tree-shake off the server code (strange)
-    // @ts-ignore
-    const result = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {csrfProtectionMode});
-    if(csrfProtectionMode === "csrfToken") {
-        // Fetch the token first:
-        result.csrfToken = await controlService.getCsrfTokenForService(serviceName)
-    }
-    return result;
-}
