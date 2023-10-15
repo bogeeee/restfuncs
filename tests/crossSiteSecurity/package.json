@@ -5,12 +5,12 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "nodemon -e ts --ignore 'client*.*' --exec \"clear && ttsc --build && cross-env NODE_ENV=development ts-node server.js\"",
-    "dev:faster_but_without_rtti": "npm run clean && nodemon --ignore 'client*.*' --exec cross-env NODE_ENV=development tsx server.ts",
+    "dev": "nodemon -e ts --ignore client --exec \"clear && ttsc --build && cross-env NODE_ENV=development ts-node server.js\"",
+    "dev:faster_but_without_rtti": "npm run clean && nodemon --ignore client --exec cross-env NODE_ENV=development tsx server.ts",
     "dev:withServerBuild": "cd ../../server && npm run build && cd ../tests/crossSiteSecurity && npm run dev:faster_but_without_rtti",
 
-    "clean": "ttsc --build --clean && rm -rf dist",
-    "build": "ttsc --build --force && vite build",
+    "clean": "ttsc --build --clean && rm -rf client/dist",
+    "build": "ttsc --build --force && cd client && vite build",
     "start": "ts-node server.js"
   },
   "dependencies": {

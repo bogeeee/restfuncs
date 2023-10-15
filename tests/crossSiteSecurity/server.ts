@@ -82,11 +82,12 @@ import {ControlService} from "./ControlService.js";
                 server: {
                     middlewareMode: true
                 },
+                root: "client",
                 base: "/",
             });
             app.use(viteDevServer.middlewares)
         } else {
-            app.use(express.static('dist/web')) // Serve pre-built web (npm run build)
+            app.use(express.static('client/dist')) // Serve pre-built web (npm run build)
         }
 
         app.listen(port)
