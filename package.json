@@ -5,7 +5,7 @@
   "scripts": {
     "dev:watch-and-run-tests": "nodemon -e ts --exec npm run dev:_compile_and_run_tests",
     "dev:_compile_and_run_tests": "clear && ttsc --build && jest --runInBand",
-    "dev:runSpecificTest_runtimeTypechecking": "clear && ttsc --build && jest --runInBand runtime-typechecking",
+    "dev:runSpecificTest": "clear && ttsc --build && jest --runInBand restfuncs --testNamePattern=parseQuery",
     "devPlayground": "tsx devPlayground.ts",
     "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
     "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
