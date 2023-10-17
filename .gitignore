@@ -5,3 +5,4 @@
 /**/*.map
 /tsconfig.tsbuildinfo
 /examples/express-and-vite-tldr/node_modules
+devPlayground.ts
