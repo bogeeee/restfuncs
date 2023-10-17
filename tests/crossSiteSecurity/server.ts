@@ -1,4 +1,4 @@
-import express from "express"
+import express, {Express} from "express"
 import {createServer} from "vite"
 import {ServerSessionOptions, ServerSession} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
@@ -9,11 +9,11 @@ import {ControlService} from "./ControlService.js";
 
 
 (async () => {
+
+
     {
         // *** Main site: ****
         const port = 3000 // Adjust this in clientTests.ts also
-
-
 
         const app = express()
 
@@ -74,21 +74,7 @@ import {ControlService} from "./ControlService.js";
         app.use("/allowedTestsService_eraseOrigin", eraseOrigin, AllowedTestsService_eraseOrigin.createExpressHandler())
         services["/allowedTestsService_eraseOrigin"] = {service: AllowedTestsService_eraseOrigin};
 
-
-        // Client web:
-        if (process.env.NODE_ENV === 'development') {
-            // Serve client web through vite dev server:
-            const viteDevServer = await createServer({
-                server: {
-                    middlewareMode: true
-                },
-                root: "client",
-                base: "/",
-            });
-            app.use(viteDevServer.middlewares)
-        } else {
-            app.use(express.static('client/dist')) // Serve pre-built web (npm run build)
-        }
+        await serveClientWeb(app,4000);
 
         app.listen(port)
         console.log("Main app running on: http://localhost:" + port)
@@ -98,20 +84,7 @@ import {ControlService} from "./ControlService.js";
     {
         const port = 3666
         const app = express()
-        // Client web:
-        if (process.env.NODE_ENV === 'development') {
-            // Serve client web through vite dev server:
-            const viteDevServer = await createServer({
-                server: {
-                    middlewareMode: true
-                },
-                base: "/",
-            });
-            app.use(viteDevServer.middlewares)
-        } else {
-            app.use(express.static('dist/web')) // Serve pre-built web (npm run build)
-        }
-
+        await serveClientWeb(app, 4666);
         app.listen(port)
         console.log("Foreign site app (some services CORS allowed to it) running on: http://localhost:" + port)
     }
@@ -120,20 +93,7 @@ import {ControlService} from "./ControlService.js";
     {
         const port = 3667
         const app = express()
-        // Client web:
-        if (process.env.NODE_ENV === 'development') {
-            // Serve client web through vite dev server:
-            const viteDevServer = await createServer({
-                server: {
-                    middlewareMode: true
-                },
-                base: "/",
-            });
-            app.use(viteDevServer.middlewares)
-        } else {
-            app.use(express.static('dist/web')) // Serve pre-built web (npm run build)
-        }
-
+        await serveClientWeb(app, 4667);
         app.listen(port)
         console.log("Evil site app (no services CORS allowed to it) running on: http://localhost:" + port)
     }
@@ -149,3 +109,25 @@ function eraseOrigin (req: any, res: any, next: any) {
     }
     next()
 };
+
+
+async  function serveClientWeb(app: Express, hmrPort: number) {
+    // Client web:
+    if (process.env.NODE_ENV === 'development') {
+        // Serve client web through vite dev server:
+        const viteDevServer = await createServer({
+            cacheDir: `.vite/${hmrPort}`,
+            server: {
+                hmr: {
+                    port: hmrPort
+                },
+                middlewareMode: true
+            },
+            root: "client",
+            base: "/",
+        });
+        app.use(viteDevServer.middlewares)
+    } else {
+        app.use(express.static('client/dist')) // Serve pre-built web (npm run build)
+    }
+}
