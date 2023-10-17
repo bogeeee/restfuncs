@@ -14,7 +14,7 @@
   "dependencies": {
     "express": "^4.17.13",
     "@types/express": "^4.17.13",
-    "vite": "^4.4.11",
+    "vite": "4.1.4",
     "restfuncs-server": "^0.x",
     "restfuncs-client": "^1.0.0"
   },
