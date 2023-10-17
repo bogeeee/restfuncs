@@ -53,7 +53,7 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
 function toServiceClass<Api>(serverAPI: Api) : typeof Service {
 
     if (serverAPI instanceof Service) {
-        return serverAPI.getClass();
+        return serverAPI.clazz;
     } else {
         class ServiceWithTypeInfo extends Service { // Plain ServerSession was not compiled with type info but this file is
             constructor() {

@@ -13,7 +13,7 @@ class Service extends ServerSession {
 async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: ClientProxy<S>) => void, path = "/api") {
 
 
-    const serviceClass = service.getClass();
+    const serviceClass = service.clazz;
     serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options}
 
     const app = express();

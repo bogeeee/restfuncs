@@ -776,14 +776,14 @@ export class ServerSession {
      */
     // TODO: make httponly
     public getHttpRequest(encryptedSessionRequest: ServerPrivateBox<SessionTransferRequest>) {
-        const server = this.getClass().server;
+        const server = this.clazz.server;
         if(!server) {
             throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
         const sessionRequestToken = server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
         // Security check:
-        if(sessionRequestToken.serviceId !== this.getClass().id) {
+        if(sessionRequestToken.serviceId !== this.clazz.id) {
             throw new RestError(`SessionRequestToken from another service`)
         }
 
@@ -802,13 +802,13 @@ export class ServerSession {
      */
     // TODO: make httponly
     public updateSession(sessionBox: ServerPrivateBox<UpdateSessionToken>) {
-        const server = this.getClass().server;
+        const server = this.clazz.server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
         const token = server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
-        if(token.serviceId !== this.getClass().id) {
+        if(token.serviceId !== this.clazz.id) {
             throw new RestError(`updateSession came from another service`)
         }
 
@@ -817,14 +817,14 @@ export class ServerSession {
 
     // TODO: make httponly
     public areCallsAllowed(encryptedQuestion: ServerPrivateBox<AreCallsAllowedQuestion>): ServerPrivateBox<AreCallsAllowedAnswer> {
-        const server = this.getClass().server;
+        const server = this.clazz.server;
         if(!server) {
             throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
         }
 
         const question = server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
         // Security check:
-        if(question.serviceId !== this.getClass().id) {
+        if(question.serviceId !== this.clazz.id) {
             throw new RestError(`Question came from another service`)
         }
 
@@ -1108,7 +1108,7 @@ export class ServerSession {
      * @param enhancementProps These fields will be temporarily added to this during the call.
      */
     protected validateCall(evil_methodName: string, evil_args: any[]) {
-        const options = this.getClass().options;
+        const options = this.clazz.options;
 
         // types were only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -1217,13 +1217,13 @@ export class ServerSession {
                     return false;
                 }
 
-                if (!sessionTokens[this.getClass().id]) {
+                if (!sessionTokens[this.clazz.id]) {
                     errorHints.push(`No ${tokenType} was stored in the session for the Service, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 try {
-                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.getClass().id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
+                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.clazz.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                         return true;
                     } else {
                         errorHints.push(`${tokenType} incorrect`);
@@ -1785,9 +1785,9 @@ export class ServerSession {
      * <p>
      * In order to make your special static subclass members available, override it and change the signature accordingly to:
      * </p>
-     * <code>getClass(): typeof YOUR-SERVERSESSION-SUBCLASS</code>.
+     * <code>get clazz(): typeof YOUR-SERVERSESSION-SUBCLASS</code>.
      */
-    getClass(): typeof ServerSession {
+    get clazz(): typeof ServerSession {
         // @ts-ignore
         return this.constructor
     }
@@ -1832,7 +1832,7 @@ export class ServerSession {
         for(const key in this) {
             const value = this[key];
             if(value !== null && typeof value === "object") {
-                throw new RestError(`${this.getClass().name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#getClass() helper method).`);
+                throw new RestError(`${this.clazz.name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#get class() helper method).`);
             }
         }
 
