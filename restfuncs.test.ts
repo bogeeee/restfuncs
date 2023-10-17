@@ -3,7 +3,7 @@ import express from "express";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
-import {diagnosis_looksLikeJSON, extendPropsAndFunctions} from "restfuncs-server/Util";
+import {diagnosis_looksLikeJSON, extendPropsAndFunctions, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
 import {RestError} from "restfuncs-server/RestError";
 import crypto from "node:crypto";
 import _ from "underscore";
@@ -976,6 +976,58 @@ test('Sessions', async () => {
         // Set a value to undefined
         await apiProxy.storeValueInSession(undefined);
         expect(await apiProxy.getValueFromSession()).toBe(undefined);
+    }
+    finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
+
+test('Automatically fetch corsReadToken', async () => {
+    class MyService extends Service{
+        logonUser?: string
+
+        logon(user: string) {
+            this.logonUser = user;
+        }
+
+        getLogonUser() {
+            return this.logonUser;
+        }
+
+        async test() {
+            return "ok";
+        }
+
+    }
+
+    const server = createServer(MyService);
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+
+        // @ts-ignore
+        const client = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {})
+        const allowedService = client.proxy
+        await allowedService.logon("bob");
+        // @ts-ignore
+        const getCurrentToken = () => client._corsReadToken
+        // @ts-ignore
+        const setCurrentToken = (value) => client._corsReadToken = value
+        const validToken = getCurrentToken();
+        if (!validToken) {
+            throw new Error("Token has not beet set")
+        }
+
+        for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
+            setCurrentToken(invalidToken);
+            await allowedService.test();
+            expect(getCurrentToken()).toStrictEqual(invalidToken); // Expect it to be unchanged cause no session was accessed
+            expect(await allowedService.getLogonUser()).toBe("bob")
+            expect(shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken())).toStrictEqual(shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
+        }
+
     }
     finally {
         // shut down server:

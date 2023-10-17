@@ -238,36 +238,6 @@ export async function runAlltests() {
         }
     }
 
-
-    if(isMainSite) { // only on main site. allowedTestsService_eraseOrigin does not work cross origin
-        // CorsReadToken: Automatic token fetch and re fetch:
-        // Rather this should go into the normal restfuncs.test.ts. But we have lack of session support there
-        await testAssertWorksSSAndXS(`Request with required token. Check if corsReadToken is fetched and re fetched automaticly`, async () => {
-            await controlService.resetSession();
-            // @ts-ignore
-            const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/allowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken"});
-            const allowedService = client.proxy
-            await allowedService.logon("bob");
-            // @ts-ignore
-            const getCurrentToken = () => client._corsReadToken
-            // @ts-ignore
-            const setCurrentToken = (value) => client._corsReadToken = value
-            const validToken = getCurrentToken();
-            if (!validToken) {
-                throw new Error("Token has not beet set")
-            }
-
-            for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
-                setCurrentToken(invalidToken);
-                await allowedService.test();
-                assertEquals(getCurrentToken(), invalidToken); // Expect it to be unchanged cause no session was accessed
-                await allowedService.getBalance("bob");
-                assertEquals(await controlService.shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken()), await controlService.shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
-            }
-
-        });
-    }
-
     if(isMainSite) {
         // isMainSite: allowedTestsService_eraseOrigin doesn't work cross origin. We would need to mock it somehow that in the normal response the access-control-allow-origin header is filled with i.e localhost:3666.
         // Sencondly: The testsService is blocked by browser's CORS anyway
