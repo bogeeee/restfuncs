@@ -41,11 +41,10 @@ export class ControlService extends ServerSession {
         this.req?.session
 
         const ServiceClass = ControlService.services[name].service
-        const instance = new ServiceClass;
-        _.extend(instance, this.req?.session)
 
 
-        return instance.getCorsReadToken();
+        // @ts-ignore
+        return ServiceClass.getOrCreateSecurityToken(this.req!.session, "corsReadToken")
     }
 
 
