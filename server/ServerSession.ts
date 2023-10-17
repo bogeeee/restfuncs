@@ -1345,7 +1345,7 @@ export class ServerSession {
      */
     protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
-        const checkAccess = (isRead: boolean) => {
+        const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
@@ -1364,7 +1364,11 @@ export class ServerSession {
                     return true;
                 }
 
-                checkAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
+                if (typeof target[p] === "function") {
+                    return target[p]; // allow
+                }
+
+                checkFieldAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
 
                 return target[p];
             },
@@ -1374,7 +1378,7 @@ export class ServerSession {
                     throw new RestError(`Unhandled : ${String(p)}`)
                 }
 
-                checkAccess(false);
+                checkFieldAccess(false);
 
                 if(session.csrfProtectionMode === undefined && reqFields.csrfProtectionMode) { // Session protection not yet initialized ?
                     // initialize how the client wants it:
@@ -1386,22 +1390,22 @@ export class ServerSession {
                     checkIfSecurityFieldsAreValid(newFields);
                     _(session).extend(newFields)
 
-                    checkAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
+                    checkFieldAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
                 }
 
                 target[p] = newValue;
                 return true;
             },
             deleteProperty(target: ServerSession, p: string | symbol): boolean {
-                checkAccess(false);
+                checkFieldAccess(false);
                 throw new Error("deleteProperty not implemented.");
             },
             has(target: ServerSession, p: string | symbol): boolean {
-                //checkAccess(true); // validateAndDoCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
+                //checkFieldAccess(true); // validateAndDoCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
                 return p in target;
             },
             ownKeys(target: ServerSession): ArrayLike<string | symbol> {
-                checkAccess(true);
+                checkFieldAccess(true);
                 throw new Error("ownKeys not implemented.");
             }
 
