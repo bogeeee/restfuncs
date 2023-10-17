@@ -1,7 +1,7 @@
 import {RestfuncsClient} from "restfuncs-client"
-import {TestsService} from "./TestsService";
-import {MainframeService} from "./MainframeService";
-import {ControlService} from "./ControlService";
+import {TestsService} from "../TestsService";
+import {MainframeService} from "../MainframeService";
+import {ControlService} from "../ControlService";
 
 export const mainSiteUrl = "http://localhost:3000";
 export const isMainSite = window.location.href.startsWith(mainSiteUrl);
