@@ -742,7 +742,7 @@ export class ServerSession {
             throw new RestError(`No session handler installed. Please see TODO`)
         }
 
-        return ServerSession.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
+        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
     }
 
     /**
@@ -872,8 +872,8 @@ export class ServerSession {
     }
 
     protected static getSecurityGroupId(): string {
-        const server = this.server;
         return this.id; // TODO: remove this line when implemented
+        const server = this.server;
 
         if(!server) { // Used without RestfuncsExpress server (with classic express) ?
             throw new Error("this.server not set. Please report this as a bug"); // Should we always expect that one server exists ?
@@ -1572,7 +1572,7 @@ export class ServerSession {
             }
 
             if (parameter.type.isClass(Boolean)) {
-                return ServerSession.STRING_TO_BOOL_MAP[value];
+                return this.clazz.STRING_TO_BOOL_MAP[value];
             }
 
             if (parameter.type.isClass(Date)) {
