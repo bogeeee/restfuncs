@@ -632,9 +632,21 @@ export class ServerSession {
 
                 session.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
+                session.validateCall(methodName, methodArguments);
+
                 const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
-                let result = await csrfProtectedSession.validateAndDoCall(methodName, methodArguments, {req, res}, this.options);
+                let result;
+                await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
+                    // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
+                    let resultPromise;
+                    ServerSession.current.run(service, () => {
+                        resultPromise = service.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
+                    })
+
+                    result = await resultPromise;
+                }, methodName);
+
                 _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
                 sendResult(result, methodName);
             }
@@ -874,7 +886,7 @@ export class ServerSession {
      *
      * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously
      *
-     * @see ServerSession#validateAndDoCall use this method to check the security on the result
+     * @see ServerSession#validateCall use this method to check the security on the result
      * @param methodName
      * @param req
      */
@@ -1094,9 +1106,9 @@ export class ServerSession {
      * @param evil_methodName
      * @param evil_args
      * @param enhancementProps These fields will be temporarily added to this during the call.
-     * @param options
      */
-    protected async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: object, options: ServerSessionOptions): Promise<any> {
+    protected validateCall(evil_methodName: string, evil_args: any[]) {
+        const options = this.getClass().options;
 
         // types were only for the caller. We go back to "any" so must check again:
         const methodName = <any> evil_methodName;
@@ -1131,26 +1143,6 @@ export class ServerSession {
             checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
             checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
         }
-
-        // Check enhancementProps (for the very paranoid):
-        if(!enhancementProps || typeof enhancementProps !== "object" || _.functions(enhancementProps).length > 0) {
-            throw new Error("Invalid enhancementProps argument");
-        }
-        const allowed: Record<string, boolean> = {req:true, res: true, session: true}
-        Object.keys(enhancementProps).map(key => {if(!allowed[key]) { throw new Error(`${key} not allowed in enhancementProps`)}})
-
-        let result;
-        await enhanceViaProxyDuringCall(this, enhancementProps, async (service) => { // make .req and .res safely available during call
-            // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
-            let resultPromise;
-            ServerSession.current.run(service, () => {
-                resultPromise = service.doCall(methodName, args); // Call method with user's doCall interceptor;
-            })
-
-            result = await resultPromise;
-        }, methodName);
-
-        return result
     }
 
     /**
@@ -1401,7 +1393,7 @@ export class ServerSession {
                 throw new Error("deleteProperty not implemented.");
             },
             has(target: ServerSession, p: string | symbol): boolean {
-                //checkFieldAccess(true); // validateAndDoCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
+                //checkFieldAccess(true); // validateCall invokes this for reflections and we don't want to trigger an access check then but this could lead to an information leak ! TODO: do better
                 return p in target;
             },
             ownKeys(target: ServerSession): ArrayLike<string | symbol> {
@@ -1479,7 +1471,7 @@ export class ServerSession {
      * @param httpMethod
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
-    protected getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | null {
+    protected getMethodNameForCall(httpMethod: RegularHttpMethod, path: string): string | undefined {
         if(path === "") {
             path = "index";
         }
@@ -1515,7 +1507,7 @@ export class ServerSession {
             }
         }
 
-        return null;
+        return undefined;
     }
 
     /**

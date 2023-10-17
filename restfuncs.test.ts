@@ -1056,45 +1056,40 @@ test('Intercept with doFetch (client side)', async () => {
     }
 });
 
-test('validateAndDoCall security', async () => {
+test('validateCall security', async () => {
 
-   const service: Service & {validateAndDoCall: Service["validateAndDoCall"] /* make the method public */} = new class extends Service {
+   const service: Service & {validateCall: Service["validateCall"] /* make the method public */} = new class extends Service {
        x = "string";
        myMethod(a,b) {
            return a + b;
        }
 
-       public async validateAndDoCall(evil_methodName: string, evil_args: any[], enhancementProps: Partial<Service>, options: ServerSessionOptions): Promise<any> {
-           return super.validateAndDoCall(evil_methodName, evil_args, enhancementProps, options);
+       public validateCall(evil_methodName: string, evil_args: any[]){
+           return super.validateCall(evil_methodName, evil_args);
        }
    }
 
 
 
-    expect(await service.validateAndDoCall("myMethod", ["a","b"], {req: "test", res: "test", session: {test: true}}, {})).toBe("ab"); // Normal call
+    expect(service.validateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
 
     // Malformed method name:
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("validateAndDoCall", [], {}, {}),"reserved name");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall(null, [], {}, {}),"methodName not set");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("", [], {}, {}),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"reserved name");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall(null, []),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("", []),"methodName not set");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall({}, [], {}, {}),"not a string");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("x", [], {}, {}),"not a function");
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("nonExistant", [], {}, {}),"does not exist");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall({}, []),"not a string");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("x", []),"not a function");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("nonExistant", []),"does not exist");
 
     // malformed args:
-   await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", null, {}, {}),"not an array");
+   await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", null),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", "", {}, {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", ""),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", {}, {}, {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", {}),"not an array");
     // Further rtti argschecking is done in runtime-typechecking.test.ts
 
-    // malformed enhancementProps:
-    for(const invalidEnhancementProps of [null, undefined, "", { unallowed: true}, { x: "anotherstring"}, { myFunc(){}}]) {
-        // @ts-ignore
-        await expectAsyncFunctionToThrow(async () => await service.validateAndDoCall("myMethod", ["a","b"], invalidEnhancementProps, {}),);
-    }
 });
 
 test('listCallableMethods', () => {
