@@ -1783,9 +1783,14 @@ export class ServerSession {
     /**
      * Helper, to access static members from a non-static context.
      * <p>
-     * In order to make your special static subclass members available, override it and change the signature accordingly to:
+     * In order to make your special static subclass members available, you must help typescript a bit and override this accessor and change the signature accordingly to:
      * </p>
-     * <code>get clazz(): typeof YOUR-SERVERSESSION-SUBCLASS</code>.
+     * <pre><code>
+     * get clazz(): typeof YOUR-SERVERSESSION-SUBCLASS {
+     *     // @ts-ignore
+     *     return super.clazz;
+     * }
+     * </code></pre>.
      */
     get clazz(): typeof ServerSession {
         // @ts-ignore
