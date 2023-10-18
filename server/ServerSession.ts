@@ -26,7 +26,7 @@ import crypto from "node:crypto"
 import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, ServerPrivateBox} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
-import {isRestError, CommunicationError} from "./CommunicationError";
+import {isCommunicationError, CommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
 
@@ -652,7 +652,7 @@ export class ServerSession {
             }
             catch (caught) {
                 if(caught instanceof Error) {
-                    res.status( isRestError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
+                    res.status( isCommunicationError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
 
                     fixErrorStack(caught)
                     let error = this.logAndConcealError(caught, req);
@@ -1714,7 +1714,7 @@ export class ServerSession {
         }
 
         let definitelyIncludedProps: Record<string, any> = {};
-        if(isRestError(error) && error.constructor !== CommunicationError) { // A (special) SUB-class of CommunicationError ? I.e. think of a custom NotLoggedInError
+        if(isCommunicationError(error) && error.constructor !== CommunicationError) { // A (special) SUB-class of CommunicationError ? I.e. think of a custom NotLoggedInError
             // Make sure this error is ALWAYS identifyable by the client and its custom properties are included, cause they were explicitly implemented by the user for a reason.
             definitelyIncludedProps = {
                 ...customPropertiesOnly(errorExt),
@@ -1727,11 +1727,11 @@ export class ServerSession {
             return {
                 message: errorExt.message,
                 name: errorExt.name,
-                stack: isRestError(error)?undefined:`Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
+                stack: isCommunicationError(error)?undefined:`Stack hidden.${errorId?` See [${errorId}] in the server log.`:""} ${DIAGNOSIS_SHOWFULLERRORS}`,
                 ...definitelyIncludedProps,
             };
         }
-        else if( (this.options.exposeErrors === "RestErrorsOnly" || this.options.exposeErrors === undefined) && isRestError(error)) {
+        else if( (this.options.exposeErrors === "RestErrorsOnly" || this.options.exposeErrors === undefined) && isCommunicationError(error)) {
             return {
                 message: errorExt.message,
                 name: errorExt.name,
