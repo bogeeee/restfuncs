@@ -1779,20 +1779,26 @@ export class ServerSession {
 
     }
 
+    /**
+     * <p/>
+     * In order to make your special static subclass members available via <code>this.clazz</code>, you must help typescript a bit by redefining this field with the follwing line:
+     * </p>
+     * <pre><code>
+     *     classType!: typeof YOUR-SERVERSESSION-SUBCLASS;
+     * </code></pre>
+     */
+    classType!: typeof ServerSession
 
     /**
      * Helper, to access static members from a non-static context.
      * <p>
-     * In order to make your special static subclass members available, you must help typescript a bit and override this accessor and change the signature accordingly to:
+     * In order to make your special static subclass members available, you must help typescript a bit by redefining the <code>classType</code> field with the follwing line:
      * </p>
      * <pre><code>
-     * get clazz(): typeof YOUR-SERVERSESSION-SUBCLASS {
-     *     // @ts-ignore
-     *     return super.clazz;
-     * }
-     * </code></pre>.
+     *     classType!: typeof YOUR-SERVERSESSION-SUBCLASS;
+     * </code></pre>
      */
-    get clazz(): typeof ServerSession {
+    get clazz(): this["classType"] {
         // @ts-ignore
         return this.constructor
     }
