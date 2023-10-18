@@ -132,10 +132,6 @@ export type ParameterSource = "string" | "json" | null; // Null means: Cannot be
 
 export type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, destination?: string) => boolean);
 export type ServerSessionOptions = {
-    /**
-     * If using multiple RestfuncsServers(=apps), you must explicitly specify which one this service belongs to.
-     */
-    app?: RestfuncsServer
 
 
     /**
@@ -294,9 +290,14 @@ export class ServerSession {
      *
      * Change the implementation if you need to support multiple ServerSession classes with the same name.
      */
-    static get id() {
-        return this.name; // In the future we might add
+    static get id(): string {
+        if(this.hasOwnProperty("_id") && this._id) { // Already computed at this level ?
+            return this._id;
+        }
+        return this._id = this.generateId();
     }
+
+    private static _id?: string;
 
     /**
      * The options.
@@ -435,11 +436,9 @@ export class ServerSession {
      */
     public static createExpressHandler(): Router {
 
-        // Do some global checks:
-        this.checkOptionsValidity(this.options);
+        this.checkOptionsValidity(this.options); // Do some global checks:
 
-
-
+        this.server.registerServerSessionClass(this); // Make sure, this is registered
 
         const enableMultipartFileUploads = this.options.enableMultipartFileUploads || (this.options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(this) || this.mayNeedFileUploadSupport()))
 
@@ -690,9 +689,6 @@ export class ServerSession {
     }
 
     public static get server(): RestfuncsServer {
-        if(this.options.app) {
-            return this.options.app;
-        }
         return getServerInstance();
     }
 
@@ -1807,35 +1803,39 @@ export class ServerSession {
      * Returns an id for this ServerSession.
      *
      * It's not checked for uniqueness.
-     * @see checkIfIdIsUnique
-     * @private
      */
-    public static generatedId(service: object): string {
-        const className = service.constructor?.name
+    private static generateId(): string {
+        const className = this.name
         if(className && className !== "Object") {
             return className;
         }
 
-        // TODO: create a hash instead, that's better and shorter (imagine JWT sessions with limited size)
-        // generate an id of the first function names that are found.
-        const MAX_LENGTH = 40;
-        let result = "Obj";
-        for(const k of Object.getOwnPropertyNames(service)) {
-            // @ts-ignore
-            if(typeof k === "string" && typeof service[k] == "function") {
-                result+="_" + k;
-                if(result.length >= MAX_LENGTH) {
-                    return result.substring(0, MAX_LENGTH);
+        const generateIdFromContent = (sessionPrototype: object): string | undefined => {
+            // TODO: create a hash instead, that's better and shorter (imagine JWT sessions with limited size)
+            // generate an id of the first function names that are found.
+            const MAX_LENGTH = 40;
+            let result = "Obj";
+            for (const k of Object.getOwnPropertyNames(sessionPrototype)) {
+                // @ts-ignore
+                if (typeof k === "string" && typeof sessionPrototype[k] == "function") {
+                    result += "_" + k;
+                    if (result.length >= MAX_LENGTH) {
+                        return result.substring(0, MAX_LENGTH);
+                    }
                 }
+            }
+
+            // not enough info found ? I.e. the object was enhanced during typescript-rtti compile
+            const prototype = Object.getPrototypeOf(sessionPrototype);
+            if (prototype) {
+                return generateIdFromContent(prototype); // Take the prototype
             }
         }
 
-        // not enough info found ? I.e. the object was enhanced during typescript-rtti compile
-        const prototype = Object.getPrototypeOf(service);
-        if(prototype) {
-            return this.generatedId(prototype); // Take the prototype
+        let result = generateIdFromContent(this.prototype);
+        if(!result) {
+            throw new Error("Could not generate an id for your ServerSession subclass. Please set the id field.");
         }
-
         return result;
     }
 

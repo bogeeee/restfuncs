@@ -4,11 +4,16 @@ import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
+import {develop_resetGlobals} from "restfuncs-server/Server";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 class Service extends ServerSession {
 }
+
+beforeEach(() => {
+    develop_resetGlobals();
+});;
 
 async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: ClientProxy<S>) => void, path = "/api") {
 

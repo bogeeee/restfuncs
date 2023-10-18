@@ -137,10 +137,20 @@ class RestfuncsServerOOP {
      * id -> service
      * The ServerSession constructor registers itself here. TODO
      */
-    private services = new Map<string, typeof ServerSession>()
+    private serverSessionClasses = new Map<string, typeof ServerSession>()
 
-    // Hope we don't get to the point where we need the group object (not only the id) - as it will always turn out so ;)
-    private cache_service2SecurityGroupIdMap?: Map<typeof ServerSession, string>
+    /**
+     * computed / cached values, after all serverSessionClasses have been registered.
+     * @private
+     */
+    _computed?: {
+        // Hope we don't get to the point where we need the group object (not only the id) - as it will always turn out so ;)
+        service2SecurityGroupIdMap: Map<typeof ServerSession, string>
+
+        diagnosis_triggeredBy: Error;
+    }
+
+
 
     expressApp: Express;
 
@@ -150,6 +160,8 @@ class RestfuncsServerOOP {
      * the low-level http server where this is attached to
      */
     public httpServer?: HttpServer;
+
+    diagnosis_creatorCallStack!: Error
 
     /**
      * The low-level (node:)http server (or a similar interface) where this RestfuncsServer will be attached to as a handler
@@ -203,17 +215,15 @@ class RestfuncsServerOOP {
 
         this.indexedSecrets = {} //TODO
 
-        //TODO: install CORS and csrfprotection handler for legacy express routes
+
         //TODO: install session handler
 
         // Register single instance:
-        if(instance === undefined) {
-            instance = <RestfuncsServer> <any> this;
+        if(instance) {
+            throw new Error("A RestfuncsServer instance already exists. There can be only one.", {cause: instance.diagnosis_creatorCallStack});
         }
-        else {
-            // TODO: if(instance.diagnosis_isFallback) throw new Error("A fallback RestfuncsExpress already exists. Make sure to initialize 'app = RestfuncsExpress()' before any ServerSession is instantiated."); // TODO: include the stacktrace in diagnosis_isFallback
-            instance = "multipleInstancesExist"
-        }
+        instance = <RestfuncsServer> <any> this;
+        this.diagnosis_creatorCallStack = new Error("This one created the other instance"); // Diagnosis
     }
 
     /**
@@ -258,85 +268,98 @@ class RestfuncsServerOOP {
         throw new Error("TODO")
     }
 
-    public registerService(service: typeof ServerSession) {
-        if(this.cache_service2SecurityGroupIdMap) {
-            throw new Error("Cannot add a service after cache_service2SecurityGroupIdMap has been computed");
+    public registerServerSessionClass(clazz: typeof ServerSession) {
+        if(this._computed) {
+            throw new Error("Cannot register a ServerSession class after dependant values have already been computed. Make sure that you register / app.use(YourServerSession.createExpressHandler()) all your classes before the first use (http request).", {cause: this._computed.diagnosis_triggeredBy});
         }
 
-        // TODO: check uniqueness and stuff like in ServerSession.checkIfIdIsUnique()
+        if(!clazz.id) {
+            throw new Error("id not set");
+        }
 
-        this.services.set(service.id, service);
+        // Check uniqueness:
+        let existingClazz = this.serverSessionClasses.get(clazz.id);
+        if(existingClazz && existingClazz !== clazz) {
+            throw new Error(`There is already another ServerSession class registered with the id: '${clazz.id}'. Make sure, you have unique class names or otherwise implement the id field accessor in your class(es)`);
+        }
+
+        this.serverSessionClasses.set(clazz.id, clazz);
     }
 
     /**
      * Don't override. Not part of the API
      * @param serviceClass
-     * @return A hash that groups together services with the same security relevant settings.
+     * @return A hash that groups together serverSessionClasses with the same security relevant settings.
      * TODO: write testcases
      */
     public getSecurityGroupIdOfService(serviceClass: typeof ServerSession): string {
-        const result = this.getService2SecurityGroupIdMap().get(serviceClass);
+        const result = this.computed.service2SecurityGroupIdMap.get(serviceClass);
         if(result === undefined) {
             throw new Error("Illegal state: serviceClass not inside service2SecurityGroupIdMap. Was it registered for another server ?")
         }
         return result;
     }
 
-    private getService2SecurityGroupIdMap() {
-        if(this.cache_service2SecurityGroupIdMap) { // Has been computed yet ?
-            return this.cache_service2SecurityGroupIdMap
+    get computed()  {
+        if(this._computed) {
+            return this._computed;
         }
 
+        return this._computed = {
+            service2SecurityGroupIdMap: this.computeService2SecurityGroupIdMap(),
+            diagnosis_triggeredBy: new Error("This call triggered the computation. Make sure that this is AFTER all your classes have been registered.")
+        };
+    }
+    protected computeService2SecurityGroupIdMap() {
         const relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
-        // Go through all services and collect the groups
-        const groups: {options: ServerSessionOptions, members: (typeof ServerSession)[]}[] = []
-        this.services.forEach((service) => {
-            for(const group of groups) {
-                if(  _(relevantProperties).find( key => group.options[key] !== service.options[key] ) === undefined ) { // Found a group where all relevantProperties match ?
+        // Go through all serverSessionClasses and collect the groups
+        const groups: { options: ServerSessionOptions, members: (typeof ServerSession)[] }[] = []
+        this.serverSessionClasses.forEach((service) => {
+            for (const group of groups) {
+                if (_(relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined) { // Found a group where all relevantProperties match ?
                     group.members.push(service); // add to existing
-                }
-                else {
-                    groups.push({options: service.options, members:[service]}); // create a new one
+                } else {
+                    groups.push({options: service.options, members: [service]}); // create a new one
                 }
             }
         });
 
         // Compose result:
-        this.cache_service2SecurityGroupIdMap = new Map<typeof ServerSession, string>()
-        for(const group of groups) {
+        const result = new Map<typeof ServerSession, string>()
+        for (const group of groups) {
             // Calculate groupId:
             let tokens = relevantProperties.map(key => {
                 const value = group.options[key];
-                if(typeof value === "function") {
-                    return "function_used_by_" +  group.members.map(m => m.id).sort().join("_");
-                }
-                else {
+                if (typeof value === "function") {
+                    return "function_used_by_" + group.members.map(m => m.id).sort().join("_");
+                } else {
                     return value;
                 }
             });
             const groupId = JSON.stringify(tokens); // TODO hash and limit to 48bit
 
-            for(const service of group.members) {
-                this.cache_service2SecurityGroupIdMap.set(service, groupId);
+            for (const service of group.members) {
+                result.set(service, groupId);
             }
         }
 
-        return this.cache_service2SecurityGroupIdMap
+        return result
     }
 
+
     /**
-     * <p>The tokens (multiple) for all services, comma separated.</p>
-     * You can use this multi-value string everywhere where a single token is expected. They're tried out all then. To reduce overhead when dealing with a large number of services, services with the same security properties share the same token.
+     * <p>The tokens (multiple) for all serverSessionClasses, comma separated.</p>
+     * You can use this multi-value string everywhere where a single token is expected. They're tried out all then. To reduce overhead when dealing with a large number of serverSessionClasses, serverSessionClasses with the same security properties share the same token.
      * @param session
      */
     public getCsrfTokens(session: object): string {
-        return Array.from(this.getService2SecurityGroupIdMap().values()).map( (groupId) => {
+        return Array.from(this.computed.service2SecurityGroupIdMap.values()).map( (groupId) => {
             throw new Error("TODO: implement")
         }).join(",")
     }
 }
 
-let instance: RestfuncsServer | undefined | "multipleInstancesExist"
+
 
 /**
  * Drop in replacement for
@@ -352,17 +375,14 @@ export function restfuncsExpress(options?: ServerOptions): RestfuncsServer {
     return <RestfuncsServer> new RestfuncsServerOOP(options || {});
 }
 
+let instance: RestfuncsServer | undefined
+
 /**
- * Gets the one and only global server instance. Throws an error if multiple exist. Creates a fallback instance if needed (for standalone case TODO)
+ * Gets the one and only global server instance. Creates a fallback instance if needed
  */
 export function getServerInstance() {
     if(!instance) {
-        throw new Error("TODO: handle case with no explicitly created Server. Create a default one and flag it as fallback") // safe the stacktrace in instance.diagnosis_isFallback
-
-        throw new Error("No RestfuncsServer has been created yet. Please do so first via TODO")
-    }
-    if(instance === "multipleInstancesExist") {
-        throw new Error("Multiple RestfuncsServer instances exist Please specify it explicitly")
+        instance = restfuncsExpress(); // Create an instance as fallback
     }
     return instance;
 }
