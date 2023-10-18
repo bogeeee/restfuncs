@@ -973,7 +973,48 @@ test('Sessions', async () => {
         await apiProxy.setSomeObject_x("test");
         expect(await apiProxy.getSomeObject_x()).toBe("test");
 
+    }
+    finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
+
+test('Sessions - clearing values', async () => {
+    let initialValue = undefined;
+    class MyService extends Service{
+
+        val= initialValue
+
+        async storeValueInSession(value) {
+            this.val = value;
+        }
+
+        getValueFromSession() {
+            return this.val;
+        }
+    }
+
+
+    const server = createServer(MyService);
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+        const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {}).proxy
+
+        // Set a value to null:
+        initialValue = "initial";
+        await apiProxy.storeValueInSession(null);
+        expect(await apiProxy.getValueFromSession()).toBe(null);
+
+        // Set a value to null:
+        initialValue = undefined;
+        await apiProxy.storeValueInSession(null);
+        expect(await apiProxy.getValueFromSession()).toBe(null);
+
         // Set a value to undefined
+        initialValue = "initial";
         await apiProxy.storeValueInSession(undefined);
         expect(await apiProxy.getValueFromSession()).toBe(undefined);
     }

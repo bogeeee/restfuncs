@@ -102,9 +102,6 @@ test('Test arguments', async () => {
             // With objects:
             await apiProxy.params2("ok", 123, {});
 
-            // Additional value: (we could argue that we want to get an error here, or erase the additional value at runtime - to enhance security)
-            await apiProxy.params2("ok", 123, {someAdditionalValue: true});
-
             await apiProxy.setObjWithValues({prop1: true});
 
             // @ts-ignore
@@ -112,6 +109,21 @@ test('Test arguments', async () => {
 
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}) );
+        }
+    );
+})
+
+test('Test arguments - extra properties value', async () => {
+    class ServerAPI extends Service{
+        params2(x: string, y: number, z: {}) {
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+
+            // Extra property: (we could argue that we want to get an error here, or erase the additional value at runtime - to enhance security)
+            await apiProxy.params2("ok", 123, {someExtraProperty: true});
         }
     );
 })
