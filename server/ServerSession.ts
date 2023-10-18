@@ -26,7 +26,7 @@ import crypto from "node:crypto"
 import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, ServerPrivateBox} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
-import {isRestError, RestError} from "./RestError";
+import {isRestError, CommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
 
@@ -59,15 +59,15 @@ export function isTypeInfoAvailable(service: object) {
  */
 function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
     if(reflectedMethod.isProtected) {
-        throw new RestError("Method is protected.")
+        throw new CommunicationError("Method is protected.")
     }
     if(reflectedMethod.isPrivate) {
-        throw new RestError("Method is private.")
+        throw new CommunicationError("Method is private.")
     }
 
     // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
     if(reflectedMethod.visibility !== "public") {
-        throw new RestError("Method is not public")
+        throw new CommunicationError("Method is not public")
     }
 }
 
@@ -93,7 +93,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     for(const i in reflectedMethod.parameters) {
         const parameter = reflectedMethod.parameters[i];
         if(parameter.isOmitted) {
-            throw new RestError("Omitted arguments not supported")
+            throw new CommunicationError("Omitted arguments not supported")
         }
         if(parameter.isRest) {
             argsStack.reverse();
@@ -104,7 +104,7 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
             continue;
         }
         if(parameter.isBinding) {
-            throw new RestError(`Runtime typechecking of destructuring arguments is not yet supported`)
+            throw new CommunicationError(`Runtime typechecking of destructuring arguments is not yet supported`)
         }
 
         const arg =  argsStack.length > 0?argsStack.pop():undefined;
@@ -118,11 +118,11 @@ export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Read
     }
 
     if(argsStack.length > 0) {
-        throw new RestError(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`)
+        throw new CommunicationError(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`)
     }
 
     if(errors.length > 0) {
-        throw new RestError(errors.join("; "))
+        throw new CommunicationError(errors.join("; "))
     }
 }
 
@@ -176,11 +176,11 @@ export type ServerSessionOptions = {
      * Whether to show/expose error information to the client:
      * - true: Exposes ALL error messages + stacks. Enable this for development.
      * - "messagesOnly": Exposes only the message/title + class name. But no stack or other info.
-     * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of {@see RestError}. Those are intended to aid the interface consumer.
+     * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of {@see CommunicationError}. Those are intended to aid the interface consumer.
      * - false: No information is exposed. The client will get a standard Error: "Internal server error".
      *
-     *  User defined SUB- classes of {@see RestError} will always fall through this restriction and have their message, name and custom properties exposed.
-     *  I.e. You could implement a 'class NotLoggedInException extends RestError' as in indicator to trigger a login form.
+     *  User defined SUB- classes of {@see CommunicationError} will always fall through this restriction and have their message, name and custom properties exposed.
+     *  I.e. You could implement a 'class NotLoggedInException extends CommunicationError' as in indicator to trigger a login form.
      */
     exposeErrors?: true | "messagesOnly" | "RestErrorsOnly" | false
 
@@ -421,7 +421,7 @@ export class ServerSession {
         // Warn/error if type info is not available:
         if(!isTypeInfoAvailable(new this)) {
             if(this.options.checkArguments) {
-                throw new RestError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
+                throw new CommunicationError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
             }
             else if(this.options.checkArguments === undefined) {
                 console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
@@ -486,21 +486,21 @@ export class ServerSession {
                         result.pipe(res);
                     }
                     else if(result instanceof ReadableStream) {
-                        throw new RestError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`)
+                        throw new CommunicationError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`)
                     }
                     else if(result instanceof ReadableStreamDefaultReader) {
-                        throw new RestError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`)
+                        throw new CommunicationError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`)
                     }
                     else if(result instanceof Buffer) {
                         res.send(result);
                     }
                     else {
-                        throw new RestError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)
+                        throw new CommunicationError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)
                     }
                 }
                 else { // Content type was not explicitly set in the call ?
                     if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
-                        throw new RestError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.res?.contentType(...); `);
+                        throw new CommunicationError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.res?.contentType(...); `);
                     }
 
                     // Send what best matches the Accept header (defaults to json):
@@ -515,7 +515,7 @@ export class ServerSession {
                         }
                         else if(accept == "text/html") {
                             if(diagnosis_looksLikeHTML(result)) {
-                                throw new RestError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.res?.contentType(\"text/html; charset=utf-8\"); `);
+                                throw new CommunicationError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.res?.contentType(\"text/html; charset=utf-8\"); `);
                             }
                             return false;
                         }
@@ -539,7 +539,7 @@ export class ServerSession {
                 res.header("Access-Control-Expose-Headers", "restfuncs-protocol")
 
                 if(req.method !== "GET" && req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE" && req.method !== "OPTIONS") {
-                    throw new RestError("Unhandled http method: " + req.method)
+                    throw new CommunicationError("Unhandled http method: " + req.method)
                 }
 
                 let allowSessionAccess = false;
@@ -562,7 +562,7 @@ export class ServerSession {
                         }
                     }
                     else {
-                        throw new RestError(diagnosis_originNotAllowedErrors.join("; "));
+                        throw new CommunicationError(diagnosis_originNotAllowedErrors.join("; "));
                     }
 
                     res.end();
@@ -584,7 +584,7 @@ export class ServerSession {
                 // @ts-ignore
                 const reqSession = req.session as Record<string,any>|undefined;
                 if(!reqSession) {
-                    //throw new RestError("No session handler is installed"); // TODO: re-activate
+                    //throw new CommunicationError("No session handler is installed"); // TODO: re-activate
                 }
                 else {
                     _.extend(session, reqSession); // TODO: we might not need all properties
@@ -596,9 +596,9 @@ export class ServerSession {
                 const methodName = session.getMethodNameForCall(req.method, methodNameFromPath);
                 if(!methodName) {
                     if(!methodNameFromPath) {
-                        throw new RestError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
+                        throw new CommunicationError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
                     }
-                    throw new RestError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
+                    throw new CommunicationError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
                 }
 
                 const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = session.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
@@ -652,7 +652,7 @@ export class ServerSession {
             }
             catch (caught) {
                 if(caught instanceof Error) {
-                    res.status( isRestError(caught) && (<RestError>caught).httpStatusCode || 500);
+                    res.status( isRestError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
 
                     fixErrorStack(caught)
                     let error = this.logAndConcealError(caught, req);
@@ -739,7 +739,7 @@ export class ServerSession {
     public getCorsReadToken(): string {
         const session = this.req!.session;
         if(!session) {
-            throw new RestError(`No session handler installed. Please see TODO`)
+            throw new CommunicationError(`No session handler installed. Please see TODO`)
         }
 
         return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
@@ -784,7 +784,7 @@ export class ServerSession {
         const sessionRequestToken = server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
         // Security check:
         if(sessionRequestToken.serviceId !== this.clazz.id) {
-            throw new RestError(`SessionRequestToken from another service`)
+            throw new CommunicationError(`SessionRequestToken from another service`)
         }
 
         // TODO: test theoretical session access, checkIfRequestIsAllowedToRunCredentialed would throw an error
@@ -809,7 +809,7 @@ export class ServerSession {
 
         const token = server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
         if(token.serviceId !== this.clazz.id) {
-            throw new RestError(`updateSession came from another service`)
+            throw new CommunicationError(`updateSession came from another service`)
         }
 
         // TODO: check if session id matches and version number is exactly 1 higher
@@ -825,7 +825,7 @@ export class ServerSession {
         const question = server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
         // Security check:
         if(question.serviceId !== this.clazz.id) {
-            throw new RestError(`Question came from another service`)
+            throw new CommunicationError(`Question came from another service`)
         }
 
         return server.encryptToken({
@@ -844,7 +844,7 @@ export class ServerSession {
      */
     private static getOrCreateSecurityToken(session: SecurityRelevantSessionFields, csrfProtectionMode: "corsReadToken" | "csrfToken"): string {
         if (session.csrfProtectionMode !== undefined && session.csrfProtectionMode !== csrfProtectionMode) {
-            throw new RestError(`Session is already initialized with csrfProtectionMode=${session.csrfProtectionMode} but this request wants to use ${csrfProtectionMode}. Please make sure that all browser clients (for this session) use the same mode.`)
+            throw new CommunicationError(`Session is already initialized with csrfProtectionMode=${session.csrfProtectionMode} but this request wants to use ${csrfProtectionMode}. Please make sure that all browser clients (for this session) use the same mode.`)
         }
 
         const tokensFieldName = csrfProtectionMode==="corsReadToken"?"corsReadTokens":"csrfTokens";
@@ -944,7 +944,7 @@ export class ServerSession {
                         addValue(value);
                     }
                     else if(listInsertionParameter.isBinding) {
-                        throw new RestError(`Runtime typechecking of destructuring arguments is not yet supported`)
+                        throw new CommunicationError(`Runtime typechecking of destructuring arguments is not yet supported`)
                     }
                     else {
                         addValue(this.autoConvertValueForParameter(value, listInsertionParameter, source));
@@ -964,15 +964,15 @@ export class ServerSession {
                     }
 
                     if(!reflectedMethod) {
-                        throw new RestError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosisWhyIsRTTINotAvailable()}`)
+                        throw new CommunicationError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosisWhyIsRTTINotAvailable()}`)
                     }
 
                     const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
                     if(!parameter) {
-                        throw new RestError(`Method ${methodName} does not have a parameter named '${name}'`)
+                        throw new CommunicationError(`Method ${methodName} does not have a parameter named '${name}'`)
                     }
                     if(parameter.isRest) {
-                        throw new RestError(`Cannot set ...${name} through named parameter`)
+                        throw new CommunicationError(`Cannot set ...${name} through named parameter`)
                     }
                     result.methodArguments[parameter.index] = this.autoConvertValueForParameter(paramsMap[name], parameter, source)
                 }
@@ -1012,7 +1012,7 @@ export class ServerSession {
 
             // Diagnosis / error:
             if(!_.isArray(parsed.result)&& (parsed.result["csrfToken"] || parsed.result["corsReadToken"]) && req.method !=="GET") {
-                throw new RestError(`You should not send the sensitive csrfToken/corsReadToken in a query parameter (only with GET). Please send it in a header or in the body.`);
+                throw new CommunicationError(`You should not send the sensitive csrfToken/corsReadToken in a query parameter (only with GET). Please send it in a header or in the body.`);
             }
 
             convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
@@ -1034,7 +1034,7 @@ export class ServerSession {
             }
             else if(contentType == "multipart/form-data") {
                 if(!enableMultipartFileUploads) {
-                    throw new RestError("Please set enableMultipartFileUploads=true in the ServerSessionOptions.")
+                    throw new CommunicationError("Please set enableMultipartFileUploads=true in the ServerSessionOptions.")
                 }
                 let bb = busboy({ headers: req.headers });
             }
@@ -1060,7 +1060,7 @@ export class ServerSession {
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
                         if (e instanceof Error && diagnosis_looksLikeJSON(rawBodyText)) {
-                            throw new RestError(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
+                            throw new CommunicationError(`${e.message}\nHINT: You have set the Content-Type to 'text/plain' but the body rather looks like 'application/json'.`)
                         } else {
                             throw e;
                         }
@@ -1087,15 +1087,15 @@ export class ServerSession {
                     throw valueFromJSON;
                 }
                 else {
-                    throw new RestError("Request body invalid. Consider explicitly specifying the content type")
+                    throw new CommunicationError("Request body invalid. Consider explicitly specifying the content type")
                 }
             }
             else {
-                throw new RestError(`Content-Type: '${contentType}' not supported`)
+                throw new CommunicationError(`Content-Type: '${contentType}' not supported`)
             }
         }
         else if (!_.isEqual(req.body, {})) { // non empty body ?
-            throw new RestError("Unhandled non-empty body. Please report this as a bug.")
+            throw new CommunicationError("Unhandled non-empty body. Please report this as a bug.")
         }
 
         return result;
@@ -1116,25 +1116,25 @@ export class ServerSession {
 
         // Check methodName:
         if(!methodName) {
-            throw new RestError(`methodName not set`)
+            throw new CommunicationError(`methodName not set`)
         }
         if(typeof methodName !== "string") {
-            throw new RestError(`methodName is not a string`)
+            throw new CommunicationError(`methodName is not a string`)
         }
         if( (emptyService[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
-            throw new RestError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
+            throw new CommunicationError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if(this[methodName] === undefined) {
-            throw new RestError(`You are trying to call a remote method that does not exist: ${methodName}`)
+            throw new CommunicationError(`You are trying to call a remote method that does not exist: ${methodName}`)
         }
         const method = this[methodName];
         if(typeof method != "function") {
-            throw new RestError(`${methodName} is not a function`)
+            throw new CommunicationError(`${methodName} is not a function`)
         }
 
         // Make sure that args is an array:
         if(!args || args.constructor !== Array) {
-            throw new RestError("args is not an array")
+            throw new CommunicationError("args is not an array")
         }
 
         // Runtime type checking of args:
@@ -1190,13 +1190,13 @@ export class ServerSession {
 
             // Fix / default some reqFields for convenience:
             if (reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
-                throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
+                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
             }
             if (reqFields.corsReadToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "corsReadToken") {
-                throw new RestError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
+                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
             }
             if (reqFields.corsReadToken && !reqFields.csrfProtectionMode) {
-                throw new RestError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
+                throw new CommunicationError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
             }
             if (reqFields.csrfToken) {
                 reqFields.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
@@ -1230,7 +1230,7 @@ export class ServerSession {
                     }
                 }
                 catch (e) {
-                    throw new RestError(`Error validating ${tokenType}: ${(<Error>e)?.message}. Make sure it has the proper form.`, {cause: (e instanceof Error?e:undefined)});
+                    throw new CommunicationError(`Error validating ${tokenType}: ${(<Error>e)?.message}. Make sure it has the proper form.`, {cause: (e instanceof Error?e:undefined)});
                 }
 
                 return false;
@@ -1323,7 +1323,7 @@ export class ServerSession {
         }
 
         if(!isAllowedInner()) {
-            throw new RestError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
+            throw new CommunicationError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
         }
     }
 
@@ -1349,7 +1349,7 @@ export class ServerSession {
             get(target: ServerSession, p: string | symbol, receiver: any): any {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
-                    throw new RestError(`Unhandled : ${String(p)}`)
+                    throw new CommunicationError(`Unhandled : ${String(p)}`)
                 }
 
                 if(p === "__isCsrfProtectedSessionProxy") { // Probe field ?
@@ -1367,7 +1367,7 @@ export class ServerSession {
             set(target: ServerSession, p: string | symbol, newValue: any, receiver: any): boolean {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
-                    throw new RestError(`Unhandled : ${String(p)}`)
+                    throw new CommunicationError(`Unhandled : ${String(p)}`)
                 }
 
                 checkFieldAccess(false);
@@ -1585,7 +1585,7 @@ export class ServerSession {
             return value;
         }
         catch (e) {
-            throw new RestError(`Error converting value ${value} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a RestError cause we probably don't need to reveal the stacktrace here / keep the message simple
+            throw new CommunicationError(`Error converting value ${value} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a CommunicationError cause we probably don't need to reveal the stacktrace here / keep the message simple
         }
     }
 
@@ -1620,7 +1620,7 @@ export class ServerSession {
             return value;
         }
         catch (e) {
-            throw new RestError(`Error converting value ${diagnisis_shortenValue(value)} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a RestError cause we probably don't need to reveal the stacktrace here / keep the message simple
+            throw new CommunicationError(`Error converting value ${diagnisis_shortenValue(value)} to parameter ${parameter.name}: ${e instanceof Error && e.message}`) // Wrap this in a CommunicationError cause we probably don't need to reveal the stacktrace here / keep the message simple
         }
     }
 
@@ -1714,7 +1714,7 @@ export class ServerSession {
         }
 
         let definitelyIncludedProps: Record<string, any> = {};
-        if(isRestError(error) && error.constructor !== RestError) { // A (special) SUB-class of RestError ? I.e. think of a custom NotLoggedInError
+        if(isRestError(error) && error.constructor !== CommunicationError) { // A (special) SUB-class of CommunicationError ? I.e. think of a custom NotLoggedInError
             // Make sure this error is ALWAYS identifyable by the client and its custom properties are included, cause they were explicitly implemented by the user for a reason.
             definitelyIncludedProps = {
                 ...customPropertiesOnly(errorExt),
@@ -1837,11 +1837,11 @@ export class ServerSession {
         for(const key in this) {
             const value = this[key];
             if(value !== null && typeof value === "object") {
-                throw new RestError(`${this.clazz.name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#get class() helper method).`);
+                throw new CommunicationError(`${this.clazz.name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#get class() helper method).`);
             }
         }
 
-        if(this.req || this.res) {throw new RestError("Invalid state: req or res must not be set.")}
+        if(this.req || this.res) {throw new CommunicationError("Invalid state: req or res must not be set.")}
     }
 }
 

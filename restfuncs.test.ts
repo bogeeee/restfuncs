@@ -4,7 +4,7 @@ import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, extendPropsAndFunctions, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
-import {RestError} from "restfuncs-server/RestError";
+import {CommunicationError} from "restfuncs-server/CommunicationError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
@@ -227,7 +227,7 @@ test('test with different api paths', async () => {
 });
 
 test('Exceptions', async () => {
-    class CustomRestError extends RestError {
+    class CustomRestError extends CommunicationError {
         myProperty: string;
     }
 
@@ -303,7 +303,7 @@ test('Exceptions', async () => {
                 expect(caught).toStrictEqual(ball);
             }
 
-            // Custom RestError with attached property:
+            // Custom CommunicationError with attached property:
             try {
                 await apiProxy.throwCustomRestError();
                 fail(new Error(`Should have thrown`))

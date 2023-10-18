@@ -1,8 +1,8 @@
-import {RestError, ServerSession} from "restfuncs-server";
+import {CommunicationError, ServerSession} from "restfuncs-server";
 import _ from "underscore";
 import {TestServiceSessionBase} from "./TestsService.js";
 
-class NotLoggedInError extends RestError {
+class NotLoggedInError extends CommunicationError {
     name= "NotLoggedInError"; // Properly flag it for the client to recognize
 
     constructor() {

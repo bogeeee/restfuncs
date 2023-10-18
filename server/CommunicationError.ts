@@ -20,15 +20,15 @@ export type RestErrorOptions = ErrorOptions & {
  * Also you can specify the http status code in the options.
  * Also custom properties will (always) be sent to the client.
  *
- * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends RestError' that would trigger a login popup dialog.
+ * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends CommunicationError' that would trigger a login popup dialog.
  *
- * Note that on the client you will catch it wrapped in a 'ServerError' so you'll find this RestError under the .cause property.
+ * Note that on the client you will catch it wrapped in a 'ServerError' so you'll find this CommunicationError under the .cause property.
  */
-export class RestError extends Error {
+export class CommunicationError extends Error {
     public httpStatusCode?: number;
 
     /**
-     * Redundant indicator that this is a RestError (sub-) class because an 'instanceof RestError' strangely does not work across different packages.
+     * Redundant indicator that this is a CommunicationError (sub-) class because an 'instanceof CommunicationError' strangely does not work across different packages.
      */
     public isRestError= true;
 

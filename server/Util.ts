@@ -7,7 +7,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import crypto from "node:crypto"
 import {Request} from "express";
 import URL from "url";
-import {RestError} from "./RestError";
+import {CommunicationError} from "./CommunicationError";
 import _ from "underscore";
 
 /**
@@ -126,7 +126,7 @@ export function errorToString(e: any): string {
         (e.cause ? `\nCause: ${errorToString(e.cause)}` : '')
 }
 
-const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*RestError.*\n/;
+const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*CommunicationError.*\n/;
 
 /**
  * Removes redundant info from the error.stack + error.cause properties
@@ -345,7 +345,7 @@ export function createProxyWithPrototype(session: Record<string, any>, sessionPr
         get(target: Record<string, any>, p: string | symbol, receiver: any): any {
             // Reject symbols (don't know what it means but we only want strings as property names):
             if (typeof p != "string") {
-                throw new RestError(`Unhandled : ${String(p)}`)
+                throw new CommunicationError(`Unhandled : ${String(p)}`)
             }
 
             if (target[p] === undefined) {
@@ -356,11 +356,11 @@ export function createProxyWithPrototype(session: Record<string, any>, sessionPr
         set(target: Record<string, any>, p: string | symbol, newValue: any, receiver: any): boolean {
             // Reject symbols (don't know what it means but we only want strings as property names):
             if (typeof p != "string") {
-                throw new RestError(`Unhandled : ${String(p)}`)
+                throw new CommunicationError(`Unhandled : ${String(p)}`)
             }
 
             if (newValue === undefined && sessionPrototype[p] !== undefined) { // Setting a value that exists on the prototype to undefined ?
-                throw new RestError(`Cannot set session.${p} to undefined. Please set it to null instead.`) // We can't allow that because the next get would return the initial value (from the prototype) and that's not an expected behaviour.
+                throw new CommunicationError(`Cannot set session.${p} to undefined. Please set it to null instead.`) // We can't allow that because the next get would return the initial value (from the prototype) and that's not an expected behaviour.
             }
 
             target[p] = newValue;
@@ -427,7 +427,7 @@ export function fixTextEncoding(encoding: string): BufferEncoding {
     const result = encodingsMap[encoding.toLowerCase()];
 
     if (!result) {
-        throw new RestError(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
+        throw new CommunicationError(`Invalid encoding: '${encoding}'. Valid encodings are: ${Object.keys(encodingsMap).join(",")}`)
     }
 
     return result;
