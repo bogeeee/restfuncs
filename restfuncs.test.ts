@@ -880,6 +880,71 @@ test('registerIds', () => {
     // TODO
 });
 
+test('Session fields compatibility', () => {
+    function checkCompatibility(classes : (typeof ServerSession)[]) {
+        let app = restfuncsExpress();
+        classes.forEach(clazz => app.registerServerSessionClass(clazz)  );
+    }
+
+    {
+        class SessionA extends ServerSession {
+            myField: string
+        }
+        class SessionB extends ServerSession {
+            myField: any
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    {
+        type MyField = {a: string, b: number, c?: object}
+        class SessionA extends ServerSession {
+            myField: MyField
+        }
+        class SessionB extends ServerSession {
+            myField: MyField
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+    }
+
+    {
+        type MyField = {a: string, b: number, c?: object}
+        class SessionA extends ServerSession {
+            myField: MyField
+        }
+        class SessionB extends ServerSession {
+            myField: {a: string, b: number, c?: object, d: string} // Additional property d
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    {
+        type MyField = {a: string, b: number, c?: object}
+        class SessionA extends ServerSession {
+            myField: MyField
+        }
+        class SessionC extends ServerSession {
+            myField: {a: string, b: number, c?: object, d?: string} // Should be ok, because d is optional
+        }
+        class SessionB extends ServerSession {
+            myField: MyField
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB, SessionC])}).toReturn()
+    }
+
+    {
+        class SessionA extends ServerSession {
+            myField: string
+            anotherField: string = "123"
+        }
+        class SessionB extends ServerSession {
+            myField: string
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+    }
+
+});
+
 test('diagnosis_looksLikeJson', () => {
     expect(diagnosis_looksLikeJSON("test")).toBeFalsy();
     expect(diagnosis_looksLikeJSON("test123")).toBeFalsy();
