@@ -7,14 +7,14 @@
     "dev:_compile_and_run_tests": "clear && ttsc --build && jest --runInBand",
     "dev:runSpecificTest": "clear && ttsc --build && jest --runInBand restfuncs --testNamePattern=parseQuery",
     "devPlayground": "tsx devPlayground.ts",
-    "clean": "tsc --build --clean && cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
-    "build": "tsc --build --force && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
+    "clean": "cd common && npm run clean && cd .. && tsc --build --clean &&  cd client && npm run clean && cd .. && cd server && npm run clean && cd .. && cd restfuncs-metapackage && npm run clean && cd ..",
+    "build": "cd common && npm run build && cd .. && tsc --build --force  && cd client && npm run build && cd .. && cd server && npm run build && cd .. && cd restfuncs-metapackage && npm run build && cd ..",
     "install": "npm install --ignore-scripts && echo \"<-- FIX: When npm install is typed from under the examples dir in a fresh cloned repo, it only wants to install its own packages (but still this prepublish script is triggerd, strangely) - so we force it to install the packages from all workspaces\"",
-    "prepublish": "npm run clean && npm run build && cp LICENSE readme.md client && cp LICENSE readme.md server && cp LICENSE readme.md restfuncs-metapackage",
+    "prepublish": "npm run clean && npm run build && cp LICENSE readme.md common && cp LICENSE readme.md client && cp LICENSE readme.md server && cp LICENSE readme.md restfuncs-metapackage",
     "publish:npmlogin": "npm login",
-    "publish:publish": "npm run prepublish && npm publish --workspace server --workspace client --workspace restfuncs-metapackage"
+    "publish:publish": "npm run prepublish && npm publish --workspace common --workspace server --workspace client --workspace restfuncs-metapackage"
   },
-  "workspaces": ["restfuncs-metapackage","server", "client", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity"],
+  "workspaces": ["restfuncs-metapackage", "common", "server", "client", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity"],
   "dependencies": {
     "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13"

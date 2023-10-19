@@ -29,6 +29,7 @@ import {Readable} from "node:stream";
 import {isCommunicationError, CommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
+import {CSRFProtectionMode} from "restfuncs-common";
 
 
 
@@ -248,7 +249,7 @@ export type ServerSessionOptions = {
      */
     enableMultipartFileUploads?: boolean
 }
-export type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
+
 /**
  * Values that are allowed to be set as meta parameters via header / query params / request body params.
  */
