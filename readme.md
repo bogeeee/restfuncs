@@ -13,17 +13,16 @@ Nothing more is needed for such a method (no ZOD and no routing @decorators). Re
 - Typescript native **result validation** TODO. Also your output/result gets validated and shaped to what's declared. Improves safety and allows for [typescript tips and tricks](TODO) to shape an object to the form you want.
 - FUTURE (after 1.0): **API browser** (just point the url to your partners and they've got all the information and examples they need to call your methods from other programming languages )
   - FUTURE (after 1.0):  Also generates an **Openapi spec**.
-- Typesafe browser **sessions**, delivered via JWT cookies TODO.
-- **Callback functions** as usual parameters TODO. Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, ... _Those calls get **pushed** via websockets of course._ There are options for skipping and rate limiting.
+- **Callback functions** as usual parameters TODO. Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, ... _Those callbacks get **pushed** via websockets of course._ There are options for skipping and rate limiting.
 - **CSRF protection** by default / zero-conf.
 - **CORS** (cross-origin resource sharing). See `ServiceOptions.allowedOrigins`.
 - Simple **file uploads** TODO. You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - **Serve/stream resources**: You can also use your service methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
-- **Scales** to a multi node environment (all tokens and JWT cookies are *stateless* / use cryptographic signing)
+- **Scalable** to a multi node environment. Uses stateless, encrypted tokens (JWT) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
 - Proper **error handling** and logging.
 - **Basic auth** handler TODO. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/1.x/examples/express-and-vite-with-authentication)
 - **[Collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
-- **Tinkering friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
+- **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
 # &lt;Boilerplate cheat sheet - all you need to know&gt;
@@ -47,7 +46,7 @@ export class MyServerSession extends ServerSession {
    * ---- Write your API method as a plain typescript method... ----
    * This JSDoc also gets outputted in the API browser / OpenAPI spec.
    * Use the 'public' modifier to make them callable from a client.
-   * @param myComplexParam Your parameters can be any complex typescript type. They are automatically validated at runtime.
+   * @param myComplexParam Your parameters can be of any typescript type. They are automatically validated at runtime.
    * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
    * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
    */
@@ -59,8 +58,6 @@ export class MyServerSession extends ServerSession {
 
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
   }
-
-  public static async myStaticAPIMethod() {} // Also static methods can be called. TODO: do we need it ? Pro: we don't need the CSRF security check on-access cause we just assume that all non-static methods actually access the session. Con: we need to make a lot of methods static
     
   // ... <-- More API methods  
   // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
@@ -76,14 +73,14 @@ import {MyServerSession} from "MyServerSession";
 const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
 app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- Serve it ---- 
-// ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a packager like vite, parcel or turbopack. See examples.
-// ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyService.
+// ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples.
+// ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
 
 app.listen(3000); // Listen on Port 3000
 ````
 **client.ts**
 ````typescript
-// Use a packager like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
+// Use a bundler like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
 import {UploadFile} from "restfuncs-server";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
@@ -95,7 +92,7 @@ console.log( await remote.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await remote.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`),  myFile as UploadFile) // Cast to UploadFile or ts-ignore it    
+await remote.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myFile as UploadFile) // Must cast it to UploadFile    
 ````
 
 ### Setting up the build (the annoying stuff)
@@ -122,7 +119,7 @@ await remote.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${pro
 ````
 _Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
 In some cases where a (configuration) decision must be made 
-See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite packaging for the client/browser._
+See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite bundling for the client/browser._
 
 **Security note:** When using client certificates, you must read the [CSRF protection chapter](#csrf-protection).
 ## &lt;/Boilerplate cheat sheet&gt;
