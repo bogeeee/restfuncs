@@ -13,17 +13,16 @@
   "main": "index.js",
   "exports": {
     ".": {
-      "browser": "./dist/mjs/index.js",
-      "default": "./index.js"
+      "import": "./index_esm.mjs",
+      "require": "./index.js"
     },
     "./Util": {
-      "browser": "./dist/mjs/Util.js",
       "default": "./Util.js"
     }
   },
   "scripts": {
     "clean": "tsc --build --clean && rm -rf dist LICENSE readme.md",
-    "build": "tsc && tsc -module ES6 --outDir dist/mjs"
+    "build": "tsc"
   },
   "dependencies": {
     "restfuncs-common": "^2.0",
