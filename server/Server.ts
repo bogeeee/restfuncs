@@ -4,7 +4,8 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 
 import type {Server as HttpServer,} from "node:http";
 import http, {createServer} from "node:http";
-import expressApp, {Express} from "express";
+import expressApp, {application, Express} from "express";
+import {attach as engineIoAttach, AttachOptions, Server, ServerOptions as EngineIoServerOptions} from "engine.io"
 import _ from "underscore";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 
@@ -64,6 +65,8 @@ export type ServerOptions = {
      * </p>
      */
     sessionValidityTracking?: "memory" | SessionValidator | false
+
+    engineIoOptions?: AttachOptions & EngineIoServerOptions
 }
 
 /*
@@ -150,9 +153,13 @@ class RestfuncsServerOOP {
         diagnosis_triggeredBy: Error;
     }
 
-
-
-    expressApp: Express;
+    /**
+     * Internal wrapped express app.
+     * <p>
+     * Use it externally, when there's no other way.
+     * </p>
+     */
+    public expressApp: Express;
 
     private expressOriginalMethods: Partial<Express> = {};
 
@@ -160,6 +167,12 @@ class RestfuncsServerOOP {
      * the low-level http server where this is attached to
      */
     public httpServer?: HttpServer;
+
+    public engineIoServer?: Server;
+
+    public get engineIoPath() {
+        return this.serverOptions.engineIoOptions?.path || "/engine.io/restfuncs"
+    }
 
     diagnosis_creatorCallStack!: Error
 
@@ -233,16 +246,27 @@ class RestfuncsServerOOP {
     listen(...args: unknown[]): HttpServer {
         // @ts-ignore
         const server: HttpServer =  this.expressOriginalMethods.listen.apply(this, args);
-        this.installWebsocketsHandler(server)
+        this.installEngineIoServer(server)
         return server;
     }
 
-    protected installWebsocketsHandler(server: HttpServer) {
-        // TODO:
+    public installEngineIoServer(server: HttpServer) {
+        this.engineIoServer = engineIoAttach(server, {
+            ...(this.serverOptions.engineIoOptions || {}),
+            path: this.engineIoPath,
+        });
+        this.engineIoServer.on("message", (data) => {
+            console.log("data:" + data)
+        })
+        return this.engineIoServer;
     }
 
+    /**
+     * Attach to an existing server
+     * @param server
+     */
     attachTo(server: HttpServer) {
-
+        throw new Error("This method does not work. Please use listen(...) if possible. If not possible, then use:\n const server = http.createServer(app.expressApp);\n app.installEngineIoServer(server);")
     }
 
     /**

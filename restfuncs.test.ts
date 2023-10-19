@@ -28,25 +28,53 @@ class Service extends ServerSession {
 beforeEach(() => {
     resetGlobalState();
 });;
-async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, path = "/api") {
-    resetGlobalState();
 
-    const app = express();
-    const service = toServiceClass(serverAPI);
-    service.options = {...standardOptions, ...service.options}
-    app.use(path, service.createExpressHandler());
-    const server = app.listen();
-    // @ts-ignore
-    const serverPort = server.address().port;
 
-    try {
-        const client = new RestfuncsClient_fixed<Api>(`http://localhost:${serverPort}${path}`).proxy;
-        await clientTests(client);
+type runClientServerTests_Options = {
+    path?: string,
+    /**
+     * Default: test both, with engine.io sockets and without
+     */
+    useSocket?: boolean
+}
+
+async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, param_testOptions: runClientServerTests_Options = {}) {
+    if(param_testOptions.useSocket === undefined) {
+        inner(false); // Without engine.io sockets
+        inner(true); // With engine.io sockets
     }
-    finally {
-        // shut down server
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
+    else {
+        inner(param_testOptions.useSocket); // With engine.io sockets
+    }
+
+    async function inner(useSockets: boolean) {
+        resetGlobalState();
+
+        const testOptions: runClientServerTests_Options = {
+            path: "/api",
+            ...param_testOptions
+        }
+
+
+        const app = restfuncsExpress();
+        const service = toServiceClass(serverAPI);
+        service.options = {...standardOptions, ...service.options}
+        app.use(testOptions.path, service.createExpressHandler());
+        const server = app.listen();
+        // @ts-ignore
+        const serverPort = server.address().port;
+
+        try {
+            const client = new RestfuncsClient_fixed<Api & Service>(`http://localhost:${serverPort}${testOptions.path}`,{
+                useSocket: useSockets
+            }).proxy;
+            await clientTests(client);
+        }
+        finally {
+            // shut down server
+            server.closeAllConnections();
+            await new Promise((resolve) => server.close(resolve));
+        }
     }
 }
 
@@ -75,7 +103,7 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
 async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTests: (baseUrl: string) => void, path = "/api", options?: Partial<ServerSessionOptions>) {
     resetGlobalState();
 
-    const app = express();
+    const app = restfuncsExpress();
     let serviceClass = toServiceClass(serverAPI);
     serviceClass.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
     app.use(path, serviceClass.createExpressHandler());
@@ -118,7 +146,7 @@ let restfuncsClientCookie:string;
 /**
  * Implements a cookie, cause the current nodejs implementations lacks of support for it.
  */
-class RestfuncsClient_fixed<Service> extends RestfuncsClient<Service> {
+class RestfuncsClient_fixed<S extends Service> extends RestfuncsClient<S> {
     async httpFetch(url: string, request: RequestInit) {
         const result = await super.httpFetch(url, {
             ...request,
@@ -178,7 +206,45 @@ test('Simple api call', async () => {
     );
 });
 
+test('Engine.io sockets', async () => {
+    await runClientServerTests({
+            myMethod(arg1, arg2) {
+                expect(arg1).toBe("hello1");
+                expect(arg2).toBe("hello2");
+                return "OK";
+            }
+        },
+        async (apiProxy) => {
+            expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
+        }, {useSocket: true}
+    );
+});
 
+test('Non restfuncsExpress server', async () => {
+    class GreeterService extends Service {
+        greet(name: string) {
+            return `hello ${name} from the server`
+        }
+    }
+
+
+    const app = express();
+    app.use("/greeterAPI", GreeterService.createExpressHandler());
+    const server = app.listen();
+
+    try {
+        // @ts-ignore
+        const serverPort = server.address().port;
+
+        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
+        expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
 
 test('Proper example with express and type support', async () => {
     class GreeterService extends Service {
@@ -191,7 +257,7 @@ test('Proper example with express and type support', async () => {
     }
 
 
-    const app = express();
+    const app = restfuncsExpress();
     app.use("/greeterAPI", GreeterService.createExpressHandler());
     const server = app.listen();
 
@@ -221,7 +287,7 @@ test('test with different api paths', async () => {
             async (apiProxy) => {
                 expect(await apiProxy.myMethod("hello1", "hello2")).toBe("OK");
             }
-            ,path
+            ,{path}
         );
     }
 });

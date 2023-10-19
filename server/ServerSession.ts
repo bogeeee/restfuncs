@@ -29,7 +29,7 @@ import {Readable} from "node:stream";
 import {isCommunicationError, CommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
-import {CSRFProtectionMode} from "restfuncs-common";
+import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 
 
 
@@ -282,7 +282,7 @@ type ClassOf<T> = {
 /**
  * TODO
  */
-export class ServerSession {
+export class ServerSession implements IServerSession {
     [index: string]: unknown
 
     /**
@@ -322,7 +322,7 @@ export class ServerSession {
     /**
      * Those methods directly here on ServerSession are allowed to be called
      */
-    static whitelistedMethodNames = new Set(["getIndex", "getCorsReadToken"])
+    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo"])
 
     /**
      * The current running (express) request. See {@link https://expressjs.com/en/4x/api.html#req}
@@ -697,7 +697,7 @@ export class ServerSession {
      * @return The / index- / home page
      */
     @safe()
-    async getIndex() {
+    public async getIndex() {
         let className: string | undefined = this.constructor?.name;
         className = className === "Object"?undefined:className;
         const title = className?`Index of class ${className}`:`Index of {}`
@@ -722,6 +722,15 @@ export class ServerSession {
             `    <br/><i>Powered by <a href="https://www.npmjs.com/package/restfuncs">Restfuncs</a></i>` +
             "</body></html>"
     }
+
+    public getWelcomeInfo(): WelcomeInfo {
+        const i = getServerInstance();
+        return {
+            classId: this.clazz.id,
+            engineIoUrl: this.clazz.server.engineIoServer?this.clazz.server.engineIoPath:undefined
+        }
+    }
+
 
     /**
      * Returns a token which you show in later requests, to prove that your browser allowed requests to this service according to the CORS standard. It made a preflight (if needed) and successfully checked the CORS response headers. The request came from an {@link ServerSessionOptions.allowedOrigins}

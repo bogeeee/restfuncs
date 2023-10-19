@@ -1,7 +1,8 @@
 import _ from "underscore"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {CSRFProtectionMode} from "restfuncs-common";
+import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
+import {SocketConnection} from "./SocketConnection";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -41,6 +42,23 @@ export type ClientProxy<S> = {
 };
 
 /**
+ * These fields are fetched and retried, if failed, in an atomic step.
+ */
+type PreparedSocketConnection = {
+    /**
+     * Retrieved from the server
+     */
+    serverSessionClassId: string,
+
+    /**
+     * Now here's the connection Shared with other services.
+     * Undefined, if the server sayed, it did not support it.
+     * @protected
+     */
+    conn?: SocketConnection
+};
+
+/**
  * A method that's called here (on .proxy) get's send as a REST call to the server.
  *
  * @example Usage
@@ -50,7 +68,7 @@ export type ClientProxy<S> = {
  * </pre>
  * @see restfuncsClient
  */
-export class RestfuncsClient<S> {
+export class RestfuncsClient<S extends IServerSession> {
     readonly [index: string]: any;
 
     /**
@@ -61,7 +79,15 @@ export class RestfuncsClient<S> {
     public url!: string;
 
     /**
-     * HTTP Method for sending all requests
+     * Whether to use a fast engine.io (web-) socket for communication.
+     * <p>
+     * When using callbacks, this is needed.
+     * </p>
+     */
+    public useSocket: boolean = true
+
+    /**
+     * HTTP Method for sending all (non-websocket) requests
      */
     public method = "POST";
 
@@ -75,9 +101,47 @@ export class RestfuncsClient<S> {
      */
     public proxy: ClientProxy<S>
 
+    /**
+     * Like proxy but for internal use. Goes straight to doCall_http
+     * @protected
+     */
+    protected controlProxy_http: ClientProxy<S>
+
     protected _corsReadToken?: string
 
     public csrfToken?: string
+
+
+    protected _preparedSocketConnection?: Promise<PreparedSocketConnection>
+
+    /**
+     * Creates the PreparedSocketConnection in one atomic step.
+     * @protected
+     */
+    protected get preparedSocketConnection(): Promise<PreparedSocketConnection> {
+        if(this._preparedSocketConnection) { // Promise is already initialized ?
+            return this._preparedSocketConnection
+        }
+
+        return this._preparedSocketConnection = (async () => { // no 'await', just pass that promise on.
+            try {
+                const welcomeInfo = await this.controlProxy_http.getWelcomeInfo();
+                let conn;
+                if(welcomeInfo.engineIoUrl) {
+                    const fullUrl = new URL(welcomeInfo.engineIoUrl, this.url).toString()
+                    conn = SocketConnection.getInstance(fullUrl)
+                }
+                return {
+                    serverSessionClassId: welcomeInfo.classId,
+                    conn
+                };
+            }
+            catch (e) {
+                this._preparedSocketConnection = undefined; // I.e. in case the server was just temporarily down, We don't leave a rejected promise forever. The next caller will try it's luck again.
+                throw e;
+            }
+        })();
+    }
 
     /**
      * Called on every remote method call. I.e.
@@ -92,6 +156,24 @@ export class RestfuncsClient<S> {
      * @param args
      */
     public async doCall(remoteMethodName:string, args: any[]) {
+        if(this.useSocket) {
+            return await this.doCall_websocket(remoteMethodName, args);
+        }
+        else {
+            return await this.doCall_http(remoteMethodName, args);
+        }
+    }
+
+    protected async doCall_websocket(remoteMethodName: string, args: any[]) {
+        const pConn = await this.preparedSocketConnection;
+        if (!pConn.conn) { // Server did not offer sockets ?
+            return await this.doCall_http(remoteMethodName, args); // Fallback to http
+        }
+
+        // TODO:
+    }
+
+    protected async doCall_http(remoteMethodName: string, args: any[]) {
         const exec = async () => {
             let requestUrl: string;
             if(this.url) {
@@ -243,6 +325,19 @@ export class RestfuncsClient<S> {
 
                 // Handle the rest: p is the name of the remote method
                 return function(...args: any) { return client.doCall(p, args)}
+            }
+        }) as ClientProxy<S>;
+
+        // Same for the control proxy:
+        this.controlProxy_http = new Proxy({}, {
+            get(target: {}, p: string | symbol, receiver: any): any {
+                // Reject symbols (don't know what it means but we only want strings as property names):
+                if(typeof p != "string") {
+                    throw new Error(`Unhandled : ${String(p)}` );
+                }
+
+                // Handle the rest: p is the name of the remote method
+                return function(...args: any) { return client.doCall_http(p, args)}
             }
         }) as ClientProxy<S>;
     }

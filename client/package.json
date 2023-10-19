@@ -24,7 +24,8 @@
   "dependencies": {
     "restfuncs-common": "^2.0",
     "underscore": "^1.13.3",
-    "@brillout/json-serializer": "^0.5.3"
+    "@brillout/json-serializer": "^0.5.3",
+    "engine.io-client": "^6.5.2"
   },
   "devDependencies": {
     "@types/underscore": "^1.11.4",

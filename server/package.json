@@ -34,7 +34,8 @@
     "reflect-metadata": "^0.1.13",
     "@brillout/json-serializer": "^0.5.3",
     "escape-html": "^1.0.3",
-    "busboy": "^1.6.0"
+    "busboy": "^1.6.0",
+    "engine.io": "^6.5.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.13",
