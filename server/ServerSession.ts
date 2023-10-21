@@ -250,6 +250,8 @@ export type ServerSessionOptions = {
     enableMultipartFileUploads?: boolean
 }
 
+type ObjectWithStringIndex = {[index: string]: unknown};
+
 /**
  * Values that are allowed to be set as meta parameters via header / query params / request body params.
  */
@@ -283,7 +285,7 @@ type ClassOf<T> = {
  * TODO
  */
 export class ServerSession implements IServerSession {
-    [index: string]: unknown
+    //[index: string]: unknown // This prevents annoying "any can't be used to index ServerSession" typescript error. But on the other hand typescript does not complain about missing properties then
 
     /**
      * Uniquely identify this class. An id is needed to store corsReadTokens and csrfTokens in the session, bound to a certain service (imagine different services have different allowedOrigings so we can't have one-for-all tokens).
@@ -322,7 +324,7 @@ export class ServerSession implements IServerSession {
     /**
      * Those methods directly here on ServerSession are allowed to be called
      */
-    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo"])
+    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo"]) as Set<string>
 
     /**
      * The current running (express) request. See {@link https://expressjs.com/en/4x/api.html#req}
@@ -637,6 +639,7 @@ export class ServerSession implements IServerSession {
                 const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
                 let result;
+                // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
                 await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
                     // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                     let resultPromise;
@@ -1127,12 +1130,13 @@ export class ServerSession implements IServerSession {
         if(typeof methodName !== "string") {
             throw new CommunicationError(`methodName is not a string`)
         }
-        if( (emptyService[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
+        if( ( (emptyService as any as ObjectWithStringIndex)[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
             throw new CommunicationError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
-        if(this[methodName] === undefined) {
+        if((this as any as ObjectWithStringIndex)[methodName] === undefined) {
             throw new CommunicationError(`You are trying to call a remote method that does not exist: ${methodName}`)
         }
+        // @ts-ignore
         const method = this[methodName];
         if(typeof method != "function") {
             throw new CommunicationError(`${methodName} is not a function`)
@@ -1352,12 +1356,14 @@ export class ServerSession implements IServerSession {
         }
 
         return new Proxy(session, {
-            get(target: ServerSession, p: string | symbol, receiver: any): any {
+            get(target: ServerSession, p: keyof ServerSession | symbol, receiver: any): any {
+
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new CommunicationError(`Unhandled : ${String(p)}`)
                 }
 
+                // @ts-ignore
                 if(p === "__isCsrfProtectedSessionProxy") { // Probe field ?
                     return true;
                 }
@@ -1370,7 +1376,7 @@ export class ServerSession implements IServerSession {
 
                 return target[p];
             },
-            set(target: ServerSession, p: string | symbol, newValue: any, receiver: any): boolean {
+            set(target: ServerSession, p: keyof ServerSession | symbol, newValue: any, receiver: any): boolean {
                 // Reject symbols (don't know what it means but we only want strings as property names):
                 if (typeof p != "string") {
                     throw new CommunicationError(`Unhandled : ${String(p)}`)
@@ -1391,6 +1397,7 @@ export class ServerSession implements IServerSession {
                     checkFieldAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
                 }
 
+                // @ts-ignore
                 target[p] = newValue;
                 return true;
             },
@@ -1467,6 +1474,7 @@ export class ServerSession implements IServerSession {
      * @param methodName
      */
     protected hasMethod(methodName: string) {
+        // @ts-ignore
         return this[methodName] && (typeof this[methodName] === "function");
     }
 
@@ -1638,7 +1646,7 @@ export class ServerSession implements IServerSession {
 
         const reflectedClass = reflect(new this);
         return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
-            if (emptyService[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
+            if ((emptyService as any as ObjectWithStringIndex)[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
             }
 
