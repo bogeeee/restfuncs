@@ -609,7 +609,7 @@ export class ServerSession implements IServerSession {
 
                 // Collect / pre-compute securityRelevantRequestFields:
                 const userAgent = req.header("User-Agent");
-                const requestParams: SecurityRelevantRequestFields = {
+                const securityRelevantRequestFields: SecurityRelevantRequestFields = {
                     ...metaParams,
                     httpMethod: req.method,
                     serviceMethodName: methodName,
@@ -620,10 +620,10 @@ export class ServerSession implements IServerSession {
                 }
 
                 if(this.options.devForceTokenCheck) {
-                    const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || requestParams.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
+                    const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityRelevantRequestFields.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        session.checkIfRequestIsAllowedToRunCredentialed(requestParams, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        session.checkIfRequestIsAllowedToRunCredentialed(securityRelevantRequestFields, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
                             acceptedResponseContentTypes,
                             contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
                             isSessionAccess: false
@@ -632,11 +632,11 @@ export class ServerSession implements IServerSession {
                 }
 
 
-                session.checkIfRequestIsAllowedToRunCredentialed(requestParams, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
+                session.checkIfRequestIsAllowedToRunCredentialed(securityRelevantRequestFields, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
                 session.validateCall(methodName, methodArguments);
 
-                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, requestParams, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityRelevantRequestFields, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
                 let result;
                 // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
