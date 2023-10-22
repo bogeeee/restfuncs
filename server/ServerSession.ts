@@ -1707,9 +1707,9 @@ export class ServerSession implements IServerSession {
      */
     public static listCallableMethods() {
 
-        const reflectedClass = reflect(new this);
+        const reflectedClass = reflect(this);
         return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
-            if ((this.prototype as any as ObjectWithStringIndex)[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
+            if ((ServerSession.prototype as any as ObjectWithStringIndex)[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
             }
 
