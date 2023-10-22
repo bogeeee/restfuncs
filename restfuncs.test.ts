@@ -228,6 +228,7 @@ test('Non restfuncsExpress server', async () => {
         }
     }
 
+    // This should even work without a session handler, cause when no tokens are required and no session is accessed. TODO: do we need to set the csrfProtectionMode on the client ?
 
     const app = express();
     app.use("/greeterAPI", GreeterService.createExpressHandler());
@@ -239,6 +240,52 @@ test('Non restfuncsExpress server', async () => {
 
         const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
+
+test('Non restfuncsExpress server with own session handler', async () => {
+    class GreeterService extends Service {
+        someValue?: string
+        greet(name: string) {
+            return `hello ${name} from the server`
+        }
+        writeSession() {
+            this.someValue = "123";
+        }
+        readSession() {
+            return this.someValue;
+        }
+    }
+
+
+    const app = express();
+
+    // Install session handler:
+    app.use(session({
+        secret: crypto.randomBytes(32).toString("hex"),
+        cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
+        saveUninitialized: false, // Privacy: Only send a cookie when really needed
+        unset: "destroy",
+        store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
+        resave: false
+    }));
+
+    app.use("/greeterAPI", GreeterService.createExpressHandler());
+    const server = app.listen();
+
+    try {
+        // @ts-ignore
+        const serverPort = server.address().port;
+
+        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
+        expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
+        await greeterService.writeSession();
+        expect(await greeterService.readSession()).toBe("123");
     }
     finally {
         // shut down server
