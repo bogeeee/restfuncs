@@ -606,9 +606,9 @@ export class ServerSession implements IServerSession {
                 cleanupStreamsAfterRequest = c;
 
 
-                // Collect / pre-compute securityRelevantRequestFields:
+                // Collect / pre-compute securityProperties:
                 const userAgent = req.header("User-Agent");
-                const securityRelevantRequestFields: SecurityRelevantRequestFields = {
+                const securityPropertiesOfRequest: SecurityPropertiesOfHttpRequest = {
                     ...metaParams,
                     httpMethod: req.method,
                     serviceMethodName: methodName,
@@ -619,10 +619,10 @@ export class ServerSession implements IServerSession {
                 }
 
                 if(this.options.devForceTokenCheck) {
-                    const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityRelevantRequestFields.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
+                    const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityPropertiesOfRequest.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        session.checkIfRequestIsAllowedToRunCredentialed(securityRelevantRequestFields, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        session.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
                             acceptedResponseContentTypes,
                             contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
                             isSessionAccess: false
@@ -631,11 +631,11 @@ export class ServerSession implements IServerSession {
                 }
 
 
-                session.checkIfRequestIsAllowedToRunCredentialed(securityRelevantRequestFields, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
+                session.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
 
                 session.validateCall(methodName, methodArguments);
 
-                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityRelevantRequestFields, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityPropertiesOfRequest, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
                 let result;
                 // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
@@ -1173,14 +1173,14 @@ export class ServerSession implements IServerSession {
      *
      * Meaning it passes all the CSRF prevention requirements
      *
-     * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqFields to make it clearer readable.
-     * @param reqFields
+     * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqSecurityProps to make it clearer readable.
+     * @param reqSecurityProps
      * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
      * @param allowedOrigins from the options
      * @param session holds the tokens
      * @param diagnosis
      */
-    protected checkIfRequestIsAllowedToRunCredentialed(reqFields: SecurityRelevantRequestFields, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
+    protected checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
         const errorHints: string[] = [];
@@ -1195,26 +1195,26 @@ export class ServerSession implements IServerSession {
         const isAllowedInner = () => {
 
             const diagnosis_seeDocs = "See https://github.com/bogeeee/restfuncs/#csrf-protection."
-            const diagnosis_decorateWithsafeExample = `Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqFields.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`;
+            const diagnosis_decorateWithsafeExample = `Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqSecurityProps.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`;
 
-            // Fix / default some reqFields for convenience:
-            if (reqFields.csrfToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "csrfToken") {
-                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and csrfToken is set.`)
+            // Fix / default some reqSecurityProps for convenience:
+            if (reqSecurityProps.csrfToken && reqSecurityProps.csrfProtectionMode && reqSecurityProps.csrfProtectionMode !== "csrfToken") {
+                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqSecurityProps.csrfProtectionMode}' and csrfToken is set.`)
             }
-            if (reqFields.corsReadToken && reqFields.csrfProtectionMode && reqFields.csrfProtectionMode !== "corsReadToken") {
-                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqFields.csrfProtectionMode}' and corsReadToken is set.`)
+            if (reqSecurityProps.corsReadToken && reqSecurityProps.csrfProtectionMode && reqSecurityProps.csrfProtectionMode !== "corsReadToken") {
+                throw new CommunicationError(`Illegal request parameters: csrfProtectionMode:'${reqSecurityProps.csrfProtectionMode}' and corsReadToken is set.`)
             }
-            if (reqFields.corsReadToken && !reqFields.csrfProtectionMode) {
+            if (reqSecurityProps.corsReadToken && !reqSecurityProps.csrfProtectionMode) {
                 throw new CommunicationError(`When sending a corsReadToken, you must also indicate that you want csrfProtectionMode='corsReadToken'. Please indicate that in every request. ${diagnosis_seeDocs}`)
             }
-            if (reqFields.csrfToken) {
-                reqFields.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
+            if (reqSecurityProps.csrfToken) {
+                reqSecurityProps.csrfProtectionMode = "csrfToken"; // Here it's clear from the beginning on, that the user wants this protection mode
             }
 
 
             const tokenValid = (tokenType: "corsReadToken" | "csrfToken") => {
 
-                const reqToken = reqFields[tokenType];
+                const reqToken = reqSecurityProps[tokenType];
                 if (!reqToken) {
                     errorHints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
                     return false;
@@ -1247,10 +1247,10 @@ export class ServerSession implements IServerSession {
 
             // Check protection mode compatibility:
             if (enforcedCsrfProtectionMode !== undefined) {
-                if ((reqFields.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
+                if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
                     errorHints.push(
                         (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
-                        (reqFields.csrfProtectionMode ? `, but your request wants '${reqFields.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
+                        (reqSecurityProps.csrfProtectionMode ? `, but your request wants '${reqSecurityProps.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
                         `${diagnosis_seeDocs}`
                     );
                     return false;
@@ -1258,7 +1258,7 @@ export class ServerSession implements IServerSession {
             }
 
             if (enforcedCsrfProtectionMode === "csrfToken") {
-                if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+                if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
                     // With a non secure browser, we can't trust a valid csrfToken token. Cause these could i.e. read out the contents of the main / index.html page cross-origin by script and extract the token.
                     errorHints.push(`You can't prove a valid csrfToken because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
                     return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
@@ -1266,9 +1266,9 @@ export class ServerSession implements IServerSession {
                 return tokenValid("csrfToken"); // Strict check already here.
             }
             //Diagnosis:
-            if (!reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)}
+            if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)}
 
-            if (originIsAllowed({...reqFields, allowedOrigins}, errorHints)) {
+            if (originIsAllowed({...reqSecurityProps, allowedOrigins}, errorHints)) {
                 return true
             }
 
@@ -1277,7 +1277,7 @@ export class ServerSession implements IServerSession {
             // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
             // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
-            if (reqFields.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+            if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
                 errorHints.push("Your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.")
                 return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
             }
@@ -1292,26 +1292,26 @@ export class ServerSession implements IServerSession {
                 errorHints.push(`You could allow the request by showing a corsReadToken. ${diagnosis_seeDocs}`)
             }
 
-            if (reqFields.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
+            if (reqSecurityProps.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
                 // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
-                if (reqFields.httpMethod === "GET" && this.methodIsSafe(reqFields.serviceMethodName)) {
+                if (reqSecurityProps.httpMethod === "GET" && this.methodIsSafe(reqSecurityProps.serviceMethodName)) {
                     return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
                 } else {
                     // Block
 
 
                     if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
-                    } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
-                        errorHints.push(`GET requests to '${reqFields.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqFields.serviceMethodName}' is not considered safe.`);
-                        errorHints.push(`If you want to allow '${reqFields.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
-                        if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, reqFields.serviceMethodName)) {
-                            errorHints.push(`NOTE: '${reqFields.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
+                    } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
+                        errorHints.push(`GET requests to '${reqSecurityProps.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqSecurityProps.serviceMethodName}' is not considered safe.`);
+                        errorHints.push(`If you want to allow '${reqSecurityProps.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
+                        if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, reqSecurityProps.serviceMethodName)) {
+                            errorHints.push(`NOTE: '${reqSecurityProps.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
                         }
-                    } else if (reqFields.httpMethod === "GET" && reqFields.origin === undefined) { // Crafted http request (maybe from in web browser)?
+                    } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
                         errorHints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
                     } else if (diagnosis.contentType == "text/plain") { // MAYBE from html form
                         errorHints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
-                    } else if (reqFields.httpMethod !== "GET" && reqFields.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
+                    } else if (reqSecurityProps.httpMethod !== "GET" && reqSecurityProps.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
                         errorHints.push(`You have to specify a Content-Type header.`);
                     }
                     return false; // Block
@@ -1319,7 +1319,7 @@ export class ServerSession implements IServerSession {
             } else { // Surely a non-simple request ?
                 // *** here we are only secured by the browser's preflight ! ***
 
-                if (reqFields.serviceMethodName === "getCorsReadToken") {
+                if (reqSecurityProps.serviceMethodName === "getCorsReadToken") {
                     return true;
                 }
 
@@ -1340,18 +1340,18 @@ export class ServerSession implements IServerSession {
     /**
      * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access
      * @param session
-     * @param reqFields
+     * @param reqSecurityProperties
      * @param allowedOrigins
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqFields: SecurityRelevantRequestFields, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
 
-            session.checkIfRequestIsAllowedToRunCredentialed(reqFields, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
+            session.checkIfRequestIsAllowedToRunCredentialed(reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
         }
 
         return new Proxy(session, {
@@ -1383,12 +1383,12 @@ export class ServerSession implements IServerSession {
 
                 checkFieldAccess(false);
 
-                if(session.csrfProtectionMode === undefined && reqFields.csrfProtectionMode) { // Session protection not yet initialized ?
+                if(session.csrfProtectionMode === undefined && reqSecurityProperties.csrfProtectionMode) { // Session protection not yet initialized ?
                     // initialize how the client wants it:
                     const newFields: SecurityRelevantSessionFields = {
-                        csrfProtectionMode: reqFields.csrfProtectionMode || "preflight",
-                        corsReadTokens: (reqFields.csrfProtectionMode === "corsReadToken")?{}:undefined,
-                        csrfTokens: (reqFields.csrfProtectionMode === "csrfToken")?{}:undefined
+                        csrfProtectionMode: reqSecurityProperties.csrfProtectionMode || "preflight",
+                        corsReadTokens: (reqSecurityProperties.csrfProtectionMode === "corsReadToken")?{}:undefined,
+                        csrfTokens: (reqSecurityProperties.csrfProtectionMode === "csrfToken")?{}:undefined
                     }
                     checkIfSecurityFieldsAreValid(newFields);
                     _(session).extend(newFields)
@@ -2072,7 +2072,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
     return false;
 }
 
-export type SecurityRelevantRequestFields = {
+export type SecurityPropertiesOfHttpRequest = {
     httpMethod: string,
     /**
      * The / your ServerSession's method name that's about to be called
