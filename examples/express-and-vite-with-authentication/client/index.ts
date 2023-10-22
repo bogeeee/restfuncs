@@ -1,7 +1,8 @@
 import {RestfuncsClient} from "restfuncs-client"
 import {MainframeSession} from "../MainframeSession.js" // Import to have types
+import {IServerSession} from "restfuncs-common";
 
-interface WithLogin {
+interface WithLogin extends IServerSession {
     login(userName: string): Promise<boolean>;
 }
 
