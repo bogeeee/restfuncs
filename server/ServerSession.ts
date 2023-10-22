@@ -641,10 +641,13 @@ export class ServerSession implements IServerSession {
                     }
                 }
 
+                // @ts-ignore No Idea why we get a typescript error here
+                const enhancementProps: Partial<ServerSession> = {req, res};
+
                 let {
                     session,
                     result
-                } = await this.doCall_outer(req.session as any | {}, securityPropertiesOfRequest, methodName, methodArguments, {
+                } = await this.doCall_outer(req.session as any as Record<string, unknown>| {}, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -702,10 +705,11 @@ export class ServerSession implements IServerSession {
      * @param securityPropertiesOfHttpRequest
      * @param methodName
      * @param methodArguments
+     * @param enhancementProps
      * @param diagnosis
      * @private
      */
-    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: any[], diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: any[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false});
 
@@ -721,8 +725,7 @@ export class ServerSession implements IServerSession {
         const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
 
         let result;
-        // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
-        await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
+        await enhanceViaProxyDuringCall(csrfProtectedSession, enhancementProps, async (service) => { // make .req and .res safely available during call
             // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
             let resultPromise;
             ServerSession.current.run(service, () => {
