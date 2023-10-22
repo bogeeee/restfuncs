@@ -182,14 +182,14 @@ export class RestfuncsClient<S extends IServerSession> {
      */
     public async doCall(remoteMethodName:string, args: any[]) {
         if(this.useSocket) {
-            return await this.doCall_websocket(remoteMethodName, args);
+            return await this.doCall_socket(remoteMethodName, args);
         }
         else {
             return await this.doCall_http(remoteMethodName, args);
         }
     }
 
-    protected async doCall_websocket(remoteMethodName: string, args: any[]) {
+    protected async doCall_socket(remoteMethodName: string, args: any[]) {
         const pConn = await this.preparedSocketConnection;
         if (!pConn.conn) { // Server did not offer sockets ?
             return await this.doCall_http(remoteMethodName, args); // Fallback to http
