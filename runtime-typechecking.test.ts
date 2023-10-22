@@ -5,6 +5,7 @@ import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
+import {restfuncsExpress} from "restfuncs-server";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -21,7 +22,7 @@ async function runClientServerTests<S extends Service>(service: S, clientTests: 
     const serviceClass = service.clazz;
     serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options}
 
-    const app = express();
+    const app = restfuncsExpress();
     app.use(path, serviceClass.createExpressHandler());
     const server = app.listen();
     // @ts-ignore

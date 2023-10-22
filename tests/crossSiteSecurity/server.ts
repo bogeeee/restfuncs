@@ -1,6 +1,6 @@
 import express, {Express} from "express"
 import {createServer} from "vite"
-import {ServerSessionOptions, ServerSession} from "restfuncs-server"
+import {ServerSessionOptions, ServerSession, restfuncsExpress} from "restfuncs-server"
 import {MainframeService} from "./MainframeService.js"
 import session from "express-session";
 import crypto from "node:crypto";
@@ -15,16 +15,7 @@ import {ControlService} from "./ControlService.js";
         // *** Main site: ****
         const port = 3000 // Adjust this in clientTests.ts also
 
-        const app = express()
-
-        // Install session handler:
-        app.use(session({
-            secret: crypto.randomBytes(32).toString("hex"),
-            cookie: {sameSite: true},
-            saveUninitialized: false, // Only send a cookie when really needed
-            unset: "destroy",
-            store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
-        }));
+        const app = restfuncsExpress()
 
         const commonOptions: ServerSessionOptions = {
             checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production

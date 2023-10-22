@@ -9,6 +9,7 @@ import expressApp, {application, Express} from "express";
 import {attach as engineIoAttach, AttachOptions, Server, ServerOptions as EngineIoServerOptions} from "engine.io"
 import _ from "underscore";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
+import session from "express-session";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -261,8 +262,17 @@ class RestfuncsServerOOP {
             throw new Error("Invalid type for secret: " + secret);
         })()
 
-
-        //TODO: install session handler
+        if(this.serverOptions.installSessionHandler !== false) {
+            // Install session handler: TODO: code own JWT cookie handler
+            this.expressApp.use(session({
+                secret: this.secret.toString("hex"),
+                cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
+                saveUninitialized: false, // Privacy: Only send a cookie when really needed
+                unset: "destroy",
+                store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
+                resave: false
+            }));
+        }
 
         // Register single instance:
         if(instance) {
