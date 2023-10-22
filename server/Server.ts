@@ -77,6 +77,13 @@ export type ServerOptions = {
      * Default: true
      */
     installSessionHandler?: boolean
+
+    /**
+     * Performance: Disable this (recommended), to only fetch an access proof per security group.
+     * Keep in mind the rare case, that, if you have a proxy that tries to block the url to a certain ServerSession, this won't work anymore.
+     * Therefore the default is: true (enabled)
+     */
+    socket_requireAccessProofForIndividualServerSession?: boolean
 }
 
 /*

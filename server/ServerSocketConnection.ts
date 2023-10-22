@@ -1,24 +1,40 @@
 import crypto from "node:crypto";
-import { SecurityPropertiesOfHttpRequest } from "./ServerSession";
+import {SecurityPropertiesOfHttpRequest, ServerSession} from "./ServerSession";
+import {RestfuncsServer} from "./Server";
 
 export class ServerSocketConnection {
     id = crypto.randomBytes(16);
 
+    server: RestfuncsServer
+
     conn: unknown
 
     /**
-     * The session values that were obtained from a http call.
-     * Lazy / can be undefined if ne session-cookie was send. I.e the user did not yet login
+     * The raw cookie-session values that were obtained from a http call.
+     * Lazy / can be undefined if no session-cookie was send. I.e the user did not yet login
      */
-    session?: object
+    cookieSession?: object
 
     //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving
 
     /**
      *
      */
-    clientsSecurityProperties = new Map<string, SecurityPropertiesOfHttpRequest>()
+    securityGroup2SecurityPropertiesOfHttpRequest?: Map<string, SecurityPropertiesOfHttpRequest>
 
+    serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, SecurityPropertiesOfHttpRequest>
+
+
+    constructor(server: RestfuncsServer) {
+        this.server = server;
+
+        if(this.server.serverOptions.socket_requireAccessProofForIndividualServerSession) {
+            this.serverSessionClass2SecurityPropertiesOfHttpRequest = new Map();
+        }
+        else {
+            this.securityGroup2SecurityPropertiesOfHttpRequest = new Map();
+        }
+    }
 
     onCall(clientCallId: number, ServerSessionClassId: string, methodName: string, args: any[]) {
         // Create new session object
