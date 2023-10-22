@@ -635,7 +635,7 @@ export class ServerSession implements IServerSession {
                 let {
                     session,
                     result
-                } = await this.doCall_outer(req.session as any, securityPropertiesOfRequest, methodName, methodArguments, {
+                } = await this.doCall_outer(req.session as any | {}, securityPropertiesOfRequest, methodName, methodArguments, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -705,13 +705,7 @@ export class ServerSession implements IServerSession {
         session.validateFreshInstance();
 
         // Apply cookie session:
-        // @ts-ignore
-        const reqSession = req.session as Record<string, any> | undefined;
-        if (!reqSession) {
-            //throw new CommunicationError("No session handler is installed"); // TODO: re-activate
-        } else {
-            _.extend(session, reqSession); // TODO: we might not need all properties
-        }
+        _.extend(session, cookieSession); // TODO: we might not need all properties
 
         session.validateCall(methodName, methodArguments);
 
