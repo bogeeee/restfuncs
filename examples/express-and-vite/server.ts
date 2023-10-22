@@ -3,11 +3,12 @@ import {createServer} from "vite"
 import {GreeterSession} from "./GreeterSession.js"
 import session from "express-session";
 import crypto from "node:crypto";
+import {restfuncsExpress} from "restfuncs-server";
 
 (async () => {
     const port = 3000
 
-    const app = express()
+    const app = restfuncsExpress()
 
     // Install session handler:
     app.use(session({

@@ -7,6 +7,13 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 
 import 'reflect-metadata' // Must import
 
+import cjsServer from "./Server.js"
+export const RestfuncsServer = cjsServer.cjsServer
+export const restfuncsExpress = cjsServer.restfuncsExpress
+export const ServerOptions = cjsServer.ServerOptions
+export const getServerInstance = cjsServer.getServerInstance
+export const SessionValidator = cjsServer.SessionValidator
+
 import cjsServerSession from "./ServerSession.js";
 export const ServerSession = cjsServerSession.ServerSession
 export const ServerSessionOptions = cjsServerSession.ServerSessionOptions
