@@ -548,7 +548,7 @@ test('Safe methods call', async () => {
 })
 
 test('Safe methods security for static methods', async () => {
-    fail("TODO");
+    throw new Error("TODO");
 })
 
 test('auto convert parameters', async () => {
