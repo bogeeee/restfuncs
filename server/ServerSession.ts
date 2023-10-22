@@ -31,6 +31,7 @@ import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {Server} from "engine.io";
+import {ServerSocketConnection} from "./ServerSocketConnection";
 
 
 
@@ -785,16 +786,15 @@ export class ServerSession implements IServerSession {
      * </p>
      */
     //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
-    // TODO: make httponly
     public getCorsReadToken(): string {
-        const session = this.req!.session;
-        if(!session) {
-            throw new CommunicationError(`No session handler installed. Please see TODO`)
+        // Security check that is's called via http:
+        if(!this._httpCall) {
+            throw new Error("getCorsReadToken was not called via http."); // TODO: test
         }
 
-        ServerSession.ensureSessionHandlerInstalled(this.req)
+        ServerSession.ensureSessionHandlerInstalled(this.req!)
 
-        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.req.session, "corsReadToken");
+        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.req!.session, "corsReadToken");
     }
 
     /**
@@ -823,7 +823,7 @@ export class ServerSession implements IServerSession {
     }
 
     public getHttpCookieSessionAndSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_question>): ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_Answer> {
-        // safety check:
+        // Security check:
         if(!this._httpCall) {
             throw new Error("getHttpContext was not called via http.");
         }
