@@ -640,8 +640,10 @@ export class ServerSession implements IServerSession {
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
                     },
                 });
-
+                // TODO: if(sessionChanded)
+                this.ensureSessionHandlerInstalled(req);
                 _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
+
                 sendResult(result, methodName);
             }
             catch (caught) {
@@ -790,7 +792,9 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError(`No session handler installed. Please see TODO`)
         }
 
-        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields>session, "corsReadToken");
+        ServerSession.ensureSessionHandlerInstalled(this.req)
+
+        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.req.session, "corsReadToken");
     }
 
     /**
@@ -1919,6 +1923,18 @@ export class ServerSession implements IServerSession {
         }
 
         if(this.req || this.res) {throw new CommunicationError("Invalid state: req or res must not be set.")}
+    }
+
+    /**
+     * Internal (don't override)
+     */
+    protected static ensureSessionHandlerInstalled(req: Request) {
+        if(!req.session) {
+            if(this.server.serverOptions.installSessionHandler === false) {
+                throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed.")
+            }
+            throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed. Please use `const app = restfuncsExpress({/* options */});` as a drop-in replacement for express. Or install your own (advanced).")
+        }
     }
 }
 

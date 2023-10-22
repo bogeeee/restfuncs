@@ -67,6 +67,12 @@ export type ServerOptions = {
     sessionValidityTracking?: "memory" | SessionValidator | false
 
     engineIoOptions?: AttachOptions & EngineIoServerOptions
+
+    /**
+     * Set to false, if you want to use your own session handler in express.
+     * Default: true
+     */
+    installSessionHandler?: boolean
 }
 
 /*
