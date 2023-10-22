@@ -343,6 +343,15 @@ export class ServerSession implements IServerSession {
     };
 
     /**
+     * The current connection to the client, that made the call via engine.io / websockets.
+     * <p>
+     * <i>It is made available through a proxied 'this' at runtime during such a call.</i>
+     * </p>
+     * @protected
+     */
+    protected socketConnection?: ServerSocketConnection
+
+    /**
      * Response for the current running (express) request. You can modify any header fields as you like. See {@link }https://expressjs.com/en/4x/api.html#res}
      *
      * <p>
