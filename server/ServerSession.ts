@@ -30,6 +30,7 @@ import {isCommunicationError, CommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import { AsyncLocalStorage } from 'node:async_hooks'
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
+import {Server} from "engine.io";
 
 
 
@@ -606,7 +607,7 @@ export class ServerSession implements IServerSession {
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
-                const methodName = this.getMethodNameForCall(req.method, session, methodNameFromPath);
+                const methodName = this.getMethodNameForCall(req.method, this.prototype, methodNameFromPath);
                 if(!methodName) {
                     if(!methodNameFromPath) {
                         throw new CommunicationError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
@@ -1139,7 +1140,7 @@ export class ServerSession implements IServerSession {
         if(typeof methodName !== "string") {
             throw new CommunicationError(`methodName is not a string`)
         }
-        if( ( (emptyService as any as ObjectWithStringIndex)[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
+        if( ( (ServerSession.prototype as any as ObjectWithStringIndex)[methodName] !== undefined || {}[methodName] !== undefined) && !ServerSession.whitelistedMethodNames.has(methodName)) { // property exists in an empty service ?
             throw new CommunicationError(`You are trying to call a remote method that is a reserved name: ${methodName}`)
         }
         if((this as any as ObjectWithStringIndex)[methodName] === undefined) {
@@ -1673,7 +1674,7 @@ export class ServerSession implements IServerSession {
 
         const reflectedClass = reflect(new this);
         return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
-            if ((emptyService as any as ObjectWithStringIndex)[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
+            if ((this.prototype as any as ObjectWithStringIndex)[reflectedMethod.name] !== undefined || {}[reflectedMethod.name] !== undefined) { // property exists in an empty service ?
                 return false;
             }
 
@@ -2117,10 +2118,3 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
         throw new Error(`Illegal value for csrfProtectionMode: '${session.csrfProtectionMode}'`);
     }
 }
-
-/**
- * Needed for security checks.
- */
-class EmptyService extends ServerSession {
-}
-const emptyService = new EmptyService();
