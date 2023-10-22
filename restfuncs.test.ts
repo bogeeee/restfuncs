@@ -969,6 +969,36 @@ test('registerIds', () => {
     // TODO
 });
 
+test("generateSecret", () => {
+    function looksRandomish(buffer: Buffer) {
+        let lowerBytes = 0;
+        buffer.forEach(value => {
+            if(value < 128) {
+                lowerBytes++;
+            }
+        })
+        return lowerBytes > 2 && lowerBytes < (buffer.length -2)
+    }
+
+    {
+        const app = restfuncsExpress();
+        expect(app.secret.length).toBeGreaterThanOrEqual(32);
+        expect(looksRandomish(app.secret)).toBeTruthy()
+    }
+    {
+        resetGlobalState()
+        expect(() => restfuncsExpress({secret: ""})).toThrow("empty string");
+        expect(() => restfuncsExpress({secret: null})).toThrow("Invalid type");
+        expect(() => restfuncsExpress({secret: "1234567"})).toThrow("too short");
+    }
+    {
+        resetGlobalState()
+        const app = restfuncsExpress({secret:"12345678"});
+        expect(app.secret.length).toBeGreaterThanOrEqual(8);
+    }
+
+});
+
 test('Session fields compatibility', () => {
     function checkCompatibility(classes : (typeof ServerSession)[]) {
         let app = restfuncsExpress();

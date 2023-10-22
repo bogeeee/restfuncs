@@ -3,6 +3,7 @@ import {Buffer} from 'node:buffer'; // *** If you web packager complains about t
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 import type {Server as HttpServer,} from "node:http";
+import crypto from "node:crypto";
 import http, {createServer} from "node:http";
 import expressApp, {application, Express} from "express";
 import {attach as engineIoAttach, AttachOptions, Server, ServerOptions as EngineIoServerOptions} from "engine.io"
@@ -39,11 +40,13 @@ export type SessionValidator = Pick<Set<string>, "has" | "add" | "delete">
 
 
 export type ServerOptions = {
+
     /**
-     * TODO: like session
+     * A secret to sign the session cookies (TODO: use word 'encrypt', depending on implementation) and to encrypt other necessary server2server tokens.
+     * In a multi node environment, this must be shared with all instances.
      * @default A randomized value
      */
-    secret?: string | string[],
+    secret?: String | Buffer,
 
     // Let's make some smart default implementation so we don't have to place a security mention into the docs. Again 1 line saved ;)
     // As soon as the user switches to a multi-node environment by setting the secret, this will trigger an Error that guides the user into deciding for an explicit choice. Keeps the docs short.
@@ -140,12 +143,13 @@ export type RestfuncsServer = RestfuncsServerOOP & Express
  * TODO: how to subclass this
  */
 class RestfuncsServerOOP {
-    serverOptions: ServerOptions
+    readonly serverOptions: Readonly<ServerOptions>
+
 
     /**
-     * Secrets, indexed by a 64bit hash, so a token can quickly point which secret should be used for encryption
+     * Secret from {@link serverOptions#secret} as a Buffer. Initialized in the constructor.
      */
-    indexedSecrets!: Record<string, string>
+    secret!: Buffer
 
     /**
      * id -> service
@@ -237,7 +241,25 @@ class RestfuncsServerOOP {
     protected constructor2() {
         // Within here, we can properly use "this" again:
 
-        this.indexedSecrets = {} //TODO
+        // initialize this.secret:
+        this.secret = ((): Buffer => {
+            const secret = this.serverOptions.secret;
+            if (secret === undefined) {
+                return crypto.randomBytes(32)
+            }
+            if (secret instanceof Buffer) {
+                    return secret
+            } else if (typeof secret === "string") {
+                if(secret === "") {
+                    throw new Error("Secret must not be an empty string")
+                }
+                else if(secret.length < 8) {
+                    throw new Error("Secret too short")
+                }
+                return Buffer.from(secret);
+            }
+            throw new Error("Invalid type for secret: " + secret);
+        })()
 
 
         //TODO: install session handler
