@@ -544,7 +544,6 @@ export class ServerSession implements IServerSession {
                     throw new CommunicationError("Unhandled http method: " + req.method)
                 }
 
-                let allowSessionAccess = false;
                 const origin = getOrigin(req);
                 const diagnosis_originNotAllowedErrors: string[] = []
                 const originAllowed = originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors);
@@ -641,7 +640,7 @@ export class ServerSession implements IServerSession {
                 let result;
                 // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
                 await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
-                    // Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
+                    // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                     let resultPromise;
                     ServerSession.current.run(service, () => {
                         resultPromise = service.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
