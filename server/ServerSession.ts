@@ -199,7 +199,7 @@ export type ServerSessionOptions = {
      * - undefined (default): Same-origin only
      * - string[]: List the allowed origins: http[s]://host[:port]. Same-origin is always implicitly allowed
      * - "all": No restrictions
-     * - function: A function (origin, destination) that returns true if it should be allowed. Args are in the form: http[s]://host[:port]
+     * - function: A function (origin, destination) that returns true, if it should be allowed. Args are in the form: http[s]://host[:port]. Note: If you have multiple ServerSessions (for better organization) that have the same origins, make sure to pass them the same function <strong>instance</strong>. I.e. don't create the function in a closure. Otherwise, restfuncs can't know better and has to put the ServerSessions in different security groups, which results in performance and cookie-size penalties.
      *
      * <i>Technically, functions, which you flagged as {@link safe}, are still allowed to be called by [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) GET requests without an origin check.</i>
      *
