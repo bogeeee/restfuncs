@@ -590,20 +590,6 @@ export class ServerSession implements IServerSession {
                     res.header("Access-Control-Allow-Credentials", "true")
                 }
 
-                // Create Session object:
-                let session: ServerSession = new this();
-                session.validateFreshInstance();
-
-                // Apply cookie session:
-                // @ts-ignore
-                const reqSession = req.session as Record<string,any>|undefined;
-                if(!reqSession) {
-                    //throw new CommunicationError("No session handler is installed"); // TODO: re-activate
-                }
-                else {
-                    _.extend(session, reqSession); // TODO: we might not need all properties
-                }
-
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
@@ -636,31 +622,24 @@ export class ServerSession implements IServerSession {
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
                         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
-                            acceptedResponseContentTypes,
-                            contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
+                            http: {
+                                acceptedResponseContentTypes,
+                                contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
+                            },
                             isSessionAccess: false
                         })
                     }
                 }
 
-
-                this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, <SecurityRelevantSessionFields> req.session, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0], isSessionAccess: false});
-
-                session.validateCall(methodName, methodArguments);
-
-                const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityPropertiesOfRequest, this.options.allowedOrigins, {acceptedResponseContentTypes, contentType: parseContentTypeHeader(req.header("Content-Type"))[0]}) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
-
-                let result;
-                // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
-                await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
-                    // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
-                    let resultPromise;
-                    ServerSession.current.run(service, () => {
-                        resultPromise = service.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
-                    })
-
-                    result = await resultPromise;
-                }, methodName);
+                let {
+                    session,
+                    result
+                } = await this.doCall_outer(req.session as any, securityPropertiesOfRequest, methodName, methodArguments, {
+                    http: {
+                        acceptedResponseContentTypes,
+                        contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
+                    },
+                });
 
                 _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
                 sendResult(result, methodName);
@@ -702,6 +681,51 @@ export class ServerSession implements IServerSession {
         });
 
         return router;
+    }
+
+    /**
+     * This method is the entry point that's called by both: http request and socket connection.
+     * Does various stuff / look at the implementation.
+     * @param cookieSession
+     * @param securityPropertiesOfHttpRequest
+     * @param methodName
+     * @param methodArguments
+     * @param diagnosis
+     * @private
+     */
+    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: any[], diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+
+        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false});
+
+        // Create Session object:
+        let session: ServerSession = new this();
+        session.validateFreshInstance();
+
+        // Apply cookie session:
+        // @ts-ignore
+        const reqSession = req.session as Record<string, any> | undefined;
+        if (!reqSession) {
+            //throw new CommunicationError("No session handler is installed"); // TODO: re-activate
+        } else {
+            _.extend(session, reqSession); // TODO: we might not need all properties
+        }
+
+        session.validateCall(methodName, methodArguments);
+
+        const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+
+        let result;
+        // @ts-ignore // Hack. TODO: remove ts-ignore after refactoring
+        await enhanceViaProxyDuringCall(csrfProtectedSession, {req, res}, async (service) => { // make .req and .res safely available during call
+            // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
+            let resultPromise;
+            ServerSession.current.run(service, () => {
+                resultPromise = service.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
+            })
+
+            result = await resultPromise;
+        }, methodName);
+        return {session, result};
     }
 
     public static get server(): RestfuncsServer {
@@ -1191,7 +1215,7 @@ export class ServerSession implements IServerSession {
      * @param session holds the tokens
      * @param diagnosis
      */
-    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string, isSessionAccess: boolean}): void {
+    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
 
         const errorHints: string[] = [];
@@ -1308,11 +1332,11 @@ export class ServerSession implements IServerSession {
                 if (reqSecurityProps.httpMethod === "GET" && this.methodIsSafe(reqSecurityProps.serviceMethodName)) {
                     return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
                 } else {
-                    // Block
+                    // Deny
 
-
-                    if (diagnosis.contentType == "application/x-www-form-urlencoded" || diagnosis.contentType == "multipart/form-data") { // SURELY came from html form ?
-                    } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && _(diagnosis.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
+                    // Add error hints:
+                    if (diagnosis.http?.contentType == "application/x-www-form-urlencoded" || diagnosis.http?.contentType == "multipart/form-data") { // SURELY came from html form ?
+                    } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && diagnosis.http && _(diagnosis.http.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
                         errorHints.push(`GET requests to '${reqSecurityProps.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqSecurityProps.serviceMethodName}' is not considered safe.`);
                         errorHints.push(`If you want to allow '${reqSecurityProps.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
                         if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, reqSecurityProps.serviceMethodName)) {
@@ -1320,12 +1344,13 @@ export class ServerSession implements IServerSession {
                         }
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
                         errorHints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
-                    } else if (diagnosis.contentType == "text/plain") { // MAYBE from html form
+                    } else if (diagnosis.http?.contentType == "text/plain") { // MAYBE from html form
                         errorHints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
                     } else if (reqSecurityProps.httpMethod !== "GET" && reqSecurityProps.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
                         errorHints.push(`You have to specify a Content-Type header.`);
                     }
-                    return false; // Block
+
+                    return false; // Deny
                 }
             } else { // Surely a non-simple request ?
                 // *** here we are only secured by the browser's preflight ! ***
@@ -1355,7 +1380,7 @@ export class ServerSession implements IServerSession {
      * @param allowedOrigins
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: {acceptedResponseContentTypes: string[], contentType?: string}) {
+    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
@@ -2089,6 +2114,11 @@ export type SecurityPropertiesOfHttpRequest = {
      */
     couldBeSimpleRequest?: boolean
 };
+
+/**
+ * @see ServerSession#checkIfRequestIsAllowedToRunCredentialed
+ */
+type CIRIATRC_Diagnosis = { http?: { acceptedResponseContentTypes: string[], contentType?: string }, isSessionAccess: boolean };
 
 /**
  * Checks that session is in a valid state (security relevant fields)
