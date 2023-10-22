@@ -4,8 +4,6 @@ import express from "express"
 import _ from "underscore";
 import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 
-const app = express()
-
 
 export class ControlService extends ServerSession {
     static services: { [name: string]: { service: typeof ServerSession;} }
