@@ -89,12 +89,8 @@ function toServiceClass<Api>(serverAPI: Api) : typeof Service {
         return serverAPI.clazz;
     } else {
         class ServiceWithTypeInfo extends Service { // Plain ServerSession was not compiled with type info but this file is
-            constructor() {
-                super();
-
-                extendPropsAndFunctions(this, serverAPI);
-            }
         }
+        extendPropsAndFunctions(ServiceWithTypeInfo.prototype, serverAPI);
 
         if(Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
             throw new Error("ServerAPI should not be a class without beeing a ServerSession");
