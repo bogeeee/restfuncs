@@ -170,8 +170,8 @@ class RestfuncsServerOOP {
 
     public engineIoServer?: Server;
 
-    public get engineIoPath() {
-        return this.serverOptions.engineIoOptions?.path || "/engine.io/restfuncs"
+    public getEngineIoPath() {
+        return this.serverOptions.engineIoOptions?.path || "/engine.io_restfuncs"
     }
 
     diagnosis_creatorCallStack!: Error
@@ -253,7 +253,7 @@ class RestfuncsServerOOP {
     public installEngineIoServer(server: HttpServer) {
         this.engineIoServer = engineIoAttach(server, {
             ...(this.serverOptions.engineIoOptions || {}),
-            path: this.engineIoPath,
+            path: this.getEngineIoPath(),
         });
         this.engineIoServer.on("message", (data) => {
             console.log("data:" + data)
@@ -317,14 +317,14 @@ class RestfuncsServerOOP {
      * TODO: write testcases
      */
     public getSecurityGroupIdOfService(serviceClass: typeof ServerSession): string {
-        const result = this.computed.service2SecurityGroupIdMap.get(serviceClass);
+        const result = this.getComputed().service2SecurityGroupIdMap.get(serviceClass);
         if(result === undefined) {
             throw new Error("Illegal state: serviceClass not inside service2SecurityGroupIdMap. Was it registered for another server ?")
         }
         return result;
     }
 
-    get computed()  {
+    getComputed()  {
         if(this._computed) {
             return this._computed;
         }
@@ -377,7 +377,7 @@ class RestfuncsServerOOP {
      * @param session
      */
     public getCsrfTokens(session: object): string {
-        return Array.from(this.computed.service2SecurityGroupIdMap.values()).map( (groupId) => {
+        return Array.from(this.getComputed().service2SecurityGroupIdMap.values()).map( (groupId) => {
             throw new Error("TODO: implement")
         }).join(",")
     }
