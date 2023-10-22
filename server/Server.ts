@@ -95,6 +95,11 @@ export type ServerPrivateBox<Content> = {
      * Encrypted content
      */
     enc: string;
+
+    /**
+     * Fake property. To make ServerPrivateBox typesafe, we must reference 'Content' somewhere
+     */
+    _type: Content
 }
 
 /**

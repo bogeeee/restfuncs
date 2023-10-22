@@ -2,7 +2,7 @@ import _ from "underscore"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
-import {SocketConnection} from "./SocketConnection";
+import {ClientSocketConnection} from "./ClientSocketConnection";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -55,7 +55,7 @@ type PreparedSocketConnection = {
      * Undefined, if the server sayed, it did not support it.
      * @protected
      */
-    conn?: SocketConnection
+    conn?: ClientSocketConnection
 };
 
 /**
@@ -114,6 +114,20 @@ export class RestfuncsClient<S extends IServerSession> {
 
     protected _preparedSocketConnection?: Promise<PreparedSocketConnection>
 
+    get absoluteUrl() {
+        // Validity check
+        if(!this.url) {
+            throw new Error("Url not set.");
+        }
+
+        if(typeof window !== 'undefined' && window?.location) { // In browser ?
+            return new URL(this.url, window.location.href);
+        }
+        else {
+            return new URL(this.url);
+        }
+    }
+
     /**
      * Creates the PreparedSocketConnection in one atomic step.
      * @protected
@@ -127,9 +141,20 @@ export class RestfuncsClient<S extends IServerSession> {
             try {
                 const welcomeInfo = await this.controlProxy_http.getWelcomeInfo();
                 let conn;
-                if(welcomeInfo.engineIoUrl) {
-                    const fullUrl = new URL(welcomeInfo.engineIoUrl, this.url).toString()
-                    conn = SocketConnection.getInstance(fullUrl)
+                if(welcomeInfo.engineIoPath) {
+
+                    // Safety check:
+                    if(ClientSocketConnection.engineIoOptions.path && ClientSocketConnection.engineIoOptions.path != welcomeInfo.engineIoPath) {
+                        throw new Error(`SocketConnection.engineIoOptions.path has already been set to a different value.`)
+                    }
+
+                    ClientSocketConnection.engineIoOptions.path = welcomeInfo.engineIoPath;
+
+                    // Compose url: ws(s)://host/port
+                    const fullUrl = new URL(this.absoluteUrl.toString().replace(/^http/, "ws"))
+                    fullUrl.pathname="";fullUrl.search="";fullUrl.hash=""; // Clear everything after host and port
+
+                    conn = await ClientSocketConnection.getInstance(fullUrl.toString());
                 }
                 return {
                     serverSessionClassId: welcomeInfo.classId,
@@ -171,6 +196,9 @@ export class RestfuncsClient<S extends IServerSession> {
         }
 
         // TODO:
+        //pConn.conn.socket.write("Hello from client")
+
+        throw new Error("TODO")
     }
 
     protected async doCall_http(remoteMethodName: string, args: any[]) {
@@ -342,4 +370,14 @@ export class RestfuncsClient<S extends IServerSession> {
         }) as ClientProxy<S>;
     }
 
+    /**
+     * Close all associated connections
+     */
+    public async close() {
+        if(this._preparedSocketConnection) {
+            let conn = await this.preparedSocketConnection;
+            conn.conn?.close();
+            // TODO: unregister from ClientSocketConnection.instances
+        }
+    }
 }

@@ -351,6 +351,18 @@ export class ServerSession implements IServerSession {
      // @ts-ignore
     protected res?: Response;
 
+    /**
+     * Internal / only for passing this info to getHttpContext.
+     * <p>
+     * It is made available through a proxied 'this' at runtime during a client call (like res). Only in http call.
+     * </p>
+     *
+     * @protected
+     */
+    private _httpCall?: {
+        securityProperties: SecurityPropertiesOfHttpRequest
+    }
+
     private static current = new AsyncLocalStorage<ServerSession>();
 
     /**
@@ -725,11 +737,14 @@ export class ServerSession implements IServerSession {
             "</body></html>"
     }
 
+    /**
+     *
+     * Don't override. Not part of the API.
+     */
     public getWelcomeInfo(): WelcomeInfo {
-        const i = getServerInstance();
         return {
             classId: this.clazz.id,
-            engineIoUrl: this.clazz.server.engineIoServer?this.clazz.server.engineIoPath:undefined
+            engineIoPath: this.clazz.server.engineIoServer?this.clazz.server.getEngineIoPath():undefined
         }
     }
 
@@ -778,30 +793,27 @@ export class ServerSession implements IServerSession {
         return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
-
-    /**
-     * Get's this http request, including the complete session, encrypted, so it can be transferred to the websocket connection
-     */
-    // TODO: make httponly
-    public getHttpRequest(encryptedSessionRequest: ServerPrivateBox<SessionTransferRequest>) {
-        const server = this.clazz.server;
-        if(!server) {
-            throw new Error("Cannot encrypt: No RestfuncsServer instance has been created yet / server not set.")
+    public getHttpCookieSessionAndSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_question>): ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_Answer> {
+        // safety check:
+        if(!this._httpCall) {
+            throw new Error("getHttpContext was not called via http.");
         }
-
-        const sessionRequestToken = server.decryptToken(encryptedSessionRequest, "SessionRequestToken")
+        const question = this.clazz.server.decryptToken(encryptedQuestion, "HttpContextQuestion")
         // Security check:
-        if(sessionRequestToken.serviceId !== this.clazz.id) {
-            throw new CommunicationError(`SessionRequestToken from another service`)
+        if(question.securityGroupId !== this.clazz.getSecurityGroupId()) {
+            throw new CommunicationError(`HttpContextQuestion is from another security group`)
         }
 
-        // TODO: test theoretical session access, checkIfRequestIsAllowedToRunCredentialed would throw an error
-
-        const token: SessionTransferToken = {
-            request: sessionRequestToken,
-            session: this.serializeToObject() || null // TODO: include the req, so we can access the basicauth username etc from the webservice. (Or should it always be include in the session, if af session is created per req)
+        const answer: GetHttpCookieSessionAndSecurityProperties_Answer = {
+            question: question,
+            reqSecurityProps: question.includeSecurityProperties?this._httpCall.securityProperties:undefined
         }
-        return server.encryptToken(token, "SessionTransferToken")
+
+        if(question.includeSession) {
+            throw new Error("TODO"); // this.serializeToObject() || null
+        }
+
+        return this.clazz.server.encryptToken(answer, "HttpContextAnswer")
     }
 
     /**
@@ -810,12 +822,9 @@ export class ServerSession implements IServerSession {
      */
     // TODO: make httponly
     public updateSession(sessionBox: ServerPrivateBox<UpdateSessionToken>) {
-        const server = this.clazz.server;
-        if(!server) {
-            throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
-        }
 
-        const token = server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
+
+        const token = this.clazz.server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
         if(token.serviceId !== this.clazz.id) {
             throw new CommunicationError(`updateSession came from another service`)
         }
@@ -823,16 +832,17 @@ export class ServerSession implements IServerSession {
         // TODO: check if session id matches and version number is exactly 1 higher
     }
 
-    // TODO: make httponly
+
+
+
+    /*
+    // We can't hand out a token for that in general, because it depends on the session state. As soon as the csrfProctedtionMode is set (by some other service), the caller won't be able to pass anymore.
     public areCallsAllowed(encryptedQuestion: ServerPrivateBox<AreCallsAllowedQuestion>): ServerPrivateBox<AreCallsAllowedAnswer> {
         const server = this.clazz.server;
-        if(!server) {
-            throw new Error("Cannot decrypt: No RestfuncsServer instance has been created yet / server not set.")
-        }
 
         const question = server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
         // Security check:
-        if(question.serviceId !== this.clazz.id) {
+        if(question.securityGroupId  !== this.clazz.getSecurityGroupId()) {
             throw new CommunicationError(`Question came from another service`)
         }
 
@@ -841,7 +851,7 @@ export class ServerSession implements IServerSession {
             value: true
         }, "AreCallsAllowedAnswer");
     }
-
+    */
 
     /**
      * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
@@ -1969,40 +1979,26 @@ export function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function 
 /**
  * Question from the websocket connection
  */
-type AreCallsAllowedQuestion = {
+export type GetHttpCookieSessionAndSecurityProperties_question = {
     /**
      * Must be a random id
      */
-    websocketConnectionId: string
-    serviceId: string,
+    serverSocketConnectionId: string
+    securityGroupId: string,
+
+    includeSession: boolean
+    includeSecurityProperties: boolean
 }
 
-type AreCallsAllowedAnswer = {
-    question: AreCallsAllowedQuestion
-    value: boolean
+export type GetHttpCookieSessionAndSecurityProperties_Answer = {
+    question: GetHttpCookieSessionAndSecurityProperties_question,
+    reqSecurityProps?: SecurityPropertiesOfHttpRequest
+    cookieSession?: object
 }
 
 
 
-/**
- * The websocket connections sees at some point that it need a valid session
- */
-type SessionTransferRequest = {
-    /**
-     * Random id to make sure that we can't give it a session from the past or an evil client
-     */
-    id: string
-    serviceId: string,
-}
 
-export type SessionTransferToken = {
-    /**
-     * re-include that token
-     */
-    request: SessionTransferRequest
-
-    session: object | null
-}
 
 export type UpdateSessionToken = {
     /**

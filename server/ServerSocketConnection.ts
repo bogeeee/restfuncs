@@ -1,22 +1,26 @@
 import crypto from "node:crypto";
+import { SecurityPropertiesOfHttpRequest } from "./ServerSession";
 
-export class WebsocketConnection {
+export class ServerSocketConnection {
     id = crypto.randomBytes(16);
 
     conn: unknown
 
     /**
-     * The session values that were obtained from a http call
+     * The session values that were obtained from a http call.
+     * Lazy / can be undefined if ne session-cookie was send. I.e the user did not yet login
      */
     session?: object
 
+    //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving
+
     /**
-     * Which security groups have been approved by http calls
+     *
      */
-    allowedSecurityGroupIds = new Set<string>();
+    clientsSecurityProperties = new Map<string, SecurityPropertiesOfHttpRequest>()
 
 
-    onCall(clientCallId: number, ServerSessionId: string, methodName: string, args: any[]) {
+    onCall(clientCallId: number, ServerSessionClassId: string, methodName: string, args: any[]) {
         // Create new session object
         // Wrap with a proxy that serves the properties of session.
         // Can we get the session lazy ?

@@ -67,8 +67,13 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
         try {
             const client = new RestfuncsClient_fixed<Api & Service>(`http://localhost:${serverPort}${testOptions.path}`,{
                 useSocket: useSockets
-            }).proxy;
-            await clientTests(client);
+            });
+            try {
+                await clientTests(client.proxy);
+            }
+            finally {
+                await client.close();
+            }
         }
         finally {
             // shut down server
