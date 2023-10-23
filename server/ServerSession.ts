@@ -644,18 +644,16 @@ export class ServerSession implements IServerSession {
                 // @ts-ignore No Idea why we get a typescript error here
                 const enhancementProps: Partial<ServerSession> = {req, res};
 
-                let {
-                    session,
-                    result
-                } = await this.doCall_outer(req.session as any as Record<string, unknown>| {}, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
+                let { result, modifiedSession} = await this.doCall_outer(req.session as any as Record<string, unknown>| {}, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
                     },
                 });
-                // TODO: if(sessionChanded)
-                this.ensureSessionHandlerInstalled(req);
-                _(req.session).extend(session.serializeToObject()); // Always save to the cookie (we cant hook on deep modifications)
+                if(modifiedSession) {
+                    this.ensureSessionHandlerInstalled(req);
+                    _(req.session).extend(modifiedSession);
+                }
 
                 sendResult(result, methodName);
             }
@@ -705,36 +703,50 @@ export class ServerSession implements IServerSession {
      * @param securityPropertiesOfHttpRequest
      * @param methodName
      * @param methodArguments
-     * @param enhancementProps
+     * @param enhancementProps the properties that should be made available for the user during call time. like req, res, ...
      * @param diagnosis
      * @private
+     * @returns modifiedSession is returned, when a deep session modification was detected
      */
     private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: any[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
-        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false});
+        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
 
-        // Create Session object:
-        let session: ServerSession = new this();
-        session.validateFreshInstance();
+        // Instantiate a serverSession:
+        let serverSession: ServerSession = new this();
+        serverSession.validateFreshInstance();
 
-        // Apply cookie session:
-        _.extend(session, cookieSession); // TODO: we might not need all properties
+        serverSession.validateCall(methodName, methodArguments);
 
-        session.validateCall(methodName, methodArguments);
+        // *** Prepare serverSession for change tracking **
+        // Create a deep clone of cookieSession, because we want to make sure that the original is not modified. Only at the very end, when the call succeeded, the new session is committed atomically
+        cookieSession = _.extend({}, cookieSession)// First, make all values own properties because structuredClone does not clone values from inside the prototype but maybe an express session cookie handler delivers its cookie values prototyped.
+        cookieSession = structuredClone(cookieSession)
 
-        const csrfProtectedSession = this.createCsrfProtectedSessionProxy(session, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // The session may not have been initialized yet and the csrfProtectionMode state can mutate during the call (by others / attacker), this proxy will check the security again on each actual access.
+        serverSession = Object.create(serverSession) as ServerSession; // Use serverSession as the prototype. We don't want its properties directly included, so we can compare the session / check for changes
+        _.extend(serverSession, cookieSession);
+
+        const enhancedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result;
-        await enhanceViaProxyDuringCall(csrfProtectedSession, enhancementProps, async (service) => { // make .req and .res safely available during call
+        await enhanceViaProxyDuringCall(enhancedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
             // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
             let resultPromise;
-            ServerSession.current.run(service, () => {
-                resultPromise = service.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
+            ServerSession.current.run(enhancedServerSession, () => {
+                resultPromise = enhancedServerSession.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
             })
 
             result = await resultPromise;
         }, methodName);
-        return {session, result};
+
+        // Detect changes and return result:
+        serverSession = _.extendOwn({}, serverSession); // Get rid of newSession's prototype's properties, to be able to detect changes
+        const modified = !_.isEqual(serverSession, cookieSession)
+
+        return {
+            modifiedSession: modified?serverSession:undefined, // Detect changes
+            result
+        };
     }
 
     public static get server(): RestfuncsServer {
