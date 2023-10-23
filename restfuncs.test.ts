@@ -1180,31 +1180,32 @@ test('Sessions', async () => {
         }
     }
 
+    for(const useSocket of [false, true]) {
+        resetGlobalState()
+        const server = createServer(MyService);
+        try {
+            // @ts-ignore
+            const port = server.address().port;
+            const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket}).proxy
 
-    const server = createServer(MyService);
-    try {
-        // @ts-ignore
-        const port = server.address().port;
-        const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {}).proxy
+            await apiProxy.checkInitialSessionValues();
 
-        await apiProxy.checkInitialSessionValues();
+            // Set a value
+            await apiProxy.storeValueInSession(123);
+            expect(await apiProxy.getValueFromSession()).toBe(123);
 
-        // Set a value
-        await apiProxy.storeValueInSession(123);
-        expect(await apiProxy.getValueFromSession()).toBe(123);
+            // Set a value to null:
+            await apiProxy.storeValueInSession(null);
+            expect(await apiProxy.getValueFromSession()).toBe(null);
 
-        // Set a value to null:
-        await apiProxy.storeValueInSession(null);
-        expect(await apiProxy.getValueFromSession()).toBe(null);
+            await apiProxy.setSomeObject_x("test");
+            expect(await apiProxy.getSomeObject_x()).toBe("test");
 
-        await apiProxy.setSomeObject_x("test");
-        expect(await apiProxy.getSomeObject_x()).toBe("test");
-
-    }
-    finally {
-        // shut down server:
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
+        } finally {
+            // shut down server:
+            server.closeAllConnections();
+            await new Promise((resolve) => server.close(resolve));
+        }
     }
 });
 
@@ -1223,32 +1224,33 @@ test('Sessions - clearing values', async () => {
         }
     }
 
+    for(const useSocket of [false, true]) {
+        resetGlobalState()
+        const server = createServer(MyService);
+        try {
+            // @ts-ignore
+            const port = server.address().port;
+            const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket}).proxy
 
-    const server = createServer(MyService);
-    try {
-        // @ts-ignore
-        const port = server.address().port;
-        const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {}).proxy
+            // Set a value to null:
+            initialValue = "initial";
+            await apiProxy.storeValueInSession(null);
+            expect(await apiProxy.getValueFromSession()).toBe(null);
 
-        // Set a value to null:
-        initialValue = "initial";
-        await apiProxy.storeValueInSession(null);
-        expect(await apiProxy.getValueFromSession()).toBe(null);
+            // Set a value to null:
+            initialValue = undefined;
+            await apiProxy.storeValueInSession(null);
+            expect(await apiProxy.getValueFromSession()).toBe(null);
 
-        // Set a value to null:
-        initialValue = undefined;
-        await apiProxy.storeValueInSession(null);
-        expect(await apiProxy.getValueFromSession()).toBe(null);
-
-        // Set a value to undefined
-        initialValue = "initial";
-        await apiProxy.storeValueInSession(undefined);
-        expect(await apiProxy.getValueFromSession()).toBe(undefined);
-    }
-    finally {
-        // shut down server:
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
+            // Set a value to undefined
+            initialValue = "initial";
+            await apiProxy.storeValueInSession(undefined);
+            expect(await apiProxy.getValueFromSession()).toBe(undefined);
+        } finally {
+            // shut down server:
+            server.closeAllConnections();
+            await new Promise((resolve) => server.close(resolve));
+        }
     }
 });
 
@@ -1269,38 +1271,39 @@ test('Automatically fetch corsReadToken', async () => {
         }
 
     }
+    for(const useSocket of [false, true]) {
+        resetGlobalState()
+        const server = createServer(MyService);
+        try {
+            // @ts-ignore
+            const port = server.address().port;
 
-    const server = createServer(MyService);
-    try {
-        // @ts-ignore
-        const port = server.address().port;
+            // @ts-ignore
+            const client = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket})
+            const allowedService = client.proxy
+            await allowedService.logon("bob");
+            // @ts-ignore
+            const getCurrentToken = () => client._corsReadToken
+            // @ts-ignore
+            const setCurrentToken = (value) => client._corsReadToken = value
+            const validToken = getCurrentToken();
+            if (!validToken) {
+                throw new Error("Token has not beet set")
+            }
 
-        // @ts-ignore
-        const client = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {})
-        const allowedService = client.proxy
-        await allowedService.logon("bob");
-        // @ts-ignore
-        const getCurrentToken = () => client._corsReadToken
-        // @ts-ignore
-        const setCurrentToken = (value) => client._corsReadToken = value
-        const validToken = getCurrentToken();
-        if (!validToken) {
-            throw new Error("Token has not beet set")
+            for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
+                setCurrentToken(invalidToken);
+                await allowedService.test();
+                expect(getCurrentToken()).toStrictEqual(invalidToken); // Expect it to be unchanged cause no session was accessed
+                expect(await allowedService.getLogonUser()).toBe("bob")
+                expect(shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken())).toStrictEqual(shieldTokenAgainstBREACH_unwrap(validToken)); // The new token should have been fetched. Assert: getCurrentToken() === valid
+            }
+
+        } finally {
+            // shut down server:
+            server.closeAllConnections();
+            await new Promise((resolve) => server.close(resolve));
         }
-
-        for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
-            setCurrentToken(invalidToken);
-            await allowedService.test();
-            expect(getCurrentToken()).toStrictEqual(invalidToken); // Expect it to be unchanged cause no session was accessed
-            expect(await allowedService.getLogonUser()).toBe("bob")
-            expect(shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken())).toStrictEqual(shieldTokenAgainstBREACH_unwrap(validToken) ); // The new token should have been fetched. Assert: getCurrentToken() === valid
-        }
-
-    }
-    finally {
-        // shut down server:
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
     }
 });
 
@@ -1331,9 +1334,10 @@ test('Intercept with doCall (client side)', async () => {
     const port = server.address().port;
 
     try {
-        const apiProxy = new MyClient(`http://localhost:${port}`).proxy;
-
-        expect(await apiProxy.getSomething("a")).toBe("b");
+        for(const useSocket of [false, true]) {
+            const apiProxy = new MyClient(`http://localhost:${port}`).proxy;
+            expect(await apiProxy.getSomething("a")).toBe("b");
+        }
     }
     finally {
         // shut down server:
@@ -1365,7 +1369,7 @@ test('Intercept with doFetch (client side)', async () => {
             }
         }
 
-        const apiProxy = new MyRestfuncsClient(`http://localhost:${port}`).proxy;
+        const apiProxy = new MyRestfuncsClient(`http://localhost:${port}`, {useSocket: false}).proxy;
 
         expect(await apiProxy.getSomething("a")).toBe("b");
     }
