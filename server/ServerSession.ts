@@ -1155,10 +1155,9 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Security checks the method name and args and executes the methods call.
+     * Security checks the method name and args.
      * @param evil_methodName
      * @param evil_args
-     * @param enhancementProps These fields will be temporarily added to this during the call.
      */
     protected validateCall(evil_methodName: string, evil_args: any[]) {
         const options = this.clazz.options;
@@ -1384,7 +1383,7 @@ export class ServerSession implements IServerSession {
 
 
     /**
-     * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access
+     * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access (with the session's csrfProtectionMode)
      * @param session
      * @param reqSecurityProperties
      * @param allowedOrigins
@@ -1416,8 +1415,12 @@ export class ServerSession implements IServerSession {
                 if (typeof target[p] === "function") {
                     return target[p]; // allow
                 }
-
-                checkFieldAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
+                if(target.hasOwnProperty(p)) {
+                    checkFieldAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
+                }
+                else { // Field access to a user's new ServerSession's default fields ?
+                    checkFieldAccess(true); // Also, at first, this sounds like it could be allowed/unchecked. But imagine an existing session where the user is logged on. An attacker could leak information THAT the user is logged in. Or leak information from other fields (whether they're still on the default value or not)
+                }
 
                 return target[p];
             },
