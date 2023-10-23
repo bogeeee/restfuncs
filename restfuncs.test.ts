@@ -1042,7 +1042,7 @@ test("generateSecret", () => {
 
 });
 
-test('Session fields compatibility', () => {
+test('Session fields compatibility - type definitions', () => {
     function checkCompatibility(classes : (typeof ServerSession)[]) {
         let app = restfuncsExpress();
         classes.forEach(clazz => app.registerServerSessionClass(clazz)  );
@@ -1103,6 +1103,67 @@ test('Session fields compatibility', () => {
             myField: string
         }
         expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+    }
+
+});
+
+test('Session fields compatibility - actual values', () => {
+    function checkCompatibility(classes : (typeof ServerSession)[]) {
+        let app = restfuncsExpress();
+        classes.forEach(clazz => app.registerServerSessionClass(clazz)  );
+    }
+
+    {
+        // Different primitive values:
+        class SessionA extends ServerSession {
+            myField = "123"
+        }
+        class SessionB extends ServerSession {
+            myField = "456"
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    {
+        // Also has different type definitions
+        class SessionA extends ServerSession {
+            myField = "123"
+        }
+        class SessionB extends ServerSession {
+            myField = undefined
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    {
+        class SessionA extends ServerSession {
+            myField? = "123"
+        }
+        class SessionB extends ServerSession {
+            myField = undefined
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+    }
+
+    {
+        class SessionA extends ServerSession {
+            myField = {a:1, b:2}
+        }
+        class SessionB extends ServerSession {
+            myField = {a:1, b:2}
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+    }
+
+    {
+        // Objects not deeply equal
+        class SessionA extends ServerSession {
+            myField = {a:1, b:2}
+        }
+        class SessionB extends ServerSession {
+            myField = {a:1, b:3}
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
     }
 
 });
