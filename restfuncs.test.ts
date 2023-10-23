@@ -1107,6 +1107,196 @@ test('Session fields compatibility - type definitions', () => {
 
 });
 
+test('Session change detection', async () => {
+
+    function expectSame(a: object, b: object) {
+        function sortKeys(o: object) {
+            const result = {};
+            Object.keys(o).sort().forEach( k => result[k] = o[k])
+            return result;
+        }
+
+        if(typeof a !== "object" || typeof b !== "object") {
+            expect(a).toStrictEqual(b);
+            return;
+        }
+
+        expect(JSON.stringify(sortKeys(a))).toBe((JSON).stringify(sortKeys(b)));
+    }
+
+    abstract class SessionBase extends ServerSession {
+        static async callDoCall_outer(cookieSession: Record<string, unknown>) {
+            // @ts-ignore
+            return await this.doCall_outer(cookieSession, {}, "myMethod", [], {}, {} );
+        }
+        abstract myMethod();
+    }
+
+
+    // Test non change:
+    {
+        class SessionA extends SessionBase {
+            myField: string
+            myMethod() {
+
+            }
+        }
+        expect((await SessionA.callDoCall_outer({})).modifiedSession).toBeUndefined()
+        expect((await SessionA.callDoCall_outer({a: 1, b: 2, c: {d:3}})).modifiedSession).toBeUndefined();
+        // ** Also test with initial values in the prototype - maybe the express session cookie handler delivers its cookie values via prototyped values: **
+        expect((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession).toBeUndefined(); // With prototype
+    }
+
+    // Test id:
+    let idGenerator = 0;
+    {
+        class SessionA extends SessionBase {
+            myId = ++idGenerator
+            otherField=false;
+            myMethod() {
+                this.otherField=false;
+            }
+        }
+
+        let actual = (await SessionA.callDoCall_outer({})).modifiedSession;
+        expect(actual).toBeDefined();
+
+        // @ts-ignore
+        expect(actual.myId == SessionA.referenceInstance).toBeFalsy() // should be different that the reference
+
+        // @ts-ignore
+        expect(actual.myId).toBeGreaterThanOrEqual(2);
+
+        expect( (await SessionA.callDoCall_outer({myId: "fromCookie"})).modifiedSession).toBeUndefined() // should not make a change
+
+
+        expectSame((await SessionA.callDoCall_outer({myId: "fromCookie", otherField:true})).modifiedSession, {myId: "fromCookie", otherField:false}); // Force a change of otherField, by myId should not have increased
+    }
+
+    // Setting a field back to its default:
+    for(const defaultValue of["default", undefined]) {
+        class SessionA extends SessionBase {
+            myField = defaultValue;
+            myMethod() {
+                this.myField = defaultValue;
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({myField: 123})).modifiedSession,{myField: defaultValue}) // set back to its default
+        expect((await SessionA.callDoCall_outer({})).modifiedSession).toBeUndefined() // test this one again (not so important)
+    }
+
+    // Setting a field back to its default - deep:
+    {
+        class SessionA extends SessionBase {
+            myField = {deep: "default"};
+            myMethod() {
+                this.myField.deep = "default";
+            }
+        }
+
+        const result = await SessionA.callDoCall_outer({myField: {deep: 123}});
+        expectSame(result.modifiedSession,{myField: {deep: "default"}}) // set back to its default
+        expect((await SessionA.callDoCall_outer({})).modifiedSession).toBeUndefined() // test this one again (not so important)
+    }
+
+    // Modify own field
+    {
+        class SessionA extends SessionBase {
+            myField: string
+            myMethod() {
+                this.myField="modified"
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({})).modifiedSession,{myField: "modified"})
+        expectSame((await SessionA.callDoCall_outer({otherField: 123})).modifiedSession,{myField: "modified", otherField: 123})
+        expectSame((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession,{a: 1, b: 2, c: {d:3}, myField: "modified"}) // With prototype
+    }
+
+    // Default values of own field (no modification)
+    {
+        class SessionA extends SessionBase {
+            myField: string = "default"
+            myMethod() {
+
+            }
+        }
+        expect((await SessionA.callDoCall_outer({})).modifiedSession).toBeUndefined();
+        expect((await SessionA.callDoCall_outer({otherField: 123})).modifiedSession).toBeUndefined();
+        expect((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession).toBeUndefined();
+    }
+
+    // Default values with modification
+    for(const defaultValue of["default", undefined]) {
+        class SessionA extends SessionBase {
+            myField?: string = defaultValue
+            myMethod() {
+                this.myField ="modified"
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({})).modifiedSession,{myField: "modified"})
+        expectSame((await SessionA.callDoCall_outer({otherField: 123})).modifiedSession,{myField: "modified", otherField: 123})
+        expectSame((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession,{a: 1, b: 2, c: {d:3}, myField: "modified"}) // With prototype
+    }
+
+    // Default own values with deep modification
+    {
+        class SessionA extends SessionBase {
+            myField = {inner: "defaultInner"}
+            myMethod() {
+                this.myField.inner ="modified"
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({})).modifiedSession,{myField: {inner: "modified"}})
+        expectSame((await SessionA.callDoCall_outer({otherField: 123})).modifiedSession,{myField: {inner: "modified"}, otherField: 123})
+        expectSame((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession,{a: 1, b: 2, c: {d:3}, myField: {inner: "modified"}}) // With prototype
+    }
+
+
+    // Modification of foreign values (of the cookieSession)
+    {
+        class SessionA extends SessionBase {
+            myField = "default"
+            myMethod() {
+                // @ts-ignore
+                this.otherField ="modified"
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({})).modifiedSession,{myField: "default", otherField: "modified"})
+        expectSame((await SessionA.callDoCall_outer({otherField: 123})).modifiedSession,{myField: "default", otherField: "modified"})
+        expectSame((await SessionA.callDoCall_outer(Object.create({otherField: 123, a: 1, b: 2, c: {d:3}}))).modifiedSession,{otherField: "modified", a: 1, b: 2, c: {d:3}, myField: "default"}) // With prototype
+    }
+
+    // Modification of foreign values (of the cookieSession) - deep
+    {
+        class SessionA extends SessionBase {
+            myField = "default"
+            myMethod() {
+                // @ts-ignore
+                this.otherField.deep ="modified"
+            }
+        }
+        expectSame((await SessionA.callDoCall_outer({otherField: {deep: 123}})).modifiedSession,{myField: "default", otherField: {deep: "modified"}})
+        expectSame((await SessionA.callDoCall_outer(Object.create({otherField: {deep: 123}, a: 1, b: 2, c: {d:3}}))).modifiedSession,{otherField: {deep: "modified"}, a: 1, b: 2, c: {d:3}, myField: "default"}) // With prototype
+    }
+
+
+    // Different property order in cookieSession
+    {
+        class SessionA extends SessionBase {
+            a = "a"
+            b = undefined
+            c = "c"
+            myMethod() {
+
+            }
+        }
+        expect((await SessionA.callDoCall_outer({c:1, a: 2})).modifiedSession).toBeUndefined();
+        expect((await SessionA.callDoCall_outer({c:1, b: undefined, a: 2})).modifiedSession).toBeUndefined();
+        expect((await SessionA.callDoCall_outer({c:1, a: 2, b: "defined"})).modifiedSession).toBeUndefined();
+    }
+
+});
+
 test('Session fields compatibility - actual values', () => {
     function checkCompatibility(classes : (typeof ServerSession)[]) {
         let app = restfuncsExpress();
