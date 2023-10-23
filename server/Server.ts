@@ -191,7 +191,7 @@ class RestfuncsServerOOP {
      */
     public httpServer?: HttpServer;
 
-    public engineIoServer?: Server;
+    public engineIoServers = new Set<Server>();
 
     public getEngineIoPath() {
         return this.serverOptions.engineIoOptions?.path || "/engine.io_restfuncs"
@@ -290,25 +290,36 @@ class RestfuncsServerOOP {
     }
 
     /**
-     * Replacement of the listen methods
+     * Replacement of the listen method
      * @param args
      */
     listen(...args: unknown[]): HttpServer {
         // @ts-ignore
         const server: HttpServer =  this.expressOriginalMethods.listen.apply(this, args);
-        this.installEngineIoServer(server)
+        const engineIoServer = this.installEngineIoServer(server);
         return server;
     }
 
     public installEngineIoServer(server: HttpServer) {
-        this.engineIoServer = engineIoAttach(server, {
+        const engineIoServer = engineIoAttach(server, {
             ...(this.serverOptions.engineIoOptions || {}),
             path: this.getEngineIoPath(),
         });
-        this.engineIoServer.on("message", (data) => {
+
+        // Modify closeAllConnections function to also close the engineIoServer. Otherwise we leave unwanted side effects / open resources. This also makes the jest testcases hang.
+        const closeAllConnections_orig = server.closeAllConnections;
+        server.closeAllConnections = () => {
+            closeAllConnections_orig.apply(server, []); // Call original
+            engineIoServer.close();
+        }
+
+        this.engineIoServers.add(engineIoServer);
+
+        engineIoServer.on("message", (data) => {
             console.log("data:" + data)
         })
-        return this.engineIoServer;
+
+        return engineIoServer;
     }
 
     /**

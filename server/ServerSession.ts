@@ -778,7 +778,7 @@ export class ServerSession implements IServerSession {
     public getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
-            engineIoPath: this.clazz.server.engineIoServer?this.clazz.server.getEngineIoPath():undefined
+            engineIoPath: this.clazz.server.engineIoServers.size > 0?this.clazz.server.getEngineIoPath():undefined
         }
     }
 
