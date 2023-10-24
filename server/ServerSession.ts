@@ -416,15 +416,6 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Not part of the API. Don't override.
-     * @return the object to be stored as the payload of the JWT session-cookie
-     */
-    serializeToObject(): Record<string, any> {
-        return this;
-    }
-
-
-    /**
      * Pre checks some of the fields to give meaningful errors in advance.
      * @param options
      */
@@ -454,6 +445,15 @@ export class ServerSession implements IServerSession {
                 console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
             }
         }
+    }
+
+    private static _referenceInstance?: ServerSession
+    /**
+     * The (single) instance to compare against, so you can check if any fields were modified.
+     * @protected
+     */
+    protected static get referenceInstance() {
+        return this._referenceInstance || (this._referenceInstance = new this)
     }
 
     /**
@@ -713,18 +713,20 @@ export class ServerSession implements IServerSession {
         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
 
         // Instantiate a serverSession:
+        const referenceInstance = this.referenceInstance; // Make sure that lazy field is initialized before creating the instance. At least this is needed for the testcases
         let serverSession: ServerSession = new this();
         serverSession.validateFreshInstance();
 
         serverSession.validateCall(methodName, methodArguments);
 
-        // *** Prepare serverSession for change tracking **
-        // Create a deep clone of cookieSession, because we want to make sure that the original is not modified. Only at the very end, when the call succeeded, the new session is committed atomically
-        cookieSession = _.extend({}, cookieSession)// First, make all values own properties because structuredClone does not clone values from inside the prototype but maybe an express session cookie handler delivers its cookie values prototyped.
-        cookieSession = structuredClone(cookieSession)
+        {
+            // *** Prepare serverSession for change tracking **
+            // Create a deep clone of cookieSession: , because we want to make sure that the original is not modified. Only at the very end, when the call succeeded, the new session is committed atomically
+            let cookieSessionClone = _.extend({}, cookieSession)// First, make all values own properties because structuredClone does not clone values from inside the prototype but maybe an express session cookie handler delivers its cookie values prototyped.
+            cookieSessionClone = structuredClone(cookieSessionClone)
 
-        serverSession = Object.create(serverSession) as ServerSession; // Use serverSession as the prototype. We don't want its properties directly included, so we can compare the session / check for changes
-        _.extend(serverSession, cookieSession);
+            _.extend(serverSession, cookieSessionClone);
+        }
 
         const enhancedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
@@ -740,9 +742,15 @@ export class ServerSession implements IServerSession {
         }, methodName);
 
         // Detect changes and return result:
-        serverSession = _.extendOwn({}, serverSession); // Get rid of newSession's prototype's properties, to be able to detect changes
-        const modified = !_.isEqual(serverSession, cookieSession)
+        const modified = Object.keys(serverSession).some(k => {
+            const key = k as keyof ServerSession; // Fix type
 
+            if(!cookieSession.hasOwnProperty(key) && _.isEqual(serverSession[key], referenceInstance[key])) { // property was not yet in the cookieSession and it' still the original value
+                return false;
+            }
+
+            return (!_.isEqual(serverSession[key], cookieSession[key]))
+        });
         return {
             modifiedSession: modified?serverSession:undefined, // Detect changes
             result
@@ -1936,13 +1944,6 @@ export class ServerSession implements IServerSession {
     }
 
     private validateFreshInstance() {
-        for(const key in this) {
-            const value = this[key];
-            if(value !== null && typeof value === "object") {
-                throw new CommunicationError(`${this.clazz.name}#${key} has an object as an initial value. You must use only primitives as initial values, so restfuncs can detect the 'initial-session-write' event. If it's not a (cookie-) session bound value, make it static (see also ServerSession#get class() helper method).`);
-            }
-        }
-
         if(this.req || this.res) {throw new CommunicationError("Invalid state: req or res must not be set.")}
     }
 
