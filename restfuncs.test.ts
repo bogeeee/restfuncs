@@ -40,11 +40,11 @@ type runClientServerTests_Options = {
 
 async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, param_testOptions: runClientServerTests_Options = {}) {
     if(param_testOptions.useSocket === undefined) {
-        inner(false); // Without engine.io sockets
-        inner(true); // With engine.io sockets
+        await inner(false); // Without engine.io sockets
+        await inner(true); // With engine.io sockets
     }
     else {
-        inner(param_testOptions.useSocket); // With engine.io sockets
+        await inner(param_testOptions.useSocket); // With engine.io sockets
     }
 
     async function inner(useSockets: boolean) {
