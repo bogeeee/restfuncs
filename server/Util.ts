@@ -454,7 +454,7 @@ export function diagnosis_looksLikeJSON(value: string) {
     return FAST_JSON_DETECTOR_REGEXP.test(value);
 }
 
-export function diagnosis_looksLikeHTML(value: string) {
+export function diagnosis_looksLikeHTML(value: string | unknown) {
     if (typeof value !== "string") {
         return false;
     }

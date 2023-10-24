@@ -79,13 +79,13 @@ function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
  * @param reflectedMethod
  * @param args
  */
-export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<any[]>) {
+export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<unknown[]>) {
     // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
     let argsStack = [...args]; // shallow clone
     argsStack.reverse();
 
     const errors: string[] = [];
-    function validateAndCollectErrors(parameter: ReflectedMethodParameter, arg: any) {
+    function validateAndCollectErrors(parameter: ReflectedMethodParameter, arg: unknown) {
         const collectedErrorsForThisParam: Error[] = [];
         const ok = parameter.type.matchesValue(arg,  {errors: collectedErrorsForThisParam, allowExtraProperties: false} ); // Check value
         if (!ok || collectedErrorsForThisParam.length > 0) {
@@ -481,7 +481,7 @@ export class ServerSession implements IServerSession {
             /**
              * Http-sends the result, depending on the requested content type:
              */
-            const sendResult = (result: any, diagnosis_methodName?: string) => {
+            const sendResult = (result: unknown, diagnosis_methodName?: string) => {
                 const contextPrefix = diagnosis_methodName ? `${diagnosis_methodName}: ` : ""; // Reads better. I.e. the user doesnt see on first glance that the error came from the getIndex method
 
                 // Determine contentTypeFromCall: The content type that was explicitly set during the call via res.contentType(...):
@@ -708,7 +708,7 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: any[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
 
@@ -972,7 +972,7 @@ export class ServerSession implements IServerSession {
         const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
 
         const result = new class {
-            methodArguments: any[] = []; // Params/arguments that will actually enter the method
+            methodArguments: unknown[] = []; // Params/arguments that will actually enter the method
             metaParams: Record<string, string> = {}
             /**
              * Must be called after the request is finished. Closes up any open streams.
@@ -994,10 +994,10 @@ export class ServerSession implements IServerSession {
             }
         }
 
-        const convertAndAddParams = (params: any, source: ParameterSource) => {
+        const convertAndAddParams = (params: unknown, source: ParameterSource) => {
 
-            const addParamsArray = (params: any[]) => {
-                function addValue(value: any) {
+            const addParamsArray = (params: unknown[]) => {
+                function addValue(value: unknown) {
                     result.methodArguments[listInsertionIndex] = value;
                 }
 
@@ -1029,10 +1029,14 @@ export class ServerSession implements IServerSession {
             /**
              * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
              */
-            const addParamsMap = (paramsMap: Record<string, any>) => {
+            const addParamsMap = (paramsMap: Record<string, unknown>) => {
                 for(const name in paramsMap) {
+                    const value = paramsMap[name];
                     if(metaParameterNames.has(name)) {
-                        result.metaParams[name] = paramsMap[name];
+                        if(typeof value !== "string") {
+                            throw new Error("Meta parameter value is not a string: " + value);
+                        }
+                        result.metaParams[name] = value;
                         continue
                     }
 
@@ -1047,7 +1051,7 @@ export class ServerSession implements IServerSession {
                     if(parameter.isRest) {
                         throw new CommunicationError(`Cannot set ...${name} through named parameter`)
                     }
-                    result.methodArguments[parameter.index] = this.autoConvertValueForParameter(paramsMap[name], parameter, source)
+                    result.methodArguments[parameter.index] = this.autoConvertValueForParameter(value, parameter, source)
                 }
             }
 
@@ -1059,7 +1063,7 @@ export class ServerSession implements IServerSession {
                 addParamsArray(params);
             }
             else if(typeof params === "object") { // Named ?
-                addParamsMap(params);
+                addParamsMap(params as Record<string, unknown>);
             }
             else { // Single object ?
                 addParamsArray([params])
@@ -1179,12 +1183,12 @@ export class ServerSession implements IServerSession {
      * @param evil_methodName
      * @param evil_args
      */
-    protected validateCall(evil_methodName: string, evil_args: any[]) {
+    protected validateCall(evil_methodName: string, evil_args: unknown[]) {
         const options = this.clazz.options;
 
-        // types were only for the caller. We go back to "any" so must check again:
-        const methodName = <any> evil_methodName;
-        const args = <any> evil_args;
+        // types were only for the caller. We go back to "unknown" so must check again:
+        const methodName = <unknown> evil_methodName;
+        const args = <unknown> evil_args;
 
         // Check methodName:
         if(!methodName) {
@@ -1219,17 +1223,14 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Allows you to intercept calls by overriding this method.
+     * Allows you to intercept calls, by overriding this method.
      *
      *
      * You have access to this.req, this.res as usual.
-     *
-     * @param funcName name of the function to be called
-     * @param args args of the function to be called
      */
-    protected async doCall(funcName: string, args: any[]) {
+    protected async doCall(methodName: string, args: unknown[]) {
         // @ts-ignore
-        return await this[funcName](...args) // Call the original function
+        return await this[methodName](...args) // Call the original function
     }
 
     /**
@@ -1496,7 +1497,7 @@ export class ServerSession implements IServerSession {
      *      containsStringValuesOnly: true // decides, which of the autoConvertValueForParameter_... methods is used.
      * }
      */
-    protected static parseQuery(query: string): {result: Record<string, any>|any [], containsStringValuesOnly: boolean} {
+    protected static parseQuery(query: string): {result: Record<string, unknown>|unknown[], containsStringValuesOnly: boolean} {
         // Query is a list i.e: "a,b,c" ?
         if(query.indexOf(",") > query.indexOf("=")) { // , before = means, we assume it is a comma separated list
             return {
@@ -1614,7 +1615,7 @@ export class ServerSession implements IServerSession {
      * @see #autoConvertValueForParameter_fromString
      * @see #autoConvertValueForParameter_fromJson
      */
-    protected static autoConvertValueForParameter(value: any, parameter: ReflectedMethodParameter, source: ParameterSource): any {
+    protected static autoConvertValueForParameter(value: unknown, parameter: ReflectedMethodParameter, source: ParameterSource): unknown {
         if(source === "string") {
             if(typeof value !== "string") {
                 throw new Error(`${parameter.name} parameter should be a string`)
@@ -1647,7 +1648,7 @@ export class ServerSession implements IServerSession {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    protected static autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): any {
+    protected static autoConvertValueForParameter_fromString(value: string, parameter: ReflectedMethodParameter): unknown {
         // TODO: number|bool and other ambiguous types could be auto converted to
         try {
             if (parameter.type.isClass(Number)) {
@@ -1700,7 +1701,7 @@ export class ServerSession implements IServerSession {
      * @param parameter The parameter where this will be inserted into
      * @returns
      */
-    protected static autoConvertValueForParameter_fromJson(value: any, parameter: ReflectedMethodParameter): any {
+    protected static autoConvertValueForParameter_fromJson(value: unknown, parameter: ReflectedMethodParameter): unknown {
         // *** Help us make this method convert to nested dates like myFunc(i: {someDate: Date})
         // *** You can use [this nice little playground](https://typescript-rtti.org) to quickly see how the ReflectedMethodParameter works ;)
         try {
@@ -1813,7 +1814,7 @@ export class ServerSession implements IServerSession {
             return errorExt;
         }
 
-        let definitelyIncludedProps: Record<string, any> = {};
+        let definitelyIncludedProps: Record<string, unknown> = {};
         if(isCommunicationError(error) && error.constructor !== CommunicationError) { // A (special) SUB-class of CommunicationError ? I.e. think of a custom NotLoggedInError
             // Make sure this error is ALWAYS identifyable by the client and its custom properties are included, cause they were explicitly implemented by the user for a reason.
             definitelyIncludedProps = {
@@ -1989,14 +1990,14 @@ export class ServerSession implements IServerSession {
  * </pre>
  */
 export function safe() {
-    return function (target: any, methodName: string, descriptor: PropertyDescriptor) {
+    return function (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
         // TODO: handle static methods
-        const clazz = target.constructor;
+        const clazz = target.clazz;
         if(!Object.getOwnPropertyDescriptor(clazz,"safeInstanceMethods")?.value) { // clazz does not have it's OWN .safeInstanceMethods initialized yet ?
             clazz.safeInstanceMethods = new Set<string>();
         }
 
-        clazz.safeInstanceMethods.add(methodName);
+        clazz.safeInstanceMethods!.add(methodName);
     };
 }
 
