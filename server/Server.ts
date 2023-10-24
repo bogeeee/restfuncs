@@ -79,6 +79,20 @@ export type ServerOptions = {
     installSessionHandler?: boolean
 
     /**
+     * <strong>Not yet implemented</strong>
+     * Holds all session values as references (in memory, plain, natual), instead of serializing it into a cookie string. The cookie will then contain only the id.
+     * Enable, if you're not in a multi node environment (/no need to be stateless) and if you want to:
+     *  - store the values directly (i.e. the user object instead of the user id)
+     *  - improve performance
+     *  - have unlimited space for your session values without hitting cookie-size limits.
+     *
+     * But keep in mind that DOS attacks could aim to blow up your memory then.
+     *
+     * Default: false
+     */
+    inMemorySessions?: boolean
+
+    /**
      * Performance: Disable this (recommended), to only fetch an access proof per security group.
      * Keep in mind the rare case, that, if you have a proxy that tries to block the url to a certain ServerSession, this won't work anymore.
      * Therefore the default is: true (enabled)
