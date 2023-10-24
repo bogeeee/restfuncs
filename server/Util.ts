@@ -43,6 +43,21 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
             }
 
             return target[p]; // normal property
+        },
+
+        set(target: F, p: string | symbol, newValue: any, receiver: any): boolean {
+            // Reject symbols (don't know what it means but we only want strings as property names):
+            if (typeof p != "string") {
+                throw new CommunicationError(`Unhandled : ${String(p)}`)
+            }
+
+            if (callHasEnded) {
+                throw new Error(`Cannot write to the session, after the call to ${diagnosis_funcName}(...) has ended.`);
+            }
+
+            // @ts-ignore
+            target[p] = newValue;
+            return true;
         }
     });
 
