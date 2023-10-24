@@ -169,7 +169,7 @@ export type ServerSessionOptions = {
      * You can supply a logger function
      * Default: true
      */
-    logErrors?: boolean | ((message: string, req?: Request) => void)
+    logErrors?: boolean | ((message: string, context?: {req?: Request, socketConnection?: ServerSocketConnection}) => void)
 
     /**
      * Whether to show/expose error information to the client:
@@ -662,7 +662,7 @@ export class ServerSession implements IServerSession {
                     res.status( isCommunicationError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
 
                     fixErrorStack(caught)
-                    let error = this.logAndConcealError(caught, req);
+                    let error = this.logAndConcealError(caught, {req});
 
                     // Format error and send it:
                     acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
@@ -1773,7 +1773,7 @@ export class ServerSession implements IServerSession {
      * @param error
      * @param req For retrieving info for logging
      */
-    protected static logAndConcealError(error: Error, req: Request) {
+    static logAndConcealError(error: Error, context?: {req?: Request, socketConnection?: ServerSocketConnection}) {
         /**
          * Removes usual error properties (leaving all custom properties)
          */
@@ -1800,7 +1800,7 @@ export class ServerSession implements IServerSession {
 
             const logMessage = `${errorId?`[${errorId}]: `:""}${errorToString(errorExt)}`;
             if(typeof this.options.logErrors === "function") {
-                this.options.logErrors(logMessage, req)
+                this.options.logErrors(logMessage, context)
             }
             else {
                 console.error(logMessage);
@@ -1864,7 +1864,7 @@ export class ServerSession implements IServerSession {
             const logMessage = `${errorId?`[${errorId}]: `:""}${errorToString(errorExt)}`;
 
             if(typeof this.options.logErrors === "function") {
-                this.options.logErrors(logMessage, req)
+                this.options.logErrors(logMessage, {req})
             }
             else {
                 console.error(logMessage);
