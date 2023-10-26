@@ -23,7 +23,7 @@ import {
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
-import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, ServerPrivateBox} from "./Server";
+import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup, ServerPrivateBox} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
 import {isCommunicationError, CommunicationError} from "./CommunicationError";
@@ -855,7 +855,7 @@ export class ServerSession implements IServerSession {
         }
         const question = this.clazz.server.decryptToken(encryptedQuestion, "HttpContextQuestion")
         // Security check:
-        if(question.securityGroupId !== this.clazz.getSecurityGroupId()) {
+        if(question.securityGroupId !== this.clazz.securityGroup.id) {
             throw new CommunicationError(`HttpContextQuestion is from another security group`)
         }
 
@@ -927,7 +927,7 @@ export class ServerSession implements IServerSession {
         const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
         checkIfSecurityFieldsAreValid(session);
 
-        const securityGroupId = this.getSecurityGroupId();
+        const securityGroupId = this.securityGroup.id;
         if (tokens[securityGroupId] === undefined) {
             // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
             // So store a hash(token + server.secret) in the session instead.
@@ -944,14 +944,9 @@ export class ServerSession implements IServerSession {
         return shieldTokenAgainstBREACH(rawToken);
     }
 
-    protected static getSecurityGroupId(): string {
-        return this.id; // TODO: remove this line when implemented
-        const server = this.server;
-
-        if(!server) { // Used without RestfuncsExpress server (with classic express) ?
-            throw new Error("this.server not set. Please report this as a bug"); // Should we always expect that one server exists ?
-        }
-        return server.getSecurityGroupIdOfService(this)
+    static get securityGroup(): SecurityGroup {
+        return new SecurityGroup(this.options, [this]); // TODO: remove this line when implemented
+        return this.server.getSecurityGroupOfService(this)
     }
 
     /**
@@ -1291,13 +1286,13 @@ export class ServerSession implements IServerSession {
                     return false;
                 }
 
-                if (!sessionTokens[this.id]) {
-                    errorHints.push(`No ${tokenType} was stored in the session for the Service, you are using. Maybe the server restarted or the token, you presented, is for another service. Please fetch the token again. ${diagnosis_seeDocs}`);
+                if (!sessionTokens[this.securityGroup.id]) {
+                    errorHints.push(`You provided a ${tokenType}, but no ${tokenType} was stored in the session for the ServerSession class (or same security group), you are using. Maybe the server restarted or the token, you presented, is for another ServerSession class. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 try {
-                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
+                    if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.securityGroup.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                         return true;
                     } else {
                         errorHints.push(`${tokenType} incorrect`);

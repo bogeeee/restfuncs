@@ -159,6 +159,35 @@ type Server2ServerEncryptedBox_inner = {
 export type RestfuncsServer = RestfuncsServerOOP & Express
 
 
+export class SecurityGroup {
+    static relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"];
+    options: ServerSessionOptions
+    members: (typeof ServerSession)[]  = []
+
+    protected _id?: string
+    get id() {
+        return this._id || (this._id = this.calculateId());
+    }
+
+    constructor(options: ServerSessionOptions, members: typeof ServerSession[]) {
+        this.options = options;
+        this.members = members;
+    }
+
+    protected calculateId() {
+        // Calculate groupId:
+        let tokens = SecurityGroup.relevantProperties.map(key => {
+            const value = this.options[key];
+            if (typeof value === "function") {
+                return "function_used_by_" + this.members.map(m => m.id).sort().join("_");
+            } else {
+                return value;
+            }
+        });
+        return JSON.stringify(tokens); // TODO hash and limit to 48bit
+    }
+};
+
 /**
  * Declare it in a nice OOP way and in the end it becomes merged into Express (= 'import express from Express')
  * Note that express is the main object, so instanceof does not work. See constructor
@@ -184,8 +213,7 @@ class RestfuncsServerOOP {
      * @private
      */
     _computed?: {
-        // Hope we don't get to the point where we need the group object (not only the id) - as it will always turn out so ;)
-        service2SecurityGroupIdMap: Map<typeof ServerSession, string>
+        service2SecurityGroupMap: Map<typeof ServerSession, SecurityGroup>
 
         diagnosis_triggeredBy: Error;
     }
@@ -391,8 +419,8 @@ class RestfuncsServerOOP {
      * @return A hash that groups together serverSessionClasses with the same security relevant settings.
      * TODO: write testcases
      */
-    public getSecurityGroupIdOfService(serviceClass: typeof ServerSession): string {
-        const result = this.getComputed().service2SecurityGroupIdMap.get(serviceClass);
+    public getSecurityGroupOfService(serviceClass: typeof ServerSession): SecurityGroup {
+        const result = this.getComputed().service2SecurityGroupMap.get(serviceClass);
         if(result === undefined) {
             throw new Error("Illegal state: serviceClass not inside service2SecurityGroupIdMap. Was it registered for another server ?")
         }
@@ -405,40 +433,29 @@ class RestfuncsServerOOP {
         }
 
         return this._computed = {
-            service2SecurityGroupIdMap: this.computeService2SecurityGroupIdMap(),
+            service2SecurityGroupMap: this.computeService2SecurityGroupMap(),
             diagnosis_triggeredBy: new Error("This call triggered the computation. Make sure that this is AFTER all your classes have been registered.")
         };
     }
-    protected computeService2SecurityGroupIdMap() {
-        const relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"]
+    protected computeService2SecurityGroupMap() {
+
         // Go through all serverSessionClasses and collect the groups
-        const groups: { options: ServerSessionOptions, members: (typeof ServerSession)[] }[] = []
+        const groups: SecurityGroup[] = []
         this.serverSessionClasses.forEach((service) => {
             for (const group of groups) {
-                if (_(relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined) { // Found a group where all relevantProperties match ?
+                if (_(SecurityGroup.relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined) { // Found a group where all relevantProperties match ?
                     group.members.push(service); // add to existing
                 } else {
-                    groups.push({options: service.options, members: [service]}); // create a new one
+                    groups.push(new SecurityGroup(service.options, [service])); // create a new one
                 }
             }
         });
 
         // Compose result:
-        const result = new Map<typeof ServerSession, string>()
+        const result = new Map<typeof ServerSession, SecurityGroup>()
         for (const group of groups) {
-            // Calculate groupId:
-            let tokens = relevantProperties.map(key => {
-                const value = group.options[key];
-                if (typeof value === "function") {
-                    return "function_used_by_" + group.members.map(m => m.id).sort().join("_");
-                } else {
-                    return value;
-                }
-            });
-            const groupId = JSON.stringify(tokens); // TODO hash and limit to 48bit
-
             for (const service of group.members) {
-                result.set(service, groupId);
+                result.set(service, group);
             }
         }
 
@@ -452,7 +469,7 @@ class RestfuncsServerOOP {
      * @param session
      */
     public getCsrfTokens(session: object): string {
-        return Array.from(this.getComputed().service2SecurityGroupIdMap.values()).map( (groupId) => {
+        return Array.from(this.getComputed().service2SecurityGroupMap.values()).map( (group) => {
             throw new Error("TODO: implement")
         }).join(",")
     }
