@@ -130,16 +130,6 @@ async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFetchTest
 function createServer(serviceClass: typeof Service) {
     const app = restfuncsExpress();
 
-    // Install session handler: TODO: this should go into the restuncs server
-    app.use(session({
-        secret: crypto.randomBytes(32).toString("hex"),
-        cookie: {sameSite: true},
-        saveUninitialized: false,
-        unset: "destroy",
-        store: undefined, // Default to MemoryStore, but use a better one for production to prevent against DOS/mem leak. See https://www.npmjs.com/package/express-session
-    }));
-
-
     app.use("/", serviceClass.createExpressHandler());
     return app.listen(0);
 }
