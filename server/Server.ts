@@ -167,7 +167,7 @@ export class SecurityGroup {
 
     protected _id?: string
     get id() {
-        return this._id || (this._id = this.calculateId());
+        return this._id || (this._id = this.calculateId()); // from cache or calculate
     }
 
     constructor(options: ServerSessionOptions, members: typeof ServerSession[]) {
@@ -176,7 +176,6 @@ export class SecurityGroup {
     }
 
     protected calculateId() {
-        // Calculate groupId:
         let tokens = SecurityGroup.relevantProperties.map(key => {
             const value = this.options[key];
             if (typeof value === "function") {
@@ -185,7 +184,12 @@ export class SecurityGroup {
                 return value;
             }
         });
-        return JSON.stringify(tokens); // TODO hash and limit to 48bit
+        const jsonString = JSON.stringify(tokens);
+
+        // Return a hash of jsonString:
+        const hash = crypto.createHash('sha256');
+        hash.update(jsonString);
+        return hash.digest('base64').substring(0, 8);  // 48bit entropy should be enough - just need to prevent collisions
     }
 };
 
@@ -205,15 +209,16 @@ class RestfuncsServerOOP {
 
     /**
      * id -> service
-     * The ServerSession constructor registers itself here. TODO
+     * The ServerSession constructor registers itself here.
      */
-    private serverSessionClasses = new Map<string, typeof ServerSession>()
+    serverSessionClasses = new Map<string, typeof ServerSession>()
 
     /**
      * computed / cached values, after all serverSessionClasses have been registered.
      * @private
      */
     _computed?: {
+        securityGroups: Map<string, SecurityGroup>
         service2SecurityGroupMap: Map<typeof ServerSession, SecurityGroup>
 
         diagnosis_triggeredBy: Error;
@@ -436,33 +441,50 @@ class RestfuncsServerOOP {
         }
 
         return this._computed = {
-            service2SecurityGroupMap: this.computeService2SecurityGroupMap(),
+            ...this.computeSecurityGroups(),
             diagnosis_triggeredBy: new Error("This call triggered the computation. Make sure that this is AFTER all your classes have been registered.")
         };
     }
-    protected computeService2SecurityGroupMap() {
+    protected computeSecurityGroups() {
 
-        // Go through all serverSessionClasses and collect the groups
-        const groups: SecurityGroup[] = []
+        // Go through all serverSessionClasses and collect the securityGroups
+        const securityGroups = new Map<string, SecurityGroup>();
         this.serverSessionClasses.forEach((service) => {
-            for (const group of groups) {
-                if (_(SecurityGroup.relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined) { // Found a group where all relevantProperties match ?
-                    group.members.push(service); // add to existing
-                } else {
-                    groups.push(new SecurityGroup(service.options, [service])); // create a new one
+            function matchesGroup(group: SecurityGroup) {
+                return _(SecurityGroup.relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined;
+            }
+
+            const matchedGroups = Array.from(securityGroups.values()).filter( g => matchesGroup(g));
+
+            if(matchedGroups.length == 0) {
+                const newGroup = new SecurityGroup(service.options, [service]);
+
+                // Safety check:
+                if(securityGroups.has(newGroup.id)) {
+                    throw new Error("id not unique");
                 }
+
+                securityGroups.set(newGroup.id, newGroup);
+            }
+            else if(matchedGroups.length == 1) {
+
+                matchedGroups[0].members.push(service); // add to existing
+            }
+            else {
+                throw new Error("Illegal state")
             }
         });
 
-        // Compose result:
-        const result = new Map<typeof ServerSession, SecurityGroup>()
-        for (const group of groups) {
+
+        // Compose serviceClass2SecurityGroupMap:
+        const service2SecurityGroupMap = new Map<typeof ServerSession, SecurityGroup>()
+        for (const group of securityGroups.values()) {
             for (const service of group.members) {
-                result.set(service, group);
+                service2SecurityGroupMap.set(service, group);
             }
         }
 
-        return result
+        return {securityGroups, service2SecurityGroupMap}
     }
 
 

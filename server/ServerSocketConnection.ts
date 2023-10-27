@@ -20,7 +20,7 @@ export class ServerSocketConnection {
     /**
      *
      */
-    securityGroup2SecurityPropertiesOfHttpRequest?: Map<string, SecurityPropertiesOfHttpRequest>
+    securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, SecurityPropertiesOfHttpRequest>
 
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, SecurityPropertiesOfHttpRequest>
 
