@@ -647,7 +647,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // @ts-ignore No Idea why we get a typescript error here
-                const enhancementProps: Partial<ServerSession> = {req, res};
+                const enhancementProps: Partial<ServerSession> = {req, res, _httpCall: {securityPropertiesOfRequest}};
 
                 let { result, modifiedSession} = await this.doCall_outer(req.session as any as Record<string, unknown>| {}, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
                     http: {
