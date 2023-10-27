@@ -24,8 +24,21 @@ export class ServerError extends Error {
 
     httpStatusCode?: Number
 
-    constructor(message: string, options: ErrorOptions, httpStatusCode: Number | undefined) {
-        super(message, options);
+    static formatError(e: any): string {
+        if (typeof (e) == "object") {
+            return (e.name ? (e.name + ": ") : "") + (e.message || e) +
+                (e.stack ? `\nServer stack:\n ${e.stack}` : '') +
+                (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
+                (e.cause ? `\nCause: ${ServerError.formatError(e.cause)}` : '')
+        } else {
+            return e;
+        }
+    }
+
+    constructor(rawErrorObject: unknown, options: ErrorOptions, httpStatusCode: Number | undefined) {
+        const message = ServerError.formatError(rawErrorObject)
+        super(message, {cause: rawErrorObject ,...options});
+        this.cause = rawErrorObject;
         this.httpStatusCode = httpStatusCode;
     }
 }
@@ -291,18 +304,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 throw new Error(`Server error: ${responseText}`);
             }
 
-            const formatError = (e: any): string => {
-                if (typeof (e) == "object") {
-                    return (e.name ? (e.name + ": ") : "") + (e.message || e) +
-                        (e.stack ? `\nServer stack:\n ${e.stack}` : '') +
-                        (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
-                        (e.cause ? `\nCause: ${formatError(e.cause)}` : '')
-                } else {
-                    return e;
-                }
-            }
-
-            throw new ServerError(formatError(responseJSON), {cause: responseJSON}, response.status);
+            throw new ServerError(responseJSON, {}, response.status);
         }
     }
 

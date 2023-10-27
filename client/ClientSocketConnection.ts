@@ -1,6 +1,6 @@
 import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, WrappedPromise} from "./Util";
-import {RestfuncsClient} from "./index";
+import {RestfuncsClient, ServerError} from "./index";
 import {Socket_Client2ServerMessage, Socket_MethodCallResult, Socket_Server2ClientMessage} from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
@@ -228,10 +228,15 @@ export class ClientSocketConnection {
         }
 
         if(resultFromServer.error) {
-            methodCallpromise.reject(resultFromServer.error)
+            methodCallpromise.reject(new ServerError(resultFromServer.error, {}, resultFromServer.httpStatusCode))
         }
         else {
-            methodCallpromise.resolve(resultFromServer.result)
+            if(resultFromServer.httpStatusCode == 550) { // "throw legal value" (non-error)
+                methodCallpromise.reject(resultFromServer.result)
+            }
+            else {
+                methodCallpromise.resolve(resultFromServer.result)
+            }
         }
     }
 }
