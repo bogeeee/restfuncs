@@ -13,7 +13,7 @@ import {WelcomeInfo} from "restfuncs-common";
 import {
     GetHttpCookieSessionAndSecurityProperties_Answer,
     GetHttpCookieSessionAndSecurityProperties_question
-} from "restfuncs-server/ServerSession";
+} from "restfuncs-server/ServerSocketConnection";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 

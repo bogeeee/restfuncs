@@ -1,7 +1,5 @@
 // Diagnosis for web packagers. Please keep this at the file header:
 import {Buffer} from 'node:buffer'; // *** If you web packager complains about this line, it did not properly (tree-)shake off your referenced ServerSession class and now wants to include ALL your backend code, which is not what we want. It can be hard to say exactly, why it decides to follow (not tree-shake) it, so Keep an eye on where you placed the line: `new RestfuncsClient<YourServerSession>(...)` or where you included YourServerSession in a return type. **
-Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
-
 import express, {Request, Response, Router} from "express";
 import _ from "underscore";
 import {reflect, ReflectedMethod, ReflectedMethodParameter} from "typescript-rtti";
@@ -9,30 +7,42 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import URL from "url"
 import {
     browserMightHaveSecurityIssuseWithCrossOriginRequests,
-    Camelize, cloneError, couldBeSimpleRequest, createProxyWithPrototype,
+    Camelize,
+    cloneError,
+    couldBeSimpleRequest,
     diagnisis_shortenValue,
-    diagnosis_isAnonymousObject,
-    diagnosis_looksLikeHTML, diagnosis_looksLikeJSON,
-    enhanceViaProxyDuringCall, ERROR_PROPERTIES,
+    diagnosis_looksLikeHTML,
+    diagnosis_looksLikeJSON,
+    enhanceViaProxyDuringCall,
+    ERROR_PROPERTIES,
     errorToHtml,
     errorToString,
     ErrorWithExtendedInfo,
-    fixErrorStack, fixTextEncoding, getDestination, getOrigin,
+    fixErrorStack,
+    fixTextEncoding,
+    getDestination,
+    getOrigin,
     parseContentTypeHeader,
-    shieldTokenAgainstBREACH, shieldTokenAgainstBREACH_unwrap
+    shieldTokenAgainstBREACH,
+    shieldTokenAgainstBREACH_unwrap
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup, ServerPrivateBox} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
-import {isCommunicationError, CommunicationError} from "./CommunicationError";
+import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
-import { AsyncLocalStorage } from 'node:async_hooks'
+import {AsyncLocalStorage} from 'node:async_hooks'
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
-import {Server} from "engine.io";
-import {ServerSocketConnection} from "./ServerSocketConnection";
+import {
+    GetHttpCookieSessionAndSecurityProperties_Answer,
+    GetHttpCookieSessionAndSecurityProperties_question,
+    ServerSocketConnection,
+    UpdateSessionToken
+} from "./ServerSocketConnection";
 
+Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 
 export function isTypeInfoAvailable(service: object) {
@@ -2045,45 +2055,9 @@ export function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function 
 
 // *** Tokens that are transfered between the websocket connection and the http service *** See Security concept.md
 
-/**
- * Question from the websocket connection
- */
-export type GetHttpCookieSessionAndSecurityProperties_question = {
-    /**
-     * Must be a random id
-     */
-    serverSocketConnectionId: string
-    securityGroupId: string,
-
-    includeSession: boolean
-    includeSecurityProperties: boolean
-}
-
-export type GetHttpCookieSessionAndSecurityProperties_Answer = {
-    question: GetHttpCookieSessionAndSecurityProperties_question,
-    reqSecurityProps?: SecurityPropertiesOfHttpRequest
-    cookieSession?: object
-}
 
 
 
-
-
-export type UpdateSessionToken = {
-    /**
-     * Where did this come from ?
-     */
-    serviceId: string,
-
-    sessionId: string | null
-
-    /**
-     * Current / old version
-     */
-    currentVersion: number
-
-    newSession: object | null
-}
 
 /**
  *

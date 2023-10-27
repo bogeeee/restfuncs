@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import {SecurityPropertiesOfHttpRequest, ServerSession} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
@@ -240,4 +239,38 @@ export class ServerSocketConnection {
             });
         }
     }
+}
+
+/**
+ * Question from the websocket connection
+ */
+export type GetHttpCookieSessionAndSecurityProperties_question = {
+    /**
+     * Must be a random id
+     */
+    serverSocketConnectionId: string
+    securityGroupId: string,
+
+    includeSession: boolean
+    includeSecurityProperties: boolean
+}
+export type GetHttpCookieSessionAndSecurityProperties_Answer = {
+    question: GetHttpCookieSessionAndSecurityProperties_question,
+    reqSecurityProps?: SecurityPropertiesOfHttpRequest
+    cookieSession?: object
+}
+export type UpdateSessionToken = {
+    /**
+     * Where did this come from ?
+     */
+    serviceId: string,
+
+    sessionId: string | null
+
+    /**
+     * Current / old version
+     */
+    currentVersion: number
+
+    newSession: object | null
 }
