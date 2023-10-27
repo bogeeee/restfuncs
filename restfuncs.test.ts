@@ -8,7 +8,12 @@ import {CommunicationError} from "restfuncs-server/CommunicationError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
-import {develop_resetGlobals, restfuncsExpress} from "./server/Server";
+import {develop_resetGlobals, restfuncsExpress, ServerPrivateBox} from "./server/Server";
+import {WelcomeInfo} from "restfuncs-common";
+import {
+    GetHttpCookieSessionAndSecurityProperties_Answer,
+    GetHttpCookieSessionAndSecurityProperties_question
+} from "restfuncs-server/ServerSession";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -1666,6 +1671,239 @@ test('validateCall security', async () => {
     // Further rtti argschecking is done in runtime-typechecking.test.ts
 
 });
+
+test("Security groups", () => {
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+
+        server.registerServerSessionClass(class SessionA extends ServerSession {
+        });
+
+        server.registerServerSessionClass(class SessionB extends ServerSession {
+
+        })
+
+        expect(server.getComputed().securityGroups.size).toBe(1);
+        expect(server.getComputed().service2SecurityGroupMap.size).toBe(2);
+    }
+
+    // Some other option should not affect the result:
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+                logErrors:true
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                logErrors:false
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        expect(server.getComputed().securityGroups.size).toBe(1);
+        expect(server.getComputed().service2SecurityGroupMap.size).toBe(2);
+    }
+
+    // Same options should place them into the same group
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+        function isAllowedOrigin() {return true}
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: isAllowedOrigin,
+                csrfProtectionMode: "csrfToken"
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: isAllowedOrigin,
+                csrfProtectionMode: "csrfToken"
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        expect(server.getComputed().securityGroups.size).toBe(1);
+        expect(server.getComputed().service2SecurityGroupMap.size).toBe(2);
+    }
+
+    // Different options should place them into different groups
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+        function isAllowedOrigin() {return true}
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: isAllowedOrigin,
+                csrfProtectionMode: "preflight"
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: isAllowedOrigin,
+                csrfProtectionMode: "csrfToken"
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        const computed = server.getComputed();
+        expect(computed.securityGroups.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.get(SessionA) !== computed.service2SecurityGroupMap.get(SessionB)).toBeTruthy()
+    }
+
+    // Different allowedOrigin function INSTANCES should place them into different groups
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+        function isAllowedOrigin() {return true}
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: (o) => true,
+                csrfProtectionMode: "csrfToken"
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: (o) => true,
+                csrfProtectionMode: "csrfToken"
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        const computed = server.getComputed();
+        expect(computed.securityGroups.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.get(SessionA) !== computed.service2SecurityGroupMap.get(SessionB)).toBeTruthy()
+    }
+
+});
+
+test('ClientSocketConnection synchronizations', async () => {
+    // Makes sure, different calls know of each other and don't do stuff twice / unnecessary.
+
+    let getHttpCookieSessionAndSecurityProperties_fetchCounter = 0;
+    let corsReadTokenFetchCounter = 0;
+    class MyServerSession extends Service {
+        static options: ServerSessionOptions = {...standardOptions}
+        isLoggedIn = false;
+        public myMethod() {
+            // Access a field to force the fetch of the cors read token
+            if(this.isLoggedIn) {
+                throw new Error("invalid")
+            }
+        }
+
+        public getHttpCookieSessionAndSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_question>): ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_Answer> {
+            getHttpCookieSessionAndSecurityProperties_fetchCounter++;
+            return super.getHttpCookieSessionAndSecurityProperties(encryptedQuestion);
+        }
+
+        public getCorsReadToken(): string {
+            corsReadTokenFetchCounter++;
+            return super.getCorsReadToken();
+        }
+
+    }
+
+    resetGlobalState();
+    const app = restfuncsExpress();
+    app.use("/api", MyServerSession.createExpressHandler());
+    const server = app.listen();
+    // @ts-ignore
+    const serverPort = server.address().port;
+
+    try {
+        const client = new RestfuncsClient_fixed<MyServerSession>(`http://localhost:${serverPort}/api`,{
+            useSocket: true,
+            csrfProtectionMode: "corsReadToken"
+        });
+        try {
+            expect(corsReadTokenFetchCounter).toBe(0);
+
+            // Fire off 3 initial requests simultaneously. They should not both fetch stuff in their own. Instead they should see that another one is already fetching it and wait for that.
+            const promise1 = client.proxy.myMethod();
+            const promise2 = client.proxy.myMethod();
+            const promise3 = client.proxy.myMethod();
+
+            await promise1;
+            expect(corsReadTokenFetchCounter).toBe(1);
+
+            await promise2
+            expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
+
+            await promise3
+            expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
+            expect(getHttpCookieSessionAndSecurityProperties_fetchCounter).toBeLessThan(3)
+
+            // @ts-ignore
+            expect(client.preparedSocketConnection.conn.methodCallPromises.size).toBe(0) // Expect no open promises
+        }
+        finally {
+            await client.close();
+        }
+    }
+    finally {
+        // shut down server
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
+
+test('socket_requireAccessProofForIndividualServerSession option', async () => {
+    throw new Error("TODO")
+});
+
+test('Client - error handling with concurrent calls', async () => {
+    let counter = 0
+    class SessionA extends Service {
+        getWelcomeInfo(): WelcomeInfo {
+            throw new Error(`welcome info error ${counter++}`)
+        }
+
+        myMethod() {
+        }
+    }
+
+    await runClientServerTests(new SessionA,
+        async (apiProxy) => {
+
+            // Start 2 calls at once
+            const call1 = apiProxy.myMethod();
+            const call2 = apiProxy.myMethod();
+
+            // Except call2 to wait for call1's initialization (and not do an own) so get the same error
+            await expect(call1).rejects.toThrow("welcome info error 0");
+            await expect(call2).rejects.toThrow("welcome info error 0");
+
+            await expect(apiProxy.myMethod()).rejects.toThrow("welcome info error 1"); // This should try everything again and get a fresh error
+
+        }, {useSocket: true}
+    );
+});
+
+test('ClientConnection - error handling with concurrent calls', async () => {
+
+
+    throw new Error("TODO")
+});
+
 
 test('listCallableMethods', () => {
    class A extends Service {
