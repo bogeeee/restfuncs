@@ -391,7 +391,7 @@ export class ServerSession implements IServerSession {
      *     You can use {@link exitCurrent} to invoke such management functions safely, but be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023.
      * </p>
      */
-    public static getCurrent<T extends ServerSession>(this: ClassOf<T>): T | undefined {
+    static getCurrent<T extends ServerSession>(this: ClassOf<T>): T | undefined {
         return ServerSession.current.getStore() as T;
     }
 
@@ -403,7 +403,7 @@ export class ServerSession implements IServerSession {
      * </p>
      * @param sessionFreeFn function in which getCurrent() will return undefined.
      */
-    public static exitCurrent(sessionFreeFn: () => void) {
+    static exitCurrent(sessionFreeFn: () => void) {
         ServerSession.current.exit(() => {
             // As mentioned, the API is still marked as experimental. So we do a quick test, if it works:
             if(this.getCurrent() !== undefined) {
@@ -465,7 +465,7 @@ export class ServerSession implements IServerSession {
      * Creates handler that allows all public (instance-) methods to be called by http. This can be by the restfuncs client
      * A new instance if this class is created for every (allowed) http call and its fields are filled with the fields of the JWT session cookie (if present)
      */
-    public static createExpressHandler(): Router {
+    static createExpressHandler(): Router {
 
         this.checkOptionsValidity(this.options); // Do some global checks:
 
@@ -713,7 +713,7 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    public static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
 
@@ -776,7 +776,7 @@ export class ServerSession implements IServerSession {
         };
     }
 
-    public static get server(): RestfuncsServer {
+    static get server(): RestfuncsServer {
         return getServerInstance();
     }
 
@@ -1743,7 +1743,7 @@ export class ServerSession implements IServerSession {
      * Lists (potentially) callable methods
      * Warning: Not part of the API ! Unlisting a method does not prevent it from beeing called !
      */
-    public static listCallableMethods() {
+    static listCallableMethods() {
 
         const reflectedClass = reflect(this);
         return reflectedClass.methodNames.map(methodName => reflectedClass.getMethod(methodName)).filter(reflectedMethod => {
@@ -1761,7 +1761,7 @@ export class ServerSession implements IServerSession {
         })
     }
 
-    public static mayNeedFileUploadSupport() {
+    static mayNeedFileUploadSupport() {
         // Check if this service has methods that accept buffer
 
         const someBuffer = new Buffer(0);
@@ -1777,7 +1777,7 @@ export class ServerSession implements IServerSession {
         }) !== undefined;
     }
 
-    public static _diagnosisWhyIsRTTINotAvailable() {
+    static _diagnosisWhyIsRTTINotAvailable() {
         return "TODO"
     }
 
