@@ -23,23 +23,7 @@ export class ControlService extends ServerSession {
     }
     async getCorsReadTokenForService(name: string) {
 
-        /**
-         * Nonexisting props and methods get copied to the target so that it's like the target exends the base class .
-         * @param target
-         * @param base
-         */
-        function baseOn(target: {[index: string]: any }, base: {[index: string]: any }) {
-            [...Object.keys(base), ..._.functions(base)].map(propName => {
-                if(target[propName] === undefined) {
-                    target[propName] = base[propName];
-                }
-            })
-        }
-
-        this.req?.session
-
         const ServiceClass = ControlService.services[name].service
-
 
         // @ts-ignore
         return ServiceClass.getOrCreateSecurityToken(this.req!.session, "corsReadToken")
