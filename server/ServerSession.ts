@@ -241,8 +241,6 @@ export type ServerSessionOptions = {
     devForceTokenCheck?: boolean
 
 
-
-
     /**
      * Enable/disable file uploads through http multipart
      * If not needed, you may disable this to have one less http parser library (busboy) involved (security).
@@ -250,6 +248,13 @@ export type ServerSessionOptions = {
      * undefined (default) = auto detect if really needed by scanning for functions that have Buffer parameters
      */
     enableMultipartFileUploads?: boolean
+
+    /**
+     * Advanced (very): Enable this, if you want to throw other things than Errors from the server to the client.
+     *
+     * This should be very rare or occur by accident and we don't want to expose unwanted information to the client then. Therefore this feature is disabled by default.
+     */
+    allowThrowNonErrors?: boolean
 }
 
 type ObjectWithStringIndex = {[index: string]: unknown};
@@ -731,15 +736,29 @@ export class ServerSession implements IServerSession {
         const enhancedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result: unknown;
-        await enhanceViaProxyDuringCall(enhancedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
-            // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
-            let resultPromise: Promise<unknown>;
-            ServerSession.current.run(enhancedServerSession, () => {
-                resultPromise = enhancedServerSession.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
-            })
+        try {
+            await enhanceViaProxyDuringCall(enhancedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
+                // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
+                let resultPromise: Promise<unknown>;
+                ServerSession.current.run(enhancedServerSession, () => {
+                    resultPromise = enhancedServerSession.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
+                })
 
-            result = await resultPromise!;
-        }, methodName);
+                result = await resultPromise!;
+            }, methodName);
+        }
+        catch (e) {
+            // Handle non-errors:
+            if(!(e instanceof Error)) { // non-error ?
+                if(this.options.allowThrowNonErrors) {
+                    throw e;
+                }
+                else {
+                    throw new Error("A non error was thrown: " + diagnisis_shortenValue(e) + "\n If this was intentional and you want it passed to the client, enable SeverSessionOptions#allowThrowNonErrors")
+                }
+            }
+            throw e;
+        }
 
         // Detect changes and return result:
         const modified = Object.keys(serverSession).some(k => {

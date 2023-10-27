@@ -340,32 +340,36 @@ test('Exceptions', async () => {
         myProperty: string;
     }
 
-    await runClientServerTests({
+    await runClientServerTests(new class extends Service {
+            static options: ServerSessionOptions = {
+                allowThrowNonErrors: true
+            }
+
             throwAnError() {
                 throw new Error("Expected test error");
-            },
+            }
 
             async asyncThrowAnError() {
                 throw new Error("Expected test error");
-            },
+            }
 
             throwsString() {
                 throw "Expected test error";
-            },
+            }
 
             async asyncThrowsString() {
                 throw "Expected test error";
-            },
+            }
 
             async throwSomething(ball: any) {
                 throw ball;
-            },
+            }
 
             throwCustomRestError() {
                 const e = new CustomRestError("test");
                 e.myProperty = "test";
                 throw e;
-            },
+            }
 
             usualFunc() {
 
