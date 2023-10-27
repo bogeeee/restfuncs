@@ -532,9 +532,45 @@ export function getDestination(req: Request): string | undefined {
  * @param extension
  */
 export function extendPropsAndFunctions(target: { [index: string]: any }, extension: { [index: string]: any }) {
-    [...Object.keys(extension), ..._.functions(extension)].map(propName => {
+    [...Object.keys(extension), ...Array.from(getAllFunctionNames(extension)) as string[]].map(propName => {
         if (target[propName] === undefined) {
             target[propName] = extension[propName];
         }
     })
+}
+
+/**
+ *
+ * @param obj
+ * @returns All method names, including "constructor" and the ones from superclasses and prototypes (i.e. "__defineGetter")
+ */
+export function getAllFunctionNames(obj: object) {
+    const proto = Reflect.getPrototypeOf(obj);
+    const result:Set<string | Symbol> = proto?getAllFunctionNames(proto):new Set()
+
+        Reflect.ownKeys(obj).forEach((k) => {
+            // @ts-ignore
+            if(typeof obj[k] === "function") {
+                result.add(k);
+            }
+        });
+    return result;
+}
+
+/**
+ *
+ * @param obj plain object or class instance
+ * @returns All regular method names of obj and its inherited methods
+ */
+export function getMethodNames(obj: object) {
+    const proto = Reflect.getPrototypeOf(obj);
+    const result:Set<string | Symbol> = (proto && proto !== Object.getPrototypeOf({})) ?getMethodNames(proto):new Set()
+
+    Reflect.ownKeys(obj).forEach((k) => {
+        // @ts-ignore
+        if(typeof obj[k] === "function") {
+            result.add(k);
+        }
+    });
+    return result;
 }

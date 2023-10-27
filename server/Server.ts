@@ -8,6 +8,7 @@ import http, {createServer} from "node:http";
 import expressApp, {application, Express} from "express";
 import {attach as engineIoAttach, AttachOptions, Server, ServerOptions as EngineIoServerOptions} from "engine.io"
 import _ from "underscore";
+import {getAllFunctionNames, getMethodNames} from "./Util";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 import session from "express-session";
 
@@ -253,7 +254,7 @@ class RestfuncsServerOOP {
         this.serverOptions = options;
 
         function extend(target: {[index: string]: any }, base: {[index: string]: any }) {
-            [...Object.keys(base), ..._.functions(base)].map(propName => {
+            [...Object.keys(base), ...Array.from(getMethodNames(base)) as string[]].map(propName => {
                 target[propName] = base[propName];
             })
         }
@@ -263,10 +264,12 @@ class RestfuncsServerOOP {
         this.expressApp  = expressApp()
 
         // Safe the original methods before they get overwritten
-        _.functions(this).map(method => {
-            // @ts-ignore
-            this.expressOriginalMethods[method] = this.expressApp[method]; // save method
-        })
+        getAllFunctionNames(this).forEach(n => {
+            const name = n as keyof Express
+            if(this.expressApp[name as keyof Express]) {
+                this.expressOriginalMethods[name] = this.expressApp[name]; // save method
+            }
+        });
 
         const result = this.expressApp;
         extend(result, this);
