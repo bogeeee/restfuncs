@@ -6,11 +6,19 @@ import type {Server as HttpServer,} from "node:http";
 import crypto from "node:crypto";
 import http, {createServer} from "node:http";
 import expressApp, {application, Express} from "express";
-import {attach as engineIoAttach, AttachOptions, Server, ServerOptions as EngineIoServerOptions} from "engine.io"
+import {
+    attach as engineIoAttach,
+    AttachOptions,
+    Server,
+    ServerOptions as EngineIoServerOptions,
+    Socket
+} from "engine.io"
 import _ from "underscore";
 import {getAllFunctionNames, getMethodNames} from "./Util";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 import session from "express-session";
+import {ServerSocketConnection} from "./ServerSocketConnection";
+
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -319,6 +327,7 @@ class RestfuncsServerOOP {
             throw new Error("Invalid type for secret: " + secret);
         })()
 
+        // Install session handler:
         if(this.serverOptions.installSessionHandler !== false) {
             // Install session handler: TODO: code own JWT cookie handler
             this.expressApp.use(session({
@@ -365,9 +374,9 @@ class RestfuncsServerOOP {
 
         this.engineIoServers.add(engineIoServer);
 
-        engineIoServer.on("message", (data) => {
-            console.log("data:" + data)
-        })
+        engineIoServer.on('connection', (socket: Socket) => {
+           new ServerSocketConnection(this as any as RestfuncsServer, socket);
+        });
 
         return engineIoServer;
     }

@@ -154,7 +154,7 @@ export class RestfuncsClient<S extends IServerSession> {
                     const fullUrl = new URL(this.absoluteUrl.toString().replace(/^http/, "ws"))
                     fullUrl.pathname="";fullUrl.search="";fullUrl.hash=""; // Clear everything after host and port
 
-                    conn = await ClientSocketConnection.getInstance(fullUrl.toString());
+                    conn = await ClientSocketConnection.getInstance(fullUrl.toString(), this);
                 }
                 return {
                     serverSessionClassId: welcomeInfo.classId,
@@ -195,10 +195,7 @@ export class RestfuncsClient<S extends IServerSession> {
             return await this.doCall_http(remoteMethodName, args); // Fallback to http
         }
 
-        // TODO:
-        //pConn.conn.socket.write("Hello from client")
-
-        throw new Error("TODO")
+        return await pConn.conn.doCall(pConn.serverSessionClassId, remoteMethodName, args);
     }
 
     protected async doCall_http(remoteMethodName: string, args: any[]) {
@@ -377,7 +374,7 @@ export class RestfuncsClient<S extends IServerSession> {
         if(this._preparedSocketConnection) {
             let conn = await this.preparedSocketConnection;
             conn.conn?.close();
-            // TODO: unregister from ClientSocketConnection.instances
+            // TODO: instead, unregister from ClientSocketConnection.instances and it should close it implicitly then, when no other client is connected
         }
     }
 }

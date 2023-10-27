@@ -708,7 +708,7 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    private static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    public static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
         this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
 
@@ -730,15 +730,15 @@ export class ServerSession implements IServerSession {
 
         const enhancedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
-        let result;
+        let result: unknown;
         await enhanceViaProxyDuringCall(enhancedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
             // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
-            let resultPromise;
+            let resultPromise: Promise<unknown>;
             ServerSession.current.run(enhancedServerSession, () => {
                 resultPromise = enhancedServerSession.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
             })
 
-            result = await resultPromise;
+            result = await resultPromise!;
         }, methodName);
 
         // Detect changes and return result:
