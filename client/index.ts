@@ -66,7 +66,6 @@ export type ClientProxy<S> = {
  * @see restfuncsClient
  */
 export class RestfuncsClient<S extends IServerSession> {
-    readonly [index: string]: any;
 
     /**
      * Base url of the ServerSession (can be relative to the current url in the browser).
