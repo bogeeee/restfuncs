@@ -3,6 +3,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
+import {SingleRetryableOperation} from "./Util";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -52,23 +53,6 @@ export type ClientProxy<S> = {
     [K in keyof S]: S[K] extends (...args: any) => Promise<any> ? S[K] : // All async methods
         S[K] extends (...args: infer P) => infer R ? (...args: P) => Promise<R> : // + remap the sync methods to async ones, so we must await them
             never;
-};
-
-/**
- * These fields are fetched and retried, if failed, in an atomic step.
- */
-type PreparedSocketConnection = {
-    /**
-     * Retrieved from the server
-     */
-    serverSessionClassId: string,
-
-    /**
-     * Now here's the connection Shared with other services.
-     * Undefined, if the server sayed, it did not support it.
-     * @protected
-     */
-    conn?: ClientSocketConnection
 };
 
 /**
@@ -125,7 +109,6 @@ export class RestfuncsClient<S extends IServerSession> {
     public csrfToken?: string
 
 
-    protected _preparedSocketConnection?: Promise<PreparedSocketConnection>
 
     get absoluteUrl() {
         // Validity check
@@ -141,44 +124,41 @@ export class RestfuncsClient<S extends IServerSession> {
         }
     }
 
+    protected _getWelcomeInfoOp = new SingleRetryableOperation<WelcomeInfo>()
+
+    async getWelcomeInfo(): Promise<WelcomeInfo> {
+        return await this._getWelcomeInfoOp.exec(async () => await this.controlProxy_http.getWelcomeInfo());
+    }
+
+    protected _getClientSocketConnectionOp = new SingleRetryableOperation<ClientSocketConnection | undefined>()
     /**
-     * Creates the PreparedSocketConnection in one atomic step.
+     * Creates the ClientSocketConnection, synchronized for multiple simultaneous calls.     *
      * @protected
+     * @return the connection or undefined if the server does not support it.
      */
-    protected get preparedSocketConnection(): Promise<PreparedSocketConnection> {
-        if(this._preparedSocketConnection) { // Promise is already initialized ?
-            return this._preparedSocketConnection
-        }
+    protected async getClientSocketConnection(): Promise<ClientSocketConnection | undefined> {
+        return await this._getClientSocketConnectionOp.exec(async () => {
+            const welcomeInfo = await this.getWelcomeInfo();
 
-        return this._preparedSocketConnection = (async () => { // no 'await', just pass that promise on.
-            try {
-                const welcomeInfo = await this.controlProxy_http.getWelcomeInfo();
-                let conn;
-                if(welcomeInfo.engineIoPath) {
-
-                    // Safety check:
-                    if(ClientSocketConnection.engineIoOptions.path && ClientSocketConnection.engineIoOptions.path != welcomeInfo.engineIoPath) {
-                        throw new Error(`SocketConnection.engineIoOptions.path has already been set to a different value.`)
-                    }
-
-                    ClientSocketConnection.engineIoOptions.path = welcomeInfo.engineIoPath;
-
-                    // Compose url: ws(s)://host/port
-                    const fullUrl = new URL(this.absoluteUrl.toString().replace(/^http/, "ws"))
-                    fullUrl.pathname="";fullUrl.search="";fullUrl.hash=""; // Clear everything after host and port
-
-                    conn = await ClientSocketConnection.getInstance(fullUrl.toString(), this);
-                }
-                return {
-                    serverSessionClassId: welcomeInfo.classId,
-                    conn
-                };
+            if(!welcomeInfo.engineIoPath) {
+                return undefined;
             }
-            catch (e) {
-                this._preparedSocketConnection = undefined; // I.e. in case the server was just temporarily down, We don't leave a rejected promise forever. The next caller will try it's luck again.
-                throw e;
+
+            // Safety check:
+            if (ClientSocketConnection.engineIoOptions.path && ClientSocketConnection.engineIoOptions.path != welcomeInfo.engineIoPath) {
+                throw new Error(`SocketConnection.engineIoOptions.path has already been set to a different value.`)
             }
-        })();
+
+            ClientSocketConnection.engineIoOptions.path = welcomeInfo.engineIoPath;
+
+            // Compose url: ws(s)://host/port
+            const fullUrl = new URL(this.absoluteUrl.toString().replace(/^http/, "ws"))
+            fullUrl.pathname = "";
+            fullUrl.search = "";
+            fullUrl.hash = ""; // Clear everything after host and port
+
+            return await ClientSocketConnection.getInstance(fullUrl.toString(), this);
+        });
     }
 
     /**
@@ -203,12 +183,12 @@ export class RestfuncsClient<S extends IServerSession> {
     }
 
     protected async doCall_socket(remoteMethodName: string, args: any[]) {
-        const pConn = await this.preparedSocketConnection;
-        if (!pConn.conn) { // Server did not offer sockets ?
+        const conn = await this.getClientSocketConnection();
+        if (!conn) { // Server did not offer sockets ?
             return await this.doCall_http(remoteMethodName, args); // Fallback to http
         }
 
-        return await pConn.conn.doCall(this, pConn.serverSessionClassId, remoteMethodName, args);
+        return await conn.doCall(this, (await this.getWelcomeInfo()).classId, remoteMethodName, args);
     }
 
     protected async doCall_http(remoteMethodName: string, args: any[]) {
@@ -370,13 +350,13 @@ export class RestfuncsClient<S extends IServerSession> {
     }
 
     /**
-     * Close all associated connections
+     * Closes all associated connections (if not shared and used by other clients)
      */
     public async close() {
-        if(this._preparedSocketConnection) {
-            let conn = await this.preparedSocketConnection;
-            conn.conn?.close();
-            // TODO: instead, unregister from ClientSocketConnection.instances and it should close it implicitly then, when no other client is connected
+        if(!this._getClientSocketConnectionOp.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
+            return;
         }
+        const conn = await this.getClientSocketConnection();
+        conn?.unregisterClient(this);
     }
 }

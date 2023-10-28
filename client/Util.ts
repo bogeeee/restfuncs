@@ -10,7 +10,7 @@ if (typeof process === 'object') {
 /**
  * Exposes the resolve and reject methods to the outside
  */
-export class WrappedPromise<T> implements Promise<T>{
+export class ExternalPromise<T> implements Promise<T>{
     private promise: Promise<T>;
     resolve!: (value: T | PromiseLike<T>) => void;
     reject!: (reason?: any) => void;
@@ -41,4 +41,76 @@ export class WrappedPromise<T> implements Promise<T>{
     }
 
     readonly [Symbol.toStringTag]: string = "WrappedPromise"; // Must offer this when implementing Promise. Hopefully this is a proper value
+}
+
+/**
+ * Synchronizes simultaneous operations that they don't get executed twice / unnecessary. While mimicing the failover behaviour of http fetches.
+ * If the operation is already running, then succeeding calls will wait for that single result promise. On fail, all will fail.
+ * But after such a fail, next exec will do a retry.
+ */
+export class SingleRetryableOperation<T> {
+    resultPromise?: Promise<T>
+
+    /**
+     *  See class description
+     */
+    exec(operation: (() => Promise<T>)): Promise<T> {
+        if(this.resultPromise) {
+            return this.resultPromise
+        }
+
+        return (this.resultPromise = (async () => {
+            try {
+                return await operation()
+            }
+            catch (e) {
+                this.fail() // Next one will try again
+                throw e;
+            }
+        })());
+    }
+
+    /**
+     * Next executor will try again
+     */
+    fail() {
+        this.resultPromise = undefined;
+    }
+}
+
+/**
+ * like {@see SingleRetryableOperation} but it stores a map of multiple operations
+ */
+export class SingleRetryableOperationMap<K, T> {
+    resultPromises = new Map<K, Promise<T>>()
+
+    /**
+     *  See class description
+     */
+    exec(key: K, operation: (() => Promise<T>)): Promise<T> {
+        const existing = this.resultPromises.get(key);
+        if(existing) {
+            return existing;
+        }
+
+        const resultPromise = (async () => {
+            try {
+                return await operation()
+            }
+            catch (e) {
+                this.fail(key) // Next one will try again
+                throw e;
+            }
+        })();
+
+        this.resultPromises.set(key, resultPromise);
+        return resultPromise;
+    }
+
+    /**
+     * Next executor will try again
+     */
+    fail(key: K) {
+        this.resultPromises.delete(key);
+    }
 }

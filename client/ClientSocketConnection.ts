@@ -1,11 +1,11 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, WrappedPromise} from "./Util";
+import {isNode, ExternalPromise, SingleRetryableOperationMap, SingleRetryableOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {Socket_Client2ServerMessage, Socket_MethodCallResult, Socket_Server2ClientMessage} from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 
-class MethodCallPromise<R> extends WrappedPromise<R> {
+class MethodCallPromise extends ExternalPromise<Socket_MethodCallResult> {
 
 }
 
@@ -18,9 +18,9 @@ class MethodCallPromise<R> extends WrappedPromise<R> {
  */
 export class ClientSocketConnection {
     /**
-     * Url -> socketconnection
+     * Url -> ClientSocketConnection
      */
-    static instances = new Map<string, Promise<ClientSocketConnection>>()
+    static instances = new SingleRetryableOperationMap<string, ClientSocketConnection>()
 
     static engineIoOptions: Partial<SocketOptions> = {
         transports: isNode?['websocket', 'webtransport']:undefined // Don't use "polling" in node. It does currently does not work in node 21.0.0
@@ -30,23 +30,41 @@ export class ClientSocketConnection {
     public socket!: Socket
 
     protected callIdGenerator = 0;
-    protected methodCallPromises = new Map<Number, MethodCallPromise<unknown>>()
+    protected methodCallPromises = new Map<Number, MethodCallPromise>()
+
+    /**
+     * Whether the process of fetching and installing the session is currently running. So we won't start it twice
+     * @protected
+     */
+    protected installSessionOp = new SingleRetryableOperation<void>()
+
+    /**
+     * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
+     * For each security group id.
+     * @protected
+     */
+    protected installHttpSecurityPropertiesOp  = new SingleRetryableOperation<void>()
+
+    /**
+     * Whether this connection failed. When set, you must create a new ClientSocketConnection.
+     */
+    public fatalError?: Error
+
+    protected usedByClients = new Set<RestfuncsClient<any>>()
 
     /**
      *
      * @param url
-     * @param initClient The client, that is initially used to fetch the session
+     * @param client Will be registered so that this connection can be closed, when no more client owns it.
      */
-    static getInstance(url: string, initClient: RestfuncsClient<any>): Promise<ClientSocketConnection> {
-        let result = this.instances.get(url);
-        if(result) { // Already created (can be an unresolved promise yet) ?
-            return result;
-        }
+    static async getInstance(url: string, client: RestfuncsClient<any>): Promise<ClientSocketConnection> {
+        const result = await this.instances.exec(url, async () => {
+            return this.New(url, client);
+        });
 
-        result = this.New(url, initClient);
-        this.instances.set(url, result);
+        result.usedByClients.add(client); // Register client
 
-        return result;
+        return result
     }
 
     public static async New(url: string, initClient: RestfuncsClient<any>) {
@@ -113,7 +131,8 @@ export class ClientSocketConnection {
 
     protected failFatal(err: Error ) {
         try {
-            this.clazz.instances.delete(this.url); // Unregister instance, so the next client will create a new one
+            this.fatalError = err;
+            this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
             this.methodCallPromises.forEach(p => p.reject(err)); // Reject outstanding method calls
             if (this.methodCallPromises.size == 0) { // no caller was informed ?
                 //throw err; // At least throw that error to the console so you have at least an error somewhere -> nah, this doesn't make sense, that the caller gets an error back / could break things.
@@ -134,7 +153,7 @@ export class ClientSocketConnection {
 
     protected onClose() {
         try {
-            this.clazz.instances.delete(this.url); // Unregister instance, so the next client will create a new one
+            this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
             // Reject outstanding method calls:
             const error = new Error("Socket connection has been closed");
@@ -148,6 +167,16 @@ export class ClientSocketConnection {
         this.socket.close();
     }
 
+    /**
+     * Will also close this connection if it's not used by a client anymore
+     * @param client
+     */
+    unregisterClient(client: RestfuncsClient<any>) {
+        this.usedByClients.delete(client);
+        if(this.usedByClients.size == 0) {
+            this.close();
+        }
+    }
 
     /**
      * <p/>
@@ -180,15 +209,36 @@ export class ClientSocketConnection {
             const methodCallPromise = new MethodCallPromise();
             this.methodCallPromises.set(callId, methodCallPromise) // Register call
 
-        const message: Socket_Client2ServerMessage = {
-            type: "methodCall",
-            payload: {
-                callId, serverSessionClassId, methodName, args
+            //Send the call message to the server:
+            const message: Socket_Client2ServerMessage = {
+                type: "methodCall",
+                payload: {
+                    callId, serverSessionClassId, methodName, args
+                }
+            }
+            this.socket.send(this.serializeMessage(message))
+
+            const callResult = await methodCallPromise // Wait till the return message arrived and the promise is resolved
+
+            if (callResult.error) {
+                throw new ServerError(callResult.error, {}, callResult.httpStatusCode);
+            }
+            if (callResult.httpStatusCode == 550) { // "throw legal value" (non-error)
+                throw callResult.result
+            }
+            return callResult.result;
+        }
+
+        try {
+            return await exec();
+        } catch (e) {
+            if (typeof e === "object" && (e as any)?.httpStatusCode === 480) { // Invalid token error ?
+                await client.fetchCorsReadToken()
+                return await exec(); // try once again;
+            } else {
+                throw e;
             }
         }
-        this.socket.send(this.serializeMessage(message))
-
-        return result;
     }
 
 
