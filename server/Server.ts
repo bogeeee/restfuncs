@@ -18,6 +18,8 @@ import {getAllFunctionNames, getMethodNames} from "./Util";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 import session from "express-session";
 import {ServerSocketConnection} from "./ServerSocketConnection";
+import nacl from "tweetnacl";
+import nacl_util from "tweetnacl-util"
 
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
@@ -56,7 +58,7 @@ export type ServerOptions = {
      * In a multi node environment, this must be shared with all instances.
      * @default A randomized value
      */
-    secret?: String | Buffer,
+    secret?: String | Uint8Array,
 
     // Let's make some smart default implementation so we don't have to place a security mention into the docs. Again 1 line saved ;)
     // As soon as the user switches to a multi-node environment by setting the secret, this will trigger an Error that guides the user into deciding for an explicit choice. Keeps the docs short.
@@ -213,7 +215,7 @@ class RestfuncsServerOOP {
     /**
      * Secret from {@link serverOptions#secret} as a Buffer. Initialized in the constructor.
      */
-    secret!: Buffer
+    secret!: Uint8Array
 
     /**
      * id -> service
@@ -308,30 +310,35 @@ class RestfuncsServerOOP {
         // Within here, we can properly use "this" again:
 
         // initialize this.secret:
-        this.secret = ((): Buffer => {
+        this.secret = ((): Uint8Array => {
             const secret = this.serverOptions.secret;
             if (secret === undefined) {
-                return crypto.randomBytes(32)
+                return nacl.randomBytes(32)
             }
-            if (secret instanceof Buffer) {
-                    return secret
+            if (secret instanceof Uint8Array) {
+                return secret
             } else if (typeof secret === "string") {
                 if(secret === "") {
                     throw new Error("Secret must not be an empty string")
                 }
-                else if(secret.length < 8) {
-                    throw new Error("Secret too short")
+                try {
+                    return nacl_util.decodeBase64(secret);
                 }
-                return Buffer.from(secret);
+                catch (e) { // Not a base64 string ?
+                    return nacl_util.decodeUTF8(secret);
+                }
             }
             throw new Error("Invalid type for secret: " + secret);
         })()
+        if(this.secret.length < 8) {
+            //throw new Error("Secret too short") // ok, we don't educate the user if he's using "test" as a secret for his dev environment.
+        }
 
         // Install session handler:
         if(this.serverOptions.installSessionHandler !== false) {
             // Install session handler: TODO: code own JWT cookie handler
             this.expressApp.use(session({
-                secret: this.secret.toString("hex"),
+                secret: nacl_util.encodeBase64(this.secret),
                 cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
                 saveUninitialized: false, // Privacy: Only send a cookie when really needed
                 unset: "destroy",
