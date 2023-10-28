@@ -14,6 +14,8 @@ import {
     GetHttpCookieSessionAndSecurityProperties_Answer,
     GetHttpCookieSessionAndSecurityProperties_question
 } from "restfuncs-server/ServerSocketConnection";
+import nacl from "tweetnacl";
+import nacl_util from "tweetnacl-util";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -1024,7 +1026,7 @@ test("generateSecret", () => {
 
     {
         const app = restfuncsExpress();
-        expect(app.secret.length).toBeGreaterThanOrEqual(32);
+        expect(app.secret.length).toBe(32);
         expect(looksRandomish(app.secret)).toBeTruthy()
     }
     {
@@ -1040,6 +1042,54 @@ test("generateSecret", () => {
         expect(app.secret.length).toBeGreaterThanOrEqual(8);
     }
 
+});
+
+describe("server 2 server encryption", () => {
+    beforeEach(() => {
+        resetGlobalState();
+    })
+
+    it("It should encrypt+decrypt", () => {
+        const app = restfuncsExpress();
+        const token = app.server2serverEncryptToken("hallo", "myType");
+        expect(app.server2serverDecryptToken(token, "myType")).toBe("hallo")
+    });
+
+    it("It should work with different types", () => {
+        const app = restfuncsExpress();
+        for (const value of variousDifferentTypes) {
+            const token = app.server2serverEncryptToken(value, "myType");
+            expect(app.server2serverDecryptToken(token, "myType")).toStrictEqual(value)
+        }
+    });
+
+    it("should fail with the wrong type", () => {
+        const app = restfuncsExpress();
+        const token = app.server2serverEncryptToken("hallo", "myType");
+        expect(() => app.server2serverDecryptToken(token, "myWrongType")).toThrow("wrong type")
+
+    });
+
+    it('should work between 2 different servers', () => {
+        const app = restfuncsExpress({secret: "test"});
+        const token = app.server2serverEncryptToken("hallo", "myType");
+        resetGlobalState()
+        expect(restfuncsExpress({secret: "test"}).server2serverDecryptToken(token, "myType")).toBe("hallo")
+    });
+
+    it('should work fail with wrong secret', () => {
+        const app = restfuncsExpress({secret: "test"});
+        const token = app.server2serverEncryptToken("hallo", "myType");
+        resetGlobalState()
+        expect(() => restfuncsExpress({secret: "secret2"}).server2serverDecryptToken(token, "myType")).toThrow("decryption failed")
+    });
+
+    it('should work fail with wrong nonce', () => {
+        const app = restfuncsExpress({secret: "test"});
+        const token = app.server2serverEncryptToken("hallo", "myType");
+
+        expect(() => app.server2serverDecryptToken({...token, nonce: nacl_util.encodeBase64(nacl.randomBytes(24))}, "myType")).toThrow("decryption failed")
+    });
 });
 
 test('Session fields compatibility - type definitions', () => {

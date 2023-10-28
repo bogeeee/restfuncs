@@ -20,7 +20,8 @@ import session from "express-session";
 import {ServerSocketConnection} from "./ServerSocketConnection";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util"
-
+import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
+import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -129,32 +130,38 @@ export type TransportToken = {
  */
 export type ServerPrivateBox<Content> = {
     /**
-     * Key index (keep names short to fit in cookie JWT's)
+     * Base64 encoded.
+     * <p>
+     *     <i>NOTE: Is a nonce really needed or could we save us these 24 bytes here? It won't prevent replay attacks, if handed to the client (restfuncs is aware of replay and takse other measures against these).
+     *     Also data variety is enough by the current use cases (i.e. there's the ServerSocketConnection id included) and the information that 2 tokens have the same value does not hurt.
+     *     But for cryptographic cleanliness we leave it in.
+     *     </i>
+     * </p>
      */
-    keyIdx: string,
+    nonce: string
 
     /**
-     * Encrypted content
+     * Encrypted content, base64 encoded
      */
-    enc: string;
+    content: string;
 
     /**
-     * Fake property. To make ServerPrivateBox typesafe, we must reference 'Content' somewhere
+     * Fake property. To make ServerPrivateBox typesafe, we must reference 'Content' somewhere. Will never be set
      */
-    _type: Content
+    _contentType?: Content
 }
 
 /**
  * Additionally stores the type
  */
-type Server2ServerEncryptedBox_inner = {
+type Server2ServerEncryptedBox_inner<T> = {
     /**
      * <p>The typescript/js type name of value.</p>
      * We store the type so that an attacker can't confuse the server with a perfectly legal value but of a different type which may still have some interesting, intersecting properties.
      */
     type: string,
 
-    value: unknown
+    value: T
 }
 
 
@@ -211,9 +218,14 @@ export class SecurityGroup {
 class RestfuncsServerOOP {
     readonly serverOptions: Readonly<ServerOptions>
 
+    /**
+     * Needed for NACL
+     * @private
+     */
+    static readonly SECRET_LENGTH = 32;
 
     /**
-     * Secret from {@link serverOptions#secret} as a Buffer. Initialized in the constructor.
+     * Secret from {@link serverOptions#secret}  properly initialized as a SECRET_LENGTH sized Uint8Array. Initialized in the constructor.
      */
     secret!: Uint8Array
 
@@ -306,33 +318,37 @@ class RestfuncsServerOOP {
         return <RestfuncsServer> <any> result;
     }
 
+
+
     protected constructor2() {
         // Within here, we can properly use "this" again:
 
         // initialize this.secret:
-        this.secret = ((): Uint8Array => {
-            const secret = this.serverOptions.secret;
+        function normalizeSecret(secret: ServerOptions["secret"]): Uint8Array {
             if (secret === undefined) {
-                return nacl.randomBytes(32)
+                return nacl.randomBytes(RestfuncsServerOOP.SECRET_LENGTH)
             }
             if (secret instanceof Uint8Array) {
-                return secret
-            } else if (typeof secret === "string") {
+                if(secret.length == RestfuncsServerOOP.SECRET_LENGTH) {
+                    return secret;
+                }
+            }
+            else if (typeof secret === "string") {
                 if(secret === "") {
                     throw new Error("Secret must not be an empty string")
                 }
-                try {
-                    return nacl_util.decodeBase64(secret);
-                }
-                catch (e) { // Not a base64 string ?
-                    return nacl_util.decodeUTF8(secret);
-                }
             }
-            throw new Error("Invalid type for secret: " + secret);
-        })()
-        if(this.secret.length < 8) {
-            //throw new Error("Secret too short") // ok, we don't educate the user if he's using "test" as a secret for his dev environment.
+            else {
+                throw new Error("Invalid type for secret: " + secret);
+            }
+
+            const hash = crypto.createHash('sha256');
+            hash.update(secret);
+            return hash.digest()
+
         }
+        this.secret = normalizeSecret(this.serverOptions.secret);
+
 
         // Install session handler:
         if(this.serverOptions.installSessionHandler !== false) {
@@ -397,16 +413,23 @@ class RestfuncsServerOOP {
     }
 
     /**
-     * Encrypts the token with this servers' secret key
-     * @param token
-     * @param tokenType
+     * Encrypts the value with this servers' secret key
+     * @param value
+     * @param type
      */
-    public encryptToken<T>(token: T, tokenType: string): ServerPrivateBox<T> {
-        const content: Server2ServerEncryptedBox_inner = {
-            type: tokenType,
-            value: token
+    public server2serverEncryptToken<T>(value: T, type: string): ServerPrivateBox<T> {
+        const content: Server2ServerEncryptedBox_inner<T> = {
+            type,
+            value
         }
-        throw new Error("TODO")
+
+        const nonce = nacl.randomBytes(24);
+        const encryptedToken = nacl.secretbox(nacl_util.decodeUTF8(brilloutJsonStringify(content)), nonce, this.secret);
+
+        return {
+            nonce: nacl_util.encodeBase64(nonce),
+            content: nacl_util.encodeBase64(encryptedToken)
+        }
     }
 
     /**
@@ -414,9 +437,26 @@ class RestfuncsServerOOP {
      * @param encryptedToken
      * @param expectedType
      */
-    public decryptToken<T extends object>(encryptedToken: ServerPrivateBox<T>, expectedType: string): T{
-        // TODO: check expectedType
-        throw new Error("TODO")
+    public server2serverDecryptToken<T>(encryptedToken: ServerPrivateBox<T>, expectedType: string): T{
+        // Safety check:
+        if(typeof encryptedToken.content !== "string" || typeof encryptedToken.nonce !== "string") {
+            throw new Error("invalid token");
+        }
+
+        const nonceUint8Array = nacl_util.decodeBase64(encryptedToken.nonce);
+        const tokenUint8Array = nacl_util.decodeBase64(encryptedToken.content);
+
+        const contentUint8Array = nacl.secretbox.open(tokenUint8Array,nonceUint8Array, this.secret);
+        if(contentUint8Array === null) {
+            throw new Error("Token decryption failed. Make sure that all servers have the same ServerOptions#secret set.");
+        }
+
+        const content = brilloutJsonParse(nacl_util.encodeUTF8(contentUint8Array)) as Server2ServerEncryptedBox_inner<T>;
+        if(content.type !== expectedType) {
+            throw new Error(`The token has the wrong type. Expected: ${expectedType}, actual: ${content.type} `);
+        }
+
+        return content.value;
     }
 
     public registerServerSessionClass(clazz: typeof ServerSession) {

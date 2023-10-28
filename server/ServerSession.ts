@@ -882,7 +882,7 @@ export class ServerSession implements IServerSession {
         if(!this._httpCall) {
             throw new Error("getHttpContext was not called via http.");
         }
-        const question = this.clazz.server.decryptToken(encryptedQuestion, "HttpContextQuestion")
+        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "HttpContextQuestion")
         // Security check:
         if(question.securityGroupId !== this.clazz.securityGroup.id) {
             throw new CommunicationError(`HttpContextQuestion is from another security group`)
@@ -897,7 +897,7 @@ export class ServerSession implements IServerSession {
             throw new Error("TODO"); // this.serializeToObject() || null
         }
 
-        return this.clazz.server.encryptToken(answer, "HttpContextAnswer")
+        return this.clazz.server.server2serverEncryptToken(answer, "HttpContextAnswer")
     }
 
     /**
@@ -908,7 +908,7 @@ export class ServerSession implements IServerSession {
     public updateSession(sessionBox: ServerPrivateBox<UpdateSessionToken>) {
 
 
-        const token = this.clazz.server.decryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
+        const token = this.clazz.server.server2serverDecryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
         if(token.serviceId !== this.clazz.id) {
             throw new CommunicationError(`updateSession came from another service`)
         }
