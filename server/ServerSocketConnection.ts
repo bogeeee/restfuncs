@@ -125,64 +125,63 @@ export class ServerSocketConnection {
             throw new Error("callId is not a number");
         }
 
-        const sendResult = (callResult: Omit<Socket_MethodCallResult, "callId">) => {
-            const payload: Socket_MethodCallResult = {
-                ...callResult,
-                callId: methodCall.callId
-            }
-            this.sendMessage({type: "methodCallResult", payload});
-        }
 
-        try { // We can properly answer errors from here on
+        /**
+         * This function definitely returns a (one) Socket_MethodCallResult. This is the safer arrangement than calling this.sendMessage from multiple places
+         */
+        const handleMethodCall_inner = async (): Promise<Omit<Socket_MethodCallResult, "callId">> => {
+            try { // We can properly answer errors from here on
 
-            // Continue validating:
-            if (typeof methodCall.methodName !== "string") {
-                throw new Error("methodCall.methodName is not a string");
-            }
-            if (methodCall.serverSessionClassId !== undefined && typeof methodCall.serverSessionClassId !== "string") {
-                throw new Error("Invalid value for methodCall.serverSessionClassId");
-            }
-            if (!_.isArray(methodCall.args)) {
-                throw new Error("methodCall.args is not an array");
-            }
+                // Continue validating:
+                if (typeof methodCall.methodName !== "string") {
+                    throw new Error("methodCall.methodName is not a string");
+                }
+                if (methodCall.serverSessionClassId !== undefined && typeof methodCall.serverSessionClassId !== "string") {
+                    throw new Error("Invalid value for methodCall.serverSessionClassId");
+                }
+                if (!_.isArray(methodCall.args)) {
+                    throw new Error("methodCall.args is not an array");
+                }
 
-            // Special method:
-            if (methodCall.methodName === "setHttpCookieSessionAndSecurityProperties") {
-                throw new Error("TODO: handle")
-            }
+                // Special method:
+                if (methodCall.methodName === "setHttpCookieSessionAndSecurityProperties") {
+                    throw new Error("TODO: handle")
+                }
 
-            // Regular calls:
-            // Validate:
-            if (!methodCall.serverSessionClassId) {
-                throw new Error("methodCall.serverSessionClassId not set");
-            }
+                // Regular calls:
+                // Validate:
+                if (!methodCall.serverSessionClassId) {
+                    throw new Error("methodCall.serverSessionClassId not set");
+                }
 
-            const serverSessionClass = this.server.serverSessionClasses.get(methodCall.serverSessionClassId);
-            if(!serverSessionClass) {
-                throw new Error(`A ServerSessionClass with the id: '${methodCall.serverSessionClassId}' is not registered.`);
-            }
-            const cookieSession = this.cookieSession || {}
+                const serverSessionClass = this.server.serverSessionClasses.get(methodCall.serverSessionClassId);
+                if (!serverSessionClass) {
+                    throw new Error(`A ServerSessionClass with the id: '${methodCall.serverSessionClassId}' is not registered.`);
+                }
+                const cookieSession = this.cookieSession || {}
 
-            // Determine security properties (request fetch if necessary):
-            let securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest | undefined
-            if(this.server.serverOptions.socket_requireAccessProofForIndividualServerSession) {
-                securityPropertiesOfHttpRequest = this.serverSessionClass2SecurityPropertiesOfHttpRequest!.get(serverSessionClass);
-            }
-            else {
-                securityPropertiesOfHttpRequest = this.securityGroup2SecurityPropertiesOfHttpRequest!.get(serverSessionClass.securityGroup);
-            }
-            if(!securityPropertiesOfHttpRequest) {
-                // TODO: request fetch
-                // @ts-ignore
-                securityPropertiesOfHttpRequest = {};
-            }
+                // Determine security properties (request fetch if necessary):
+                let securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest | undefined
+                if (this.server.serverOptions.socket_requireAccessProofForIndividualServerSession) {
+                    securityPropertiesOfHttpRequest = this.serverSessionClass2SecurityPropertiesOfHttpRequest!.get(serverSessionClass);
+                } else {
+                    securityPropertiesOfHttpRequest = this.securityGroup2SecurityPropertiesOfHttpRequest!.get(serverSessionClass.securityGroup);
+                }
+                if (!securityPropertiesOfHttpRequest) {
+                    // TODO: request fetch
+                    // @ts-ignore
+                    securityPropertiesOfHttpRequest = {};
+                }
 
-            // @ts-ignore No Idea why we get a typescript error here
-            const enhancementProps: Partial<ServerSession> = {socketConnection: this};
+                // @ts-ignore No Idea why we get a typescript error here
+                const enhancementProps: Partial<ServerSession> = {socketConnection: this};
 
-            (async () => {
+
                 try {
-                    const {result, modifiedSession} = await serverSessionClass.doCall_outer(cookieSession, securityPropertiesOfHttpRequest as SecurityPropertiesOfHttpRequest, methodCall.methodName, methodCall.args, enhancementProps, {})
+                    const {
+                        result,
+                        modifiedSession
+                    } = await serverSessionClass.doCall_outer(cookieSession, securityPropertiesOfHttpRequest as SecurityPropertiesOfHttpRequest, methodCall.methodName, methodCall.args, enhancementProps, {})
 
                     if (modifiedSession) {
                         throw new Error("Session was modified. TODO: implement");
@@ -201,43 +200,48 @@ export class ServerSocketConnection {
                         }
                     }
 
-                    sendResult({
+                    return {
                         result,
                         httpStatusCode: 200
-                    })
-                }
-                catch (caught) {
-                    if(caught instanceof Error) {
-                        const httpStatusCode = ( isCommunicationError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
+                    }
+                } catch (caught) {
+                    if (caught instanceof Error) {
+                        const httpStatusCode = (isCommunicationError(caught) && (<CommunicationError>caught).httpStatusCode || 500);
 
                         fixErrorStack(caught)
                         let error = serverSessionClass.logAndConcealError(caught, {socketConnection: this});
 
-                        sendResult({
+                        return{
                             error: error,
                             httpStatusCode
-                        });
-                    }
-                    else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
+                        };
+                    } else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
                         // Just send it:
-                        sendResult({
+                        return{
                             result: caught,
                             httpStatusCode: 550 // Indicate "throw legal value" to the client
-                        });
+                        };
                     }
                 }
-            })()
+            } catch (e: any) { // Catch common error (before we could execute the call)
+                return {
+                    error: {
+                        message: e?.message || e,
+                        name: e?.name,
+                    },
+                    httpStatusCode: 500
+                };
+            }
+        }
 
-        }
-        catch (e: any) { // Catch common error (before we could execute the call)
-            sendResult({
-                error: {
-                    message: e?.message || e,
-                    name: e?.name,
-                },
-                httpStatusCode: 500
-            });
-        }
+        // Send the the result from handleMethodCall_inner:
+        (async () => {
+            const payload: Socket_MethodCallResult = {
+                callId: methodCall.callId,
+                ... await handleMethodCall_inner()
+            }
+            this.sendMessage({type: "methodCallResult", payload});
+        })();
     }
 }
 
