@@ -208,7 +208,7 @@ export class RestfuncsClient<S extends IServerSession> {
             return await this.doCall_http(remoteMethodName, args); // Fallback to http
         }
 
-        return await pConn.conn.doCall(pConn.serverSessionClassId, remoteMethodName, args);
+        return await pConn.conn.doCall(this, pConn.serverSessionClassId, remoteMethodName, args);
     }
 
     protected async doCall_http(remoteMethodName: string, args: any[]) {

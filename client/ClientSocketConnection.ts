@@ -173,11 +173,12 @@ export class ClientSocketConnection {
         return this.constructor
     }
 
-    doCall(serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
-
-        const callId = ++this.callIdGenerator;
-        const result = new MethodCallPromise();
-        this.methodCallPromises.set(callId, result) // Register call
+    async doCall(client: RestfuncsClient<any>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
+        const exec = async () => {
+            // Create and register a MethodCallPromise:
+            const callId = ++this.callIdGenerator;
+            const methodCallPromise = new MethodCallPromise();
+            this.methodCallPromises.set(callId, methodCallPromise) // Register call
 
         const message: Socket_Client2ServerMessage = {
             type: "methodCall",
@@ -226,17 +227,6 @@ export class ClientSocketConnection {
         if(!methodCallpromise) {
             throw new Error( `MethodCallPromise for callId: ${resultFromServer.callId} does not exist.`);
         }
-
-        if(resultFromServer.error) {
-            methodCallpromise.reject(new ServerError(resultFromServer.error, {}, resultFromServer.httpStatusCode))
-        }
-        else {
-            if(resultFromServer.httpStatusCode == 550) { // "throw legal value" (non-error)
-                methodCallpromise.reject(resultFromServer.result)
-            }
-            else {
-                methodCallpromise.resolve(resultFromServer.result)
-            }
-        }
+        methodCallpromise.resolve(resultFromServer);
     }
 }
