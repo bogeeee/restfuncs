@@ -2,6 +2,37 @@
 
 export type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
 
+export type SecurityPropertiesOfHttpRequest = {
+    httpMethod: string,
+    /**
+     * The / your ServerSession's method name that's about to be called
+     */
+    serviceMethodName: string,
+    /**
+     * Computed origin
+     * @see getOrigin
+     */
+    origin?: string,
+    /**
+     * Computed destination
+     * @see getDestination
+     */
+    destination?: string,
+
+    /**
+     * Computed result from Util.js/browserMightHaveSecurityIssuseWithCrossOriginRequests function
+     */
+    browserMightHaveSecurityIssuseWithCrossOriginRequests: Boolean;
+
+    csrfProtectionMode?: CSRFProtectionMode
+    corsReadToken?: string,
+    csrfToken?: string,
+    /**
+     * Computed result from couldBeSimpleRequest function
+     */
+    couldBeSimpleRequest?: boolean
+};
+
 /**
  * The info that's needed  to set up a socket connection
  */
@@ -64,4 +95,73 @@ export type Socket_MethodCallResult = {
      * If this is needed to proceed the call
      */
     httpCookieSessionAndSecurityProperties_question?: string
+}
+
+
+/**
+ * Question from the websocket connection
+ */
+export type GetHttpCookieSessionAndSecurityProperties_question = {
+    /**
+     * Must be a random id
+     */
+    serverSocketConnectionId: string
+    securityGroupId: string,
+
+    includeSession: boolean
+    includeSecurityProperties: boolean
+}
+export type GetHttpCookieSessionAndSecurityProperties_Answer = {
+    question: GetHttpCookieSessionAndSecurityProperties_question,
+    reqSecurityProps?: Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">
+    cookieSession?: object
+}
+
+
+export type UpdateSessionToken = {
+    /**
+     * Where did this come from ?
+     */
+    serviceId: string,
+
+    sessionId: string | null
+
+    /**
+     * Current / old version
+     */
+    currentVersion: number
+
+    newSession: object | null
+}
+
+/**
+ * The content is encrypted and can only be read by this server, or another server that shares {@link Server#secret}
+ * <p>
+ * Encrypted (+MAC'ed) value in a box that points to the correct secret key that should be used to decrypt it.
+ * </p>
+ * - The box was encrypted by the server and it's authenticity can be trusted. It's meant to be decrypted by the server again / the client can't see the content.
+ * - It stores a content type to prevent spoofing with a token on stock with a different types
+ *
+ */
+export type ServerPrivateBox<Content> = {
+    /**
+     * Base64 encoded.
+     * <p>
+     *     <i>NOTE: Is a nonce really needed or could we save us these 24 bytes here? It won't prevent replay attacks, if handed to the client (restfuncs is aware of replay and takse other measures against these).
+     *     Also data variety is enough by the current use cases (i.e. there's the ServerSocketConnection id included) and the information that 2 tokens have the same value does not hurt.
+     *     But for cryptographic cleanliness we leave it in.
+     *     </i>
+     * </p>
+     */
+    nonce: string
+
+    /**
+     * Encrypted content, base64 encoded
+     */
+    content: string;
+
+    /**
+     * Fake property. To make ServerPrivateBox typesafe, we must reference 'Content' somewhere. Will never be set
+     */
+    _contentType?: Content
 }

@@ -22,6 +22,7 @@ import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
+import {ServerPrivateBox} from "restfuncs-common";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 

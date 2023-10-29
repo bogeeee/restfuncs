@@ -28,19 +28,22 @@ import {
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
-import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup, ServerPrivateBox} from "./Server";
+import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
-import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {
+    CSRFProtectionMode,
     GetHttpCookieSessionAndSecurityProperties_Answer,
     GetHttpCookieSessionAndSecurityProperties_question,
-    ServerSocketConnection,
-    UpdateSessionToken
-} from "./ServerSocketConnection";
+    IServerSession,
+    SecurityPropertiesOfHttpRequest,
+    ServerPrivateBox, UpdateSessionToken,
+    WelcomeInfo
+} from "restfuncs-common";
+import {ServerSocketConnection,} from "./ServerSocketConnection";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
@@ -2111,36 +2114,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
     return false;
 }
 
-export type SecurityPropertiesOfHttpRequest = {
-    httpMethod: string,
-    /**
-     * The / your ServerSession's method name that's about to be called
-     */
-    serviceMethodName: string,
-    /**
-     * Computed origin
-     * @see getOrigin
-     */
-    origin?: string,
-    /**
-     * Computed destination
-     * @see getDestination
-     */
-    destination?: string,
 
-    /**
-     * Computed result from Util.js/browserMightHaveSecurityIssuseWithCrossOriginRequests function
-     */
-    browserMightHaveSecurityIssuseWithCrossOriginRequests: Boolean;
-
-    csrfProtectionMode?: CSRFProtectionMode
-    corsReadToken?: string,
-    csrfToken?: string,
-    /**
-     * Computed result from couldBeSimpleRequest function
-     */
-    couldBeSimpleRequest?: boolean
-};
 
 /**
  * @see ServerSession#checkIfRequestIsAllowedToRunCredentialed

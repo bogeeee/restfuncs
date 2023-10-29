@@ -2,6 +2,8 @@ import {SecurityPropertiesOfHttpRequest, ServerSession} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
+    GetHttpCookieSessionAndSecurityProperties_question,
+    SecurityPropertiesOfHttpRequest,
     Socket_Client2ServerMessage,
     Socket_MethodCall,
     Socket_MethodCallResult,
@@ -243,38 +245,4 @@ export class ServerSocketConnection {
             this.sendMessage({type: "methodCallResult", payload});
         })();
     }
-}
-
-/**
- * Question from the websocket connection
- */
-export type GetHttpCookieSessionAndSecurityProperties_question = {
-    /**
-     * Must be a random id
-     */
-    serverSocketConnectionId: string
-    securityGroupId: string,
-
-    includeSession: boolean
-    includeSecurityProperties: boolean
-}
-export type GetHttpCookieSessionAndSecurityProperties_Answer = {
-    question: GetHttpCookieSessionAndSecurityProperties_question,
-    reqSecurityProps?: SecurityPropertiesOfHttpRequest
-    cookieSession?: object
-}
-export type UpdateSessionToken = {
-    /**
-     * Where did this come from ?
-     */
-    serviceId: string,
-
-    sessionId: string | null
-
-    /**
-     * Current / old version
-     */
-    currentVersion: number
-
-    newSession: object | null
 }
