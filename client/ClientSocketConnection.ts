@@ -1,7 +1,12 @@
 import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, ExternalPromise, SingleRetryableOperationMap, SingleRetryableOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
-import {Socket_Client2ServerMessage, Socket_MethodCallResult, Socket_Server2ClientMessage} from "restfuncs-common";
+import {
+    IServerSession,
+    Socket_Client2ServerMessage,
+    Socket_MethodCallResult, Socket_Server2ClientInit,
+    Socket_Server2ClientMessage
+} from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 
@@ -29,21 +34,35 @@ export class ClientSocketConnection {
     public url!: string;
     public socket!: Socket
 
+    /**
+     * Send from the server after connection
+     * @protected
+     */
+    protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
+
     protected callIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
+    protected fetchInitialSessionOp = new SingleRetryableOperation<void>()
+
     /**
-     * Whether the process of fetching and installing the session is currently running. So we won't start it twice
+     * Whether the process of fetching (from http) and update the session is currently running. So we won't start it twice
      * @protected
      */
-    protected installSessionOp = new SingleRetryableOperation<void>()
+    protected fetchSessionOp = new SingleRetryableOperation<void>()
+
+    /**
+     *  update to http side and fetch the latest session from there and install it on the websocket connection.
+     *  Or, if it was triggered by a session change on the http side, just update to the websocket connection
+     */
+    protected cookieSessionSyncOp = new SingleRetryableOperation<void>()  // TODO: LatestGreatestOperation
 
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
-     * For each security group id.
+     * The key is either the security group id or ServerSession id, depending on what's the server's preference. See Socket_MethodCallResult#needsHttpSecurityProperties#syncKey
      * @protected
      */
-    protected installHttpSecurityPropertiesOp  = new SingleRetryableOperation<void>()
+    protected fetchHttpSecurityPropertiesOp  = new SingleRetryableOperationMap<string, void>()
 
     /**
      * Whether this connection failed. When set, you must create a new ClientSocketConnection.
@@ -78,7 +97,7 @@ export class ClientSocketConnection {
      * @param url url, starting with ws:// or wss://
      * @param initClient The client, that is initially used to fetch the session
      */
-    protected async asyncConstructor(url: string, initClient: RestfuncsClient<any>) {
+    protected async asyncConstructor(url: string, initClient: RestfuncsClient<IServerSession>) {
         this.url = url;
         this.socket = new Socket(url, this.clazz.engineIoOptions);
 
@@ -88,12 +107,12 @@ export class ClientSocketConnection {
             this.socket.on('open', () => {
                 wasConnected = true;
                 this.socket.on('message', (data => {
-                    const message = this.deserializeMessage(data);
                     try {
+                        const message = this.deserializeMessage(data);
                         this.handleMessage(message as Socket_Server2ClientMessage);
                     }
                     catch (e: any) {
-                        this.failFatal(e)
+                        this.failFatal(typeof data === "string" && data.startsWith("[Error]") ? data : e)
                     }
                 }));
                 resolve();
@@ -124,8 +143,13 @@ export class ClientSocketConnection {
             });
         });
 
-        const i = 0;
-        // TODO: call "init" which triggers a getHttpCookieSessionAnd... question. Cause we want the session to be synchronized first
+        // Initialize the cookieSession
+        const initMessage = await this.initMessage; // Wait till the server has sent us that message
+        const getCookieSession_answer = await initClient.controlProxy_http.getCookieSession(initMessage.cookieSessionRequest);
+        this.sendMessage({
+            type: "initCookieSession",
+            payload: getCookieSession_answer
+        });
 
     }
 
@@ -133,13 +157,23 @@ export class ClientSocketConnection {
         try {
             this.fatalError = err;
             this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
-            this.methodCallPromises.forEach(p => p.reject(err)); // Reject outstanding method calls
-            if (this.methodCallPromises.size == 0) { // no caller was informed ?
-                //throw err; // At least throw that error to the console so you have at least an error somewhere -> nah, this doesn't make sense, that the caller gets an error back / could break things.
+
+            // Reject this.initMessage
+            try {
+                this.initMessage.reject(err);
             }
+            catch (e) {}
+
+            this.methodCallPromises.forEach(p => p.reject(err)); // Reject outstanding method calls
         }
         finally {
             this.cleanUp(); // Just to make sure
+        }
+    }
+
+    checkFatal() {
+        if(this.fatalError) {
+            throw new Error(`Connection failed: ${this.fatalError.message}, see cause`, {cause: this.fatalError})
         }
     }
 
@@ -155,15 +189,22 @@ export class ClientSocketConnection {
         try {
             this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
-            // Reject outstanding method calls:
-            const error = new Error("Socket connection has been closed");
-            this.methodCallPromises.forEach(p => p.reject(error));
+            const error = new Error("Socket connection has been closed", {cause: this.fatalError});
+
+            // Reject this.initMessage
+            try {
+                this.initMessage.reject(error);
+            }
+            catch (e) {}
+
+            this.methodCallPromises.forEach(p => p.reject(error)); // Reject outstanding method calls
         } finally {
             this.cleanUp(); // Just to make sure
         }
     }
 
     public close() {
+        this.fatalError = new Error("ClientSocketConnection closed");
         this.socket.close();
     }
 
@@ -202,32 +243,81 @@ export class ClientSocketConnection {
         return this.constructor
     }
 
-    async doCall(client: RestfuncsClient<any>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
+    updateSession() {
+        // don't use doCall
+    }
+
+    async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
+        this.checkFatal();
+
         const exec = async () => {
+            await this.cookieSessionSyncOp.waitTilIdle();
+
             // Create and register a MethodCallPromise:
             const callId = ++this.callIdGenerator;
             const methodCallPromise = new MethodCallPromise();
             this.methodCallPromises.set(callId, methodCallPromise) // Register call
 
             //Send the call message to the server:
-            const message: Socket_Client2ServerMessage = {
+            this.sendMessage({
                 type: "methodCall",
                 payload: {
                     callId, serverSessionClassId, methodName, args
                 }
-            }
-            this.socket.send(this.serializeMessage(message))
+            });
 
-            const callResult = await methodCallPromise // Wait till the return message arrived and the promise is resolved
-
-            if (callResult.error) {
-                throw new ServerError(callResult.error, {}, callResult.httpStatusCode);
-            }
-            if (callResult.httpStatusCode == 550) { // "throw legal value" (non-error)
-                throw callResult.result
-            }
-            return callResult.result;
+            return await methodCallPromise // Wait till the return message arrived and the promise is resolved
         }
+        let callResult = await exec();
+
+        if(callResult.needsHttpSecurityProperties) {
+            // Fetch the needed HttpSecurityProperties and update them on the server
+            await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => { // synchronize the operation with other calls
+                const answer = await client.controlProxy_http.getHttpSecurityProperties(callResult.needsHttpSecurityProperties!.question);
+                this.sendMessage({type: "updateHttpSecurityProperties", payload: answer});
+            })
+
+            callResult = await exec(); // Try again
+
+            if(callResult.needsHttpSecurityProperties) { // Still needing those ?
+                throw new Error("Illegal state: Call still needs httpSecurityProperties after they've already been installed")
+            }
+        }
+
+        if(callResult.needsCookieSession) {
+            // Fetch the needed cookieSession
+            await this.fetchInitialSessionOp.exec(async () => {
+                const answer = await client.controlProxy_http.getCookieSession(callResult.needsCookieSession!);
+
+                const ignoredPromise = (async () => { // Performance: We don't have to wait for the result because normally this will succeed and it's only important that the call is enqueued and send in-order before succeeding methods calls so they will enjoy the result
+                    try {
+                        await this.doCall(client, serverSessionClassId, "updateHttpSecurityProperties", [answer]);
+                    } catch (e) {
+                        this.failFatal(e as Error);
+                    }
+                })();
+
+            })
+
+            callResult = await exec(); // Try again
+
+            if(callResult.needsCookieSession) { // Still needing those ?
+                throw new Error("Illegal state: Call still needs cookieSession after it's already been installed")
+            }
+        }
+
+        if(callResult.httpStatusCode === "dropped_waitingForCookieSessionCommit") {
+             // TODO: exec again. (how / rearrange this method)
+        }
+
+        if (callResult.error) {
+            throw new ServerError(callResult.error, {}, (typeof callResult.httpStatusCode === "number")?callResult.httpStatusCode:undefined);
+        }
+        if (callResult.httpStatusCode == 550) { // "throw legal value" (non-error)
+            throw callResult.result
+        }
+
+        return callResult.result;
 
         try {
             return await exec();
@@ -241,6 +331,10 @@ export class ClientSocketConnection {
         }
     }
 
+
+    private sendMessage(message: Socket_Client2ServerMessage) {
+        this.socket.send(this.serializeMessage(message))
+    }
 
     protected deserializeMessage(data: string | Buffer): Socket_Server2ClientMessage {
         if (typeof data !== "string") {
@@ -259,8 +353,13 @@ export class ClientSocketConnection {
      * @protected
      */
     protected handleMessage(message: Socket_Server2ClientMessage) {
+        this.checkFatal()
+
         // Switch on type:
-        if(message.type === "methodCallResult") {
+        if(message.type === "init") {
+            this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
+        }
+        else if(message.type === "methodCallResult") {
             this.handleMethodCallResult(message.payload as Socket_MethodCallResult /* will be validated in method*/)
         }
         else if(message.type === "getVersion") {

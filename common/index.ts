@@ -27,6 +27,13 @@ export type SecurityPropertiesOfHttpRequest = {
     csrfProtectionMode?: CSRFProtectionMode
     corsReadToken?: string,
     csrfToken?: string,
+
+    /**
+     * We are sure that the client proved to make a successful http read and present the result while the call had these security properties.
+     * Used for socket connection.
+     */
+    readWasProven?: boolean
+
     /**
      * Computed result from couldBeSimpleRequest function
      */
@@ -39,7 +46,7 @@ export type SecurityPropertiesOfHttpRequest = {
 export type WelcomeInfo = {
     classId: string,
     /**
-     * Undefined, if it the server does not support engine.io
+     * Undefined, if the server does not support engine.io
      */
     engineIoPath?: string
 };
@@ -49,10 +56,18 @@ export interface IServerSession {
      * The client needs to know some things, before creating the socket connection
      */
     getWelcomeInfo(): WelcomeInfo;
+
+    getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer>;
+    getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer>;
+}
+
+export interface CookieSession extends Record<string, unknown> {
+    id: string
+    version: number
 }
 
 export type Socket_Client2ServerMessage = {
-    type: "methodCall" | "getVersion"
+    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "initCookieSession"
     payload: Socket_MethodCall | unknown
 }
 
@@ -69,8 +84,8 @@ export type Socket_MethodCall = {
 }
 
 export type Socket_Server2ClientMessage = {
-    type: "methodCallResult" | "getVersion"
-    payload: Socket_MethodCallResult | unknown
+    type: "init" | "methodCallResult" | "getVersion"
+    payload: Socket_Server2ClientInit | Socket_MethodCallResult | unknown
 }
 
 export type Socket_MethodCallResult = {
@@ -84,7 +99,7 @@ export type Socket_MethodCallResult = {
     /**
      * Behaves as close as possible to the http api
      */
-    httpStatusCode: number
+    httpStatusCode: 200 | 550 | 481 | 482 | 483 | 500 | "dropped_waitingForCookieSessionCommit"
 
     /**
      * If an error occurred
@@ -94,44 +109,76 @@ export type Socket_MethodCallResult = {
     /**
      * If this is needed to proceed the call
      */
-    httpCookieSessionAndSecurityProperties_question?: string
+    needsHttpSecurityProperties?: {
+        question: ServerPrivateBox<GetHttpSecurityProperties_question>
+        /**
+         * Hint for the client: The ServerSessionClass id or the security group id for which the answer is valid.
+         */
+        syncKey: string
+    }
+
+    /**
+     * Request the cookie-session from the server by http
+     */
+    needsCookieSession?: ServerPrivateBox<GetCookieSession_question>
+
+    /**
+     * Commands to update the cookieSession via http (so it really gets stored in the cookie)
+     */
+    doCookieSessionUpdate?: ServerPrivateBox<CookieSessionUpdate>
+
+
+}
+
+export type Socket_Server2ClientInit = {
+    cookieSessionRequest: ServerPrivateBox<GetCookieSession_question>
 }
 
 
 /**
  * Question from the websocket connection
  */
-export type GetHttpCookieSessionAndSecurityProperties_question = {
-    /**
-     * Must be a random id
-     */
+export type GetHttpSecurityProperties_question = {
     serverSocketConnectionId: string
-    securityGroupId: string,
-
-    includeSession: boolean
-    includeSecurityProperties: boolean
-}
-export type GetHttpCookieSessionAndSecurityProperties_Answer = {
-    question: GetHttpCookieSessionAndSecurityProperties_question,
-    reqSecurityProps?: Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">
-    cookieSession?: object
+    serverSessionClassId: string,
 }
 
+export type GetHttpSecurityProperties_answer = {
+    question: GetHttpSecurityProperties_question,
+    result: Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">
+}
 
-export type UpdateSessionToken = {
+/**
+ * Question from the websocket connection
+ */
+export type GetCookieSession_question = {
+    serverSocketConnectionId: string
+    forceInitialize: boolean;
+}
+
+export type GetCookieSession_answer = {
+    question: GetCookieSession_question,
+    /**
+     * Can be undefined, if no session was started yet
+     */
+    cookieSession?: CookieSession
+}
+
+/**
+ * Update the cookie session on the http side
+ */
+export type CookieSessionUpdate = {
     /**
      * Where did this come from ?
      */
     serviceId: string,
 
-    sessionId: string | null
-
     /**
-     * Current / old version
+     * Current / old version TODO: needed ?
      */
-    currentVersion: number
+    oldVersion: number
 
-    newSession: object | null
+    newSession?: CookieSession
 }
 
 /**

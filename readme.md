@@ -8,7 +8,7 @@ With restfuncs, you write your API endpoints just as **plain typescript function
 Nothing more is needed for such a method (no ZOD and no routing @decorators). Restfuncs will provide (a):
 - **Zero conf REST API**. Needs no routing @decorators, you can just call them in *all* (imaginable) ways.
 - **RPC client**  Just call your service method from the client/browser as if it was lokal like 'await myRemoteService.myAPIMethod(...)`, while enjoying full end2end type safety.
-  - With **Websockets** TODO: The client tries to use very fast websockets. Cookie session, CORS setup and CSRF protection is automatically synced with / behaves like the classic http requests. So nothing to worry - all just working.
+  - With **Websockets** TODO: The client automatically tries to upgrade to fast websockets. Cookie sessions are automatically synced with the classic http requests and CORS setup and CSRF protection is of course regarded though all your ServerSession classes with different settings. _Multiplexed though a single socket while secured with signed/encrypted tokens_. So nothing to worry - all just working ;)
 - Typescript native **input validation**. You already declared your parameters by typescript (can be any complex type !), restfuncs will validate that automatically.  _No need to repeat yourself in any inconvenient declaration language, **no need to learn ZOD**. It is achieved by a build plugin that uses the [typescript-rtti](https://typescript-rtti.org/) library_
 - Typescript native **result validation** TODO. Also your output/result gets validated and shaped to what's declared. Improves safety and allows for [typescript tips and tricks](TODO) to shape an object to the form you want.
 - FUTURE (after 1.0): **API browser** (just point the url to your partners and they've got all the information and examples they need to call your methods from other programming languages )
@@ -278,8 +278,8 @@ On some requests, the browser will not make preflights for legacy reason. These 
 
 # Performance
 
-### Writes to the session are slow...
-... cause they trigger a http (non-websocket) request to update the session.
+### Writes to the session fields have some overhead
+It costs an additional http roundtrip + 1 websocket roundtrip + (auto.) resend of unprocessed websocket calls. This is to ensure fail-safe commits to the http cookie and to ensure security. So keep that in mind.
 
 ### Multi server environment
 When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling by default.  

@@ -35,12 +35,13 @@ import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
-    CSRFProtectionMode,
-    GetHttpCookieSessionAndSecurityProperties_Answer,
-    GetHttpCookieSessionAndSecurityProperties_question,
+    CookieSession,
+    CSRFProtectionMode, GetCookieSession_answer, GetCookieSession_question,
+    GetHttpSecurityProperties_answer,
+    GetHttpSecurityProperties_question,
     IServerSession,
     SecurityPropertiesOfHttpRequest,
-    ServerPrivateBox, UpdateSessionToken,
+    ServerPrivateBox, CookieSessionUpdate,
     WelcomeInfo
 } from "restfuncs-common";
 import {ServerSocketConnection,} from "./ServerSocketConnection";
@@ -344,7 +345,14 @@ export class ServerSession implements IServerSession {
     /**
      * Those methods directly here on ServerSession are allowed to be called
      */
-    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo"]) as Set<string>
+    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession"]) as Set<string>
+
+    /**
+     * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)
+     */
+    id?: CookieSession["id"]
+
+    version?: number
 
     /**
      * The current running (express) request. See {@link https://expressjs.com/en/4x/api.html#req}
@@ -618,6 +626,8 @@ export class ServerSession implements IServerSession {
                     res.header("Access-Control-Allow-Credentials", "true")
                 }
 
+                const cookieSession = this.getFixedCookieSessionFromRequest(req);
+
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
@@ -629,9 +639,9 @@ export class ServerSession implements IServerSession {
                     throw new CommunicationError(`No method candidate found for ${req.method} + ${methodNameFromPath}.`)
                 }
 
+                // Collect params / metaParams,...:
                 const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
                 cleanupStreamsAfterRequest = c;
-
 
                 // Collect / pre-compute securityProperties:
                 const userAgent = req.header("User-Agent");
@@ -662,15 +672,20 @@ export class ServerSession implements IServerSession {
                 // @ts-ignore No Idea why we get a typescript error here
                 const enhancementProps: Partial<ServerSession> = {req, res, _httpCall: {securityPropertiesOfRequest}};
 
-                let { result, modifiedSession} = await this.doCall_outer(req.session as any as Record<string, unknown>| {}, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
+                // Do the call:
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
                     },
                 });
+
                 if(modifiedSession) {
-                    this.ensureSessionHandlerInstalled(req);
                     _(req.session).extend(modifiedSession);
+
+                    // Safe in session Validator:
+                    const newCookieSession = this.getFixedCookieSessionFromRequest(req) // gets the id and makes it typesafe
+                    await this.server.sessionValidator?.update(newCookieSession!.id, newCookieSession!.version);
                 }
 
                 sendResult(result, methodName);
@@ -726,9 +741,16 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    static async doCall_outer(cookieSession: Record<string, unknown>, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
-        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSession, {...diagnosis, isSessionAccess: false}); // Check, if call is allowed if it would not access the session, with **general** csrfProtectionMode
+        // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
+        {
+            const cookieSessionParam = cookieSession as SecurityRelevantSessionFields || {}; // _Don't know why typescript complains without a cast, as SecurityRelevantSessionFields has all props optional_
+            this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSessionParam, {
+                ...diagnosis,
+                isSessionAccess: false
+            });
+        }
 
         // Instantiate a serverSession:
         const referenceInstance = this.referenceInstance; // Make sure that lazy field is initialized before creating the instance. At least this is needed for the testcases
@@ -740,7 +762,7 @@ export class ServerSession implements IServerSession {
         {
             // *** Prepare serverSession for change tracking **
             // Create a deep clone of cookieSession: , because we want to make sure that the original is not modified. Only at the very end, when the call succeeded, the new session is committed atomically
-            let cookieSessionClone = _.extend({}, cookieSession)// First, make all values own properties because structuredClone does not clone values from inside the prototype but maybe an express session cookie handler delivers its cookie values prototyped.
+            let cookieSessionClone = _.extend({}, cookieSession || {})// First, make all values own properties because structuredClone does not clone values from inside the prototype but maybe an express session cookie handler delivers its cookie values prototyped.
             cookieSessionClone = structuredClone(cookieSessionClone)
 
             _.extend(serverSession, cookieSessionClone);
@@ -777,12 +799,15 @@ export class ServerSession implements IServerSession {
         const modified = Object.keys(serverSession).some(k => {
             const key = k as keyof ServerSession; // Fix type
 
-            if(!cookieSession.hasOwnProperty(key) && _.isEqual(serverSession[key], referenceInstance[key])) { // property was not yet in the cookieSession and it' still the original value
+            if(!cookieSession?.hasOwnProperty(key) && _.isEqual(serverSession[key], referenceInstance[key])) { // property was not yet in the cookieSession and it' still the original value
                 return false;
             }
 
-            return (!_.isEqual(serverSession[key], cookieSession[key]))
+            return (!_.isEqual(serverSession[key], cookieSession?cookieSession[key]:undefined))
         });
+        if(modified) {
+            serverSession.version = (serverSession.version || 0) +1 ; // Init / increase version
+        }
         return {
             modifiedSession: modified?serverSession:undefined, // Detect changes
             result
@@ -880,43 +905,95 @@ export class ServerSession implements IServerSession {
         return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
-    public getHttpCookieSessionAndSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_question>): ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_Answer> {
+    public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer> {
         // Security check:
         if(!this._httpCall) {
-            throw new Error("getHttpContext was not called via http.");
+            throw new CommunicationError("getCookieSession was not called via http.");
         }
-        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "HttpContextQuestion")
-        // Security check:
-        if(question.securityGroupId !== this.clazz.securityGroup.id) {
-            throw new CommunicationError(`HttpContextQuestion is from another security group`)
+        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetCookieSession_question")
+
+        if(question.forceInitialize) {
+            this.req!.session.touch();
+            if(!this.req!.session.id) {
+                throw new Error("Session should have an id by now.")
+            }
         }
 
-        const answer: GetHttpCookieSessionAndSecurityProperties_Answer = {
+        const answer: GetCookieSession_answer = {
             question: question,
-            reqSecurityProps: question.includeSecurityProperties?this._httpCall.securityProperties:undefined
+            cookieSession: this.clazz.getFixedCookieSessionFromRequest(this.req!)
         }
 
-        if(question.includeSession) {
-            throw new Error("TODO"); // this.serializeToObject() || null
+
+        return this.clazz.server.server2serverEncryptToken(answer, "GetCookieSession_answer")
+    }
+
+    /**
+     * Converts the cookieSession into our preferred transfer type: CookieSession | undefined.
+     * Fixes the version field.
+     * <p>Not part of the API.</p>
+     * @param req
+     */
+    protected static getFixedCookieSessionFromRequest(req: Request) : CookieSession | undefined {
+        this.ensureSessionHandlerInstalled(req);
+
+        if (!req.session.id) { // Session does not exists ?
+            return undefined;
         }
 
-        return this.clazz.server.server2serverEncryptToken(answer, "HttpContextAnswer")
+        const reqSession = req.session as any as Record<string, unknown>;
+
+        const result: CookieSession =  {
+            ...reqSession,
+            id: req.session.id, // Re-query that property accessor (otherwise it does not get included)
+            version: (typeof reqSession.version === "number")?reqSession.version:0,
+        }
+
+        // Remove internal fields from the cookie handler
+        delete result["cookie"];
+        delete result["req"]
+
+        return result
+    }
+
+    public getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
+        // Security check:
+        if(!this._httpCall) {
+            throw new CommunicationError("getHttpSecurityProperties was not called via http.");
+        }
+        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetHttpSecurityProperties_question")
+        // Security check:
+        if(question.serverSessionClassId !== this.clazz.id) {
+            throw new CommunicationError(`GetHttpSecurityProperties_question is for a different ServerSession class: ${question.serverSessionClassId}`)
+        }
+
+        const answer: GetHttpSecurityProperties_answer = {
+            question: question,
+            result: this._httpCall.securityProperties // TODO: we could remove the methodName field
+        }
+
+        return this.clazz.server.server2serverEncryptToken(answer, "GetHttpSecurityProperties_answer")
     }
 
     /**
      * Called via http if the webservice connection has written to the session to update the real session (cookie)
      * @param sessionBox
      */
-    // TODO: make httponly
-    public updateSession(sessionBox: ServerPrivateBox<UpdateSessionToken>) {
+    public updateSession(sessionBox: ServerPrivateBox<CookieSessionUpdate>) {
+        // Security check:
+        if(!this._httpCall) {
+            throw new CommunicationError("getHttpSecurityProperties was not called via http.");
+        }
 
-
-        const token = this.clazz.server.server2serverDecryptToken<UpdateSessionToken>(sessionBox, "UpdateSessionToken");
+        const token = this.clazz.server.server2serverDecryptToken<CookieSessionUpdate>(sessionBox, "UpdateSessionToken");
         if(token.serviceId !== this.clazz.id) {
             throw new CommunicationError(`updateSession came from another service`)
         }
 
         // TODO: check if session id matches and version number is exactly 1 higher
+
+        // We can only accept updates. If session is still undefined, we cant' accept one, to prevent an attacker to install his stock session.
+
     }
 
 
@@ -1261,7 +1338,7 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Check if the specified request to the specified service's method is allowed to access the session or run using the request's client-cert / basic auth
+     * Check if the specified request to the specified service's method is allowed to access the cookieSession or run using the request's client-cert / basic auth
      *
      * Meaning it passes all the CSRF prevention requirements
      *
@@ -1269,11 +1346,11 @@ export class ServerSession implements IServerSession {
      * @param reqSecurityProps
      * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
      * @param allowedOrigins from the options
-     * @param session holds the tokens
+     * @param cookieSession holds the tokens
      * @param diagnosis
      */
-    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, session: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
-        // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on session value access where enforcedCsrfProtectionMode is set to the mode that's stored in the session.
+    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
+        // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on cookieSession value access where enforcedCsrfProtectionMode is set to the mode that's stored in the cookieSession.
 
         const errorHints: string[] = [];
         /**
@@ -1312,7 +1389,7 @@ export class ServerSession implements IServerSession {
                     return false;
                 }
 
-                const sessionTokens = tokenType == "corsReadToken" ? session.corsReadTokens : session.csrfTokens;
+                const sessionTokens = tokenType == "corsReadToken" ? cookieSession.corsReadTokens : cookieSession.csrfTokens;
                 if (sessionTokens === undefined) {
                     errorHints.push(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
                     return false;
@@ -1339,7 +1416,7 @@ export class ServerSession implements IServerSession {
 
             // Check protection mode compatibility:
             if (enforcedCsrfProtectionMode !== undefined) {
-                if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/session) want different protection modes  ?
+                if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/cookieSession) want different protection modes  ?
                     errorHints.push(
                         (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
                         (reqSecurityProps.csrfProtectionMode ? `, but your request wants '${reqSecurityProps.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
@@ -1375,7 +1452,7 @@ export class ServerSession implements IServerSession {
             }
 
             if (enforcedCsrfProtectionMode === "corsReadToken") {
-                if (tokenValid("corsReadToken")) {  // Read was proven ?
+                if (reqSecurityProps.readWasProven || tokenValid("corsReadToken")) {  // Read was proven ?
                     return true;
                 }
                 aValidCorsReadTokenWouldBeHelpful = true;

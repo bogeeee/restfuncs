@@ -8,12 +8,8 @@ import {CommunicationError} from "restfuncs-server/CommunicationError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
-import {develop_resetGlobals, restfuncsExpress, ServerPrivateBox} from "./server/Server";
-import {WelcomeInfo} from "restfuncs-common";
-import {
-    GetHttpCookieSessionAndSecurityProperties_Answer,
-    GetHttpCookieSessionAndSecurityProperties_question
-} from "restfuncs-server/ServerSocketConnection";
+import {develop_resetGlobals, restfuncsExpress} from "./server/Server";
+import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
 
@@ -1843,7 +1839,8 @@ test("Security groups", () => {
 test('ClientSocketConnection synchronizations', async () => {
     // Makes sure, different calls know of each other and don't do stuff twice / unnecessary.
 
-    let getHttpCookieSessionAndSecurityProperties_fetchCounter = 0;
+    let getHttpSecurityProperties_fetchCounter = 0;
+    let getCookieSession_fetchCounter = 0;
     let corsReadTokenFetchCounter = 0;
     class MyServerSession extends Service {
         static options: ServerSessionOptions = {...standardOptions}
@@ -1855,9 +1852,17 @@ test('ClientSocketConnection synchronizations', async () => {
             }
         }
 
-        public getHttpCookieSessionAndSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_question>): ServerPrivateBox<GetHttpCookieSessionAndSecurityProperties_Answer> {
-            getHttpCookieSessionAndSecurityProperties_fetchCounter++;
-            return super.getHttpCookieSessionAndSecurityProperties(encryptedQuestion);
+        public getHttpSecurityProperties(...args: any[]) {
+            getHttpSecurityProperties_fetchCounter++;
+            // @ts-ignore
+            return super.getHttpSecurityProperties(...args);
+        }
+
+        public getCookieSession(...args: any[]) {
+            getCookieSession_fetchCounter++;
+            // @ts-ignore
+            return super.getCookieSession(...args);
+
         }
 
         public getCorsReadToken(): string {
@@ -1888,14 +1893,17 @@ test('ClientSocketConnection synchronizations', async () => {
             const promise3 = client.proxy.myMethod();
 
             await promise1;
+            expect(getCookieSession_fetchCounter).toBe(1);
             expect(corsReadTokenFetchCounter).toBe(1);
 
             await promise2
+            expect(getCookieSession_fetchCounter).toBe(1);
             expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
 
             await promise3
+            expect(getCookieSession_fetchCounter).toBe(1);
             expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
-            expect(getHttpCookieSessionAndSecurityProperties_fetchCounter).toBeLessThan(3)
+            expect(getHttpSecurityProperties_fetchCounter).toBeLessThan(3)
 
             // @ts-ignore
             expect(client.preparedSocketConnection.conn.methodCallPromises.size).toBe(0) // Expect no open promises

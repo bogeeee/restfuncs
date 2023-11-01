@@ -1,12 +1,16 @@
-import {SecurityPropertiesOfHttpRequest, ServerSession} from "./ServerSession";
+import {ServerSession} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
-    GetHttpCookieSessionAndSecurityProperties_question,
-    SecurityPropertiesOfHttpRequest,
+    CookieSession,
+    CookieSessionUpdate, GetCookieSession_answer,
+    GetCookieSession_question,
+    GetHttpSecurityProperties_answer,
+    GetHttpSecurityProperties_question,
+    SecurityPropertiesOfHttpRequest, ServerPrivateBox,
     Socket_Client2ServerMessage,
     Socket_MethodCall,
-    Socket_MethodCallResult,
+    Socket_MethodCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
 } from "restfuncs-common";
 import _ from "underscore";
@@ -15,8 +19,11 @@ import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import {fixErrorStack} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
+import crypto from "node:crypto";
+import nacl_util from "tweetnacl-util";
 
 export class ServerSocketConnection {
+    _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool
     server: RestfuncsServer
     socket: Socket
 
@@ -24,23 +31,41 @@ export class ServerSocketConnection {
      * The raw cookie-session values that were obtained from a http call.
      * Lazy / can be undefined if no session-cookie was send. I.e the user did not yet login
      */
-    cookieSession?: Record<string, unknown>
+    cookieSession?: CookieSession // | "committing"
 
-    //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving
+    //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving. Invalidate, when the cookie session changes (cookieSession's csrfProtectionMode, tokens vs. SecurityPropertiesOfHttpRequest) )
 
     /**
      *
      */
-    securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, SecurityPropertiesOfHttpRequest>
+    securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, Readonly<Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">>>
 
-    serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, SecurityPropertiesOfHttpRequest>
+    serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">>>
 
+    /**
+     * Whether to use the security group or the ServerSession class to associate security state
+     */
+    get useSecurityGroups() {
+        // State check:
+        if(this.securityGroup2SecurityPropertiesOfHttpRequest && this.serverSessionClass2SecurityPropertiesOfHttpRequest) { // Both are initialized ?
+            throw new Error("Illegal state")
+        }
+        if(!this.securityGroup2SecurityPropertiesOfHttpRequest && !this.serverSessionClass2SecurityPropertiesOfHttpRequest) { // None are initialized ?
+            throw new Error("Illegal state")
+        }
+
+        return this.securityGroup2SecurityPropertiesOfHttpRequest !== undefined;
+    }
+
+    get id() {
+        return nacl_util.encodeBase64(this._id); // TODO: use from socket
+    }
 
     constructor(server: RestfuncsServer, socket: Socket) {
         this.server = server;
         this.socket = socket;
 
-        if(this.server.serverOptions.socket_requireAccessProofForIndividualServerSession) {
+        if(this.server.serverOptions.socket_requireAccessProofForIndividualServerSession !== false) { // default
             this.serverSessionClass2SecurityPropertiesOfHttpRequest = new Map();
         }
         else {
@@ -56,6 +81,15 @@ export class ServerSocketConnection {
                 this.socket.send("[Error] " + (e?.message || e));
             }
         })
+
+        // TODO: Performance: Could we just use the http cookie here ? At least for our own JWT cookie handler. There we also know how to do a validity check.
+
+        const initMessage: Socket_Server2ClientInit = {
+            cookieSessionRequest: this.server.server2serverEncryptToken({
+                serverSocketConnectionId: this.id, forceInitialize: false
+            }, "GetCookieSession_question")
+        }
+        this.sendMessage({type: "init", payload: initMessage})
     }
 
     protected deserializeMessage(data: string | Buffer): unknown {
@@ -76,10 +110,6 @@ export class ServerSocketConnection {
     public failFatal(error: Error) {
         this.socket.send("[Error] " + error.message);
         this.socket.close()
-    }
-
-    onInstallSession() {
-
     }
 
     /**
@@ -105,6 +135,12 @@ export class ServerSocketConnection {
         }
         else if(message.type === "getVersion") {
             // Leave this for future extensibility / probing feature flags (don't throw an error)
+        }
+        else if(message.type === "updateHttpSecurityProperties") {
+            this.updateHttpSecurityProperties(message.payload);
+        }
+        else if(message.type === "initCookieSession") {
+            this.initCookieSession(message.payload);
         }
         else {
             throw new Error(`Unhandled message type: ${message.type}`)
@@ -146,8 +182,11 @@ export class ServerSocketConnection {
                 }
 
                 // Special method:
-                if (methodCall.methodName === "setHttpCookieSessionAndSecurityProperties") {
-                    throw new Error("TODO: handle")
+                if (methodCall.methodName === "updateHttpSession") {
+                    this.updateHttpSession(...methodCall.args);
+                    return {
+                        httpStatusCode: 200
+                    }
                 }
 
                 // Regular calls:
@@ -160,34 +199,39 @@ export class ServerSocketConnection {
                 if (!serverSessionClass) {
                     throw new Error(`A ServerSessionClass with the id: '${methodCall.serverSessionClassId}' is not registered.`);
                 }
-                const cookieSession = this.cookieSession || {}
 
                 // Determine security properties (request fetch if necessary):
-                let securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest | undefined
-                if (this.server.serverOptions.socket_requireAccessProofForIndividualServerSession) {
-                    securityPropertiesOfHttpRequest = this.serverSessionClass2SecurityPropertiesOfHttpRequest!.get(serverSessionClass);
-                } else {
+                let securityPropertiesOfHttpRequest
+                if (this.useSecurityGroups) {
                     securityPropertiesOfHttpRequest = this.securityGroup2SecurityPropertiesOfHttpRequest!.get(serverSessionClass.securityGroup);
+                } else { // default
+                    securityPropertiesOfHttpRequest = this.serverSessionClass2SecurityPropertiesOfHttpRequest!.get(serverSessionClass);
                 }
                 if (!securityPropertiesOfHttpRequest) {
-                    // TODO: request fetch
-                    // @ts-ignore
-                    securityPropertiesOfHttpRequest = {};
+                    // Block call and request the client to send those securityProperties first:
+                    return {
+                        needsHttpSecurityProperties: {
+                            question: this.server.server2serverEncryptToken({
+                                serverSocketConnectionId: this.id,
+                                serverSessionClassId: serverSessionClass.id,
+                            }, "GetHttpSecurityProperties_question"),
+                            syncKey: this.useSecurityGroups ? serverSessionClass.securityGroup.id : serverSessionClass.id,
+                        },
+                        httpStatusCode: 481
+                    }
                 }
+
+                const securityPropsForThisCall: SecurityPropertiesOfHttpRequest = {
+                    ...securityPropertiesOfHttpRequest,
+                    serviceMethodName: methodCall.methodName,
+                    readWasProven: true  // Flag that we are sure that our client made a successful read (he successfully passed us the GetHttpSecurityProperties_answer)
+                };
 
                 // @ts-ignore No Idea why we get a typescript error here
                 const enhancementProps: Partial<ServerSession> = {socketConnection: this};
 
-
                 try {
-                    const {
-                        result,
-                        modifiedSession
-                    } = await serverSessionClass.doCall_outer(cookieSession, securityPropertiesOfHttpRequest as SecurityPropertiesOfHttpRequest, methodCall.methodName, methodCall.args, enhancementProps, {})
-
-                    if (modifiedSession) {
-                        throw new Error("Session was modified. TODO: implement");
-                    }
+                    const { result, modifiedSession } = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, enhancementProps, {})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {
@@ -200,6 +244,55 @@ export class ServerSocketConnection {
                         if (result instanceof type) {
                             throw new CommunicationError(`${methodCall.methodName}'s result of type ${name} is not supported when calling via socket`)
                         }
+                    }
+
+                    if (modifiedSession) {
+                        if(!this.cookieSession) { // New session ?
+                            // Or is it better to just just create one ourself and send it to the main http site then ?
+                            // - Pro: Safes us 2 a round trips
+                            // - Pro: Avoids the unexpected behaviours that the call is re-executed
+                            // - Neutral: You could create 2 independent cookieSessions (socket, http) on which you can work with at the same time. But is that a security problem ?
+                            // - Con: An attacker could use then use this fresh session as his stock session and install it to victim(s) on the http side. Assuming he has at least access to one publicly allowed service (allowed origin) but that means nothing.
+                            // - Con: When the session is tried to be installed on the http side and before that happens, the access check initializes it (i.e. for corsReadToken), there will be some trouble.
+                            // - Con: Does not work with a non-restfuncs session handler that wants to do its own initialization (set its own id) / validation, etc.
+
+                            // Before proceeding, we must request and install an initial cookie session. The client must do the call again then.
+                            return {
+                                needsCookieSession: this.server.server2serverEncryptToken({
+                                    serverSocketConnectionId: this.id,
+                                    forceInitialize: true
+                                }, "GetCookieSession_question"),
+                                httpStatusCode: 482
+                            }
+                        }
+
+                        // Safety check:
+                        if(!modifiedSession.id || modifiedSession.version === undefined) {
+                            throw new Error("Illegal state: id and version should be set, cause this.cookieSession was already initialized before the call")
+                        }
+
+                        // TODO: Instead: this.cookieSession = "committing"
+                        // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection can break.
+                        if(this.server.sessionValidator) {
+                            // *** With a validator, we can progressively install the new session here and don't have to wait for a http round trip ***
+                            // Safe in session Validator:
+                            await this.server.sessionValidator?.update(modifiedSession.id, modifiedSession!.version);
+                        }
+                        else {
+                            // An idea was to not progressively safe here but update and re-request from the http side, but an attacker could anyway replay / install any old cookieSession version. We could only prevent him from updating more than one step from there, but that's too much effort, as the user is aware of that implication.
+                        }
+                        this.cookieSession = modifiedSession as any as CookieSession // Progressively safe here,
+
+                        return {
+                            result,
+                            doCookieSessionUpdate: this.server.server2serverEncryptToken({
+                                serviceId: serverSessionClass.id,
+                                oldVersion: this.cookieSession.version,
+                                newSession: modifiedSession as any as CookieSession
+                            }, "CookieSessionUpdate"),
+                            httpStatusCode: 483
+                        }
+
                     }
 
                     return {
@@ -244,5 +337,103 @@ export class ServerSocketConnection {
             }
             this.sendMessage({type: "methodCallResult", payload});
         })();
+    }
+
+    /**
+     * Initializes the cookie session with the value that's currently on the http side. Can be set to undefined, if there's no cookie present yet.
+     * <p>Called, when initializing the connection, so contrary to {@link updateHttpSession}, this method returns void / is never expected to fail because of conflicts. So the client does not wait for an answer</p>
+     * @param encryptedGetCookieSession_answer
+     * @protected
+     */
+    protected initCookieSession(encryptedGetCookieSession_answer: unknown) {
+
+        const answer: GetCookieSession_answer = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSession_answer")
+        // Validate:
+        if(answer.question.serverSocketConnectionId !== this.id) {
+            throw new Error("Question was not for this connection");
+        }
+        if(answer.question.forceInitialize) {
+            throw new Error("Illegal state: forceInitialize is set")
+        }
+        if(this.cookieSession) {
+            throw new Error("Illegal state: cookieSession has already been set")
+        }
+        if(answer.cookieSession && (!answer.cookieSession.id || answer.cookieSession.version === undefined)) {
+            throw new Error("answer.cookieSession.id/version not set");
+        }
+
+        this.cookieSession = answer.cookieSession
+    }
+
+    protected updateHttpSession(...args: unknown[]) {
+        // Validate
+        if(!_.isArray(args)) {
+            throw new Error("args is not an array")
+        }
+        if(args.length !== 1) {
+            throw new Error("illegal args value")
+        }
+        const encryptedGetCookieSession_answer = args[0];
+
+        const answer: GetCookieSession_answer = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSession_answer")
+        // Validate:
+        if(answer.question.serverSocketConnectionId !== this.id) {
+            throw new Error("Question was not for this connection");
+        }
+        if(answer.question.forceInitialize && !answer.cookieSession) {
+            throw new Error("not initialized")
+        }
+        if(answer.cookieSession && (!answer.cookieSession.id || answer.cookieSession.version === undefined)) {
+            throw new Error("answer.cookieSession.id/version not set");
+        }
+
+        if(this.cookieSession === undefined) { // New session ?
+        }
+        else if(answer.cookieSession === undefined) { // Reset (i.e. after logout) or after timeout ?
+        }
+        else if(this.cookieSession.id !== answer.cookieSession.id) { // Newer session ? I.e. a new session was created after a reset or a timeout ?
+        }
+        else { // Same session ?
+            if(this.cookieSession.version == answer.cookieSession.version) { // same version, but it could still have different content: I.e. an attacker from a second socket connection created it. This way, he could achieve a 2 step progression (one branch is 2 steps ahead, before it gets rolled back), which is not what we want to  allow.
+                throw new Error(`Cannot update the cookieSession. It's the same version.`)
+            }
+            if(this.cookieSession.version > answer.cookieSession.version) { // Version conflict or a replay attack ?
+                throw new Error(`Cannot update the cookieSession. Version conflict: ${this.cookieSession.version} > ${answer.cookieSession.version}`) // Either our answer arrived late, or this.session was progressed and the server did not get all updates. TODO: Recover from this and instruct the client to synchronize the sessions again ?
+            }
+        }
+
+        // Successfully update:
+        this.cookieSession = answer.cookieSession
+    }
+
+    /**
+     *
+     * @param args Raw arguments from the call
+     * @protected
+     */
+    protected updateHttpSecurityProperties(encryptedAnswer: unknown) {
+
+        // Decrypt answer:
+        const answer: GetHttpSecurityProperties_answer = this.server.server2serverDecryptToken(encryptedAnswer as any, "GetHttpSecurityProperties_answer");
+
+        // Validate answer:
+        if(answer.question.serverSocketConnectionId !== this.id) {
+            throw new Error("Question was not for this connection");
+        }
+
+        // Obtain serverSessionClass:
+        const serverSessionClass = this.server.serverSessionClasses.get(answer.question.serverSessionClassId);
+        if(!serverSessionClass) {
+            throw new Error(`ServerSession class was not found: ${answer.question.serverSessionClassId}`)
+        }
+
+        // Update the security properties:
+        if(this.useSecurityGroups) {
+            const securityGroup = this.server.getSecurityGroupOfService(serverSessionClass);
+            this.securityGroup2SecurityPropertiesOfHttpRequest!.set(securityGroup, answer.result);
+        }
+        else {
+            this.serverSessionClass2SecurityPropertiesOfHttpRequest!.set(serverSessionClass, answer.result);
+        }
     }
 }

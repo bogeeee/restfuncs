@@ -101,13 +101,11 @@ export class RestfuncsClient<S extends IServerSession> {
      * Like proxy but for internal use. Goes straight to doCall_http
      * @protected
      */
-    protected controlProxy_http: ClientProxy<S>
+    controlProxy_http: ClientProxy<S>
 
     protected _corsReadToken?: string
 
     public csrfToken?: string
-
-
 
     get absoluteUrl() {
         // Validity check

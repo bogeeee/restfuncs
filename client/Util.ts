@@ -76,6 +76,20 @@ export class SingleRetryableOperation<T> {
     fail() {
         this.resultPromise = undefined;
     }
+
+    /**
+     * ..., does not care if the the promise succeeded or errored
+     */
+    async waitTilIdle() {
+        if(this.resultPromise) {
+            try {
+                await this.resultPromise
+            }
+            catch (e) {
+                // The other "thread" cares about catching errors. We don't care
+            }
+        }
+    }
 }
 
 /**

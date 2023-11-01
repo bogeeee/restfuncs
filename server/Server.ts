@@ -50,7 +50,17 @@ export type SessionHeader = {
  * </p>
  *
  */
-export type SessionValidator = Pick<Set<string>, "has" | "add" | "delete">
+export abstract class SessionValidator {
+    /**
+     * Updates or creates a new session entry.
+     * This should also check and error, if there's already a newer or same version
+     * @param sessionId
+     * @param version
+     */
+    abstract update(sessionId: string, version: number): Promise<void>;
+    abstract isValid(sessionId: string, version: number): Promise<boolean>;
+    abstract delete(sessionId: string): Promise<void>;
+}
 
 
 export type ServerOptions = {
@@ -119,38 +129,6 @@ export type TransportToken = {
 }
 */
 
-
-/**
- * The content is encrypted and can only be read by this server, or another server that shares {@link Server#secret}
- * <p>
- * Encrypted (+MAC'ed) value in a box that points to the correct secret key that should be used to decrypt it.
- * </p>
- * - The box was encrypted by the server and it's authenticity can be trusted. It's meant to be decrypted by the server again / the client can't see the content.
- * - It stores a content type to prevent spoofing with a token on stock with a different types
- *
- */
-export type ServerPrivateBox<Content> = {
-    /**
-     * Base64 encoded.
-     * <p>
-     *     <i>NOTE: Is a nonce really needed or could we save us these 24 bytes here? It won't prevent replay attacks, if handed to the client (restfuncs is aware of replay and takse other measures against these).
-     *     Also data variety is enough by the current use cases (i.e. there's the ServerSocketConnection id included) and the information that 2 tokens have the same value does not hurt.
-     *     But for cryptographic cleanliness we leave it in.
-     *     </i>
-     * </p>
-     */
-    nonce: string
-
-    /**
-     * Encrypted content, base64 encoded
-     */
-    content: string;
-
-    /**
-     * Fake property. To make ServerPrivateBox typesafe, we must reference 'Content' somewhere. Will never be set
-     */
-    _contentType?: Content
-}
 
 /**
  * Additionally stores the type
@@ -262,6 +240,8 @@ class RestfuncsServerOOP {
      */
     public httpServer?: HttpServer;
 
+    public sessionValidator?: SessionValidator
+
     public engineIoServers = new Set<Server>();
 
     public getEngineIoPath() {
@@ -353,7 +333,7 @@ class RestfuncsServerOOP {
 
         // Install session handler:
         if(this.serverOptions.installSessionHandler !== false) {
-            // Install session handler: TODO: code own JWT cookie handler
+            // Install session handler: TODO: code own JWT cookie handler. It should also perform a validation, if used outside of a ServerSession's Express hander
             this.expressApp.use(session({
                 secret: nacl_util.encodeBase64(this.secret),
                 cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
@@ -434,13 +414,13 @@ class RestfuncsServerOOP {
     }
 
     /**
-     * Decrypts the token with one of the secret keys and checks if matches the expected type
-     * @param encryptedToken
+     * Decrypts the token with one of the secret keys and checks if matches the expected type.
+     * @param encryptedToken Also does a safety check of any evil input
      * @param expectedType
      */
     public server2serverDecryptToken<T>(encryptedToken: ServerPrivateBox<T>, expectedType: string): T{
-        // Safety check:
-        if(typeof encryptedToken.content !== "string" || typeof encryptedToken.nonce !== "string") {
+        // Safety check of evil input:
+        if(!encryptedToken || typeof encryptedToken !== "object" || typeof encryptedToken.content !== "string" || typeof encryptedToken.nonce !== "string") {
             throw new Error("invalid token");
         }
 
