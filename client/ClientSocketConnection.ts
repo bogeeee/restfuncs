@@ -306,14 +306,14 @@ export class ClientSocketConnection {
             }
         }
 
-        if(callResult.httpStatusCode === "dropped_waitingForCookieSessionCommit") {
+        if(callResult.status === "dropped_waitingForCookieSessionCommit") {
              // TODO: exec again. (how / rearrange this method)
         }
 
         if (callResult.error) {
-            throw new ServerError(callResult.error, {}, (typeof callResult.httpStatusCode === "number")?callResult.httpStatusCode:undefined);
+            throw new ServerError(callResult.error, {}, (typeof callResult.status === "number")?callResult.status:undefined);
         }
-        if (callResult.httpStatusCode == 550) { // "throw legal value" (non-error)
+        if (callResult.status == 550) { // "throw legal value" (non-error)
             throw callResult.result
         }
 

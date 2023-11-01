@@ -99,7 +99,7 @@ export type Socket_MethodCallResult = {
     /**
      * Behaves as close as possible to the http api
      */
-    httpStatusCode: 200 | 550 | 481 | 482 | 483 | 500 | "dropped_waitingForCookieSessionCommit"
+    status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_waitingForCookieSessionCommit"
 
     /**
      * If an error occurred

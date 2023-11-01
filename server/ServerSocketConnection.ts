@@ -185,7 +185,7 @@ export class ServerSocketConnection {
                 if (methodCall.methodName === "updateHttpSession") {
                     this.updateHttpSession(...methodCall.args);
                     return {
-                        httpStatusCode: 200
+                        status: 200
                     }
                 }
 
@@ -217,7 +217,7 @@ export class ServerSocketConnection {
                             }, "GetHttpSecurityProperties_question"),
                             syncKey: this.useSecurityGroups ? serverSessionClass.securityGroup.id : serverSessionClass.id,
                         },
-                        httpStatusCode: 481
+                        status: "needsHttpSecurityProperties"
                     }
                 }
 
@@ -262,7 +262,7 @@ export class ServerSocketConnection {
                                     serverSocketConnectionId: this.id,
                                     forceInitialize: true
                                 }, "GetCookieSession_question"),
-                                httpStatusCode: 482
+                                status: "needsCookieSession"
                             }
                         }
 
@@ -290,14 +290,14 @@ export class ServerSocketConnection {
                                 oldVersion: this.cookieSession.version,
                                 newSession: modifiedSession as any as CookieSession
                             }, "CookieSessionUpdate"),
-                            httpStatusCode: 483
+                            status: "doCookieSessionUpdate"
                         }
 
                     }
 
                     return {
                         result,
-                        httpStatusCode: 200
+                        status: 200
                     }
                 } catch (caught) {
                     if (caught instanceof Error) {
@@ -308,13 +308,13 @@ export class ServerSocketConnection {
 
                         return{
                             error: error,
-                            httpStatusCode
+                            status: httpStatusCode
                         };
                     } else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
                         // Just send it:
                         return{
                             result: caught,
-                            httpStatusCode: 550 // Indicate "throw legal value" to the client
+                            status: 550 // Indicate "throw legal value" to the client
                         };
                     }
                 }
@@ -324,7 +324,7 @@ export class ServerSocketConnection {
                         message: e?.message || e,
                         name: e?.name,
                     },
-                    httpStatusCode: 500
+                    status: 500
                 };
             }
         }
