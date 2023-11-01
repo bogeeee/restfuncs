@@ -171,7 +171,7 @@ export type CookieSessionUpdate = {
     /**
      * Where did this come from ?
      */
-    serviceId: string,
+    serverSessionClassId: string,
 
     /**
      * Current / old version TODO: needed ?

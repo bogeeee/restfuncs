@@ -977,17 +977,17 @@ export class ServerSession implements IServerSession {
 
     /**
      * Called via http if the webservice connection has written to the session to update the real session (cookie)
-     * @param sessionBox
+     * @param encryptedCookieSessionUpdate
      */
-    public updateSession(sessionBox: ServerPrivateBox<CookieSessionUpdate>) {
+    public updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>) {
         // Security check:
         if(!this._httpCall) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
         }
 
-        const token = this.clazz.server.server2serverDecryptToken<CookieSessionUpdate>(sessionBox, "UpdateSessionToken");
-        if(token.serviceId !== this.clazz.id) {
-            throw new CommunicationError(`updateSession came from another service`)
+        const cookieSessionUpdate = this.clazz.server.server2serverDecryptToken<CookieSessionUpdate>(encryptedCookieSessionUpdate, "CookieSessionUpdate");
+        if(cookieSessionUpdate.serverSessionClassId !== this.clazz.id) {
+            throw new CommunicationError(`cookieSessionUpdate came from another service`)
         }
 
         // TODO: check if session id matches and version number is exactly 1 higher

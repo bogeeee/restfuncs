@@ -182,8 +182,8 @@ export class ServerSocketConnection {
                 }
 
                 // Special method:
-                if (methodCall.methodName === "updateHttpSession") {
-                    this.updateHttpSession(...methodCall.args);
+                if (methodCall.methodName === "updateCookieSession") {
+                    this.updateCookieSession(...methodCall.args);
                     return {
                         status: 200
                     }
@@ -286,7 +286,7 @@ export class ServerSocketConnection {
                         return {
                             result,
                             doCookieSessionUpdate: this.server.server2serverEncryptToken({
-                                serviceId: serverSessionClass.id,
+                                serverSessionClassId: serverSessionClass.id,
                                 oldVersion: this.cookieSession.version,
                                 newSession: modifiedSession as any as CookieSession
                             }, "CookieSessionUpdate"),
@@ -341,7 +341,7 @@ export class ServerSocketConnection {
 
     /**
      * Initializes the cookie session with the value that's currently on the http side. Can be set to undefined, if there's no cookie present yet.
-     * <p>Called, when initializing the connection, so contrary to {@link updateHttpSession}, this method returns void / is never expected to fail because of conflicts. So the client does not wait for an answer</p>
+     * <p>Called, when initializing the connection, so contrary to {@link updateCookieSession}, this method returns void / is never expected to fail because of conflicts. So the client does not wait for an answer</p>
      * @param encryptedGetCookieSession_answer
      * @protected
      */
@@ -365,7 +365,7 @@ export class ServerSocketConnection {
         this.cookieSession = answer.cookieSession
     }
 
-    protected updateHttpSession(...args: unknown[]) {
+    protected updateCookieSession(...args: unknown[]) {
         // Validate
         if(!_.isArray(args)) {
             throw new Error("args is not an array")
