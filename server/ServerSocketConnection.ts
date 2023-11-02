@@ -313,7 +313,8 @@ export class ServerSocketConnection {
 
                         return{
                             error: error,
-                            status: httpStatusCode
+                            status: 500,
+                            httpStatusCode
                         };
                     } else { // Something other than an error was thrown ? I.e. you can use try-catch with "things" as as legal control flow through server->client
                         // Just send it:

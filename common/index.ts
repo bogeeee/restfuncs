@@ -120,6 +120,11 @@ export type Socket_MethodCallResult = {
     status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_waitingForCookieSessionSync"
 
     /**
+     * If a CommunicationError was thrown, then that code
+     */
+    httpStatusCode?: number
+
+    /**
      * If an error occurred
      */
     error?: object

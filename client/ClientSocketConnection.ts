@@ -311,7 +311,7 @@ export class ClientSocketConnection {
         }
 
         if (callResult.error) {
-            throw new ServerError(callResult.error, {}, (typeof callResult.status === "number")?callResult.status:undefined);
+            throw new ServerError(callResult.error, {}, callResult.httpStatusCode);
         }
         if (callResult.status == 550) { // "throw legal value" (non-error)
             throw callResult.result
