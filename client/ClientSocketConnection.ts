@@ -250,7 +250,7 @@ export class ClientSocketConnection {
     async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
         this.checkFatal();
 
-        const exec = async () => {
+        const exec_inner = async () => {
             await this.cookieSessionSyncOp.waitTilIdle();
 
             // Create and register a MethodCallPromise:
@@ -268,7 +268,20 @@ export class ClientSocketConnection {
 
             return await methodCallPromise // Wait till the return message arrived and the promise is resolved
         }
+
+        /**
+         * Exec with retry/waiting on cookieSession sync
+         */
+        const exec = async () => {
+            const callResult = await exec_inner();
+            if(callResult.status === "dropped_waitingForCookieSessionSync") {
+                // TODO: exec again.
+            }
+            return callResult;
+        }
+
         let callResult = await exec();
+
 
         if(callResult.needsHttpSecurityProperties) {
             // Fetch the needed HttpSecurityProperties and update them on the server
@@ -286,7 +299,7 @@ export class ClientSocketConnection {
 
         if(callResult.needsCookieSession) {
             // Fetch the needed cookieSession
-            await this.fetchInitialSessionOp.exec(async () => {
+            await this.fetchInitialSessionOp.exec(async () => { // TODO: which synchronizer do we use ?
                 const answer = await client.controlProxy_http.getCookieSession(callResult.needsCookieSession!);
 
                 const ignoredPromise = (async () => { // Performance: We don't have to wait for the result because normally this will succeed and it's only important that the call is enqueued and send in-order before succeeding methods calls so they will enjoy the result
@@ -306,8 +319,10 @@ export class ClientSocketConnection {
             }
         }
 
-        if(callResult.status === "dropped_waitingForCookieSessionCommit") {
-             // TODO: exec again. (how / rearrange this method)
+        if(callResult.doCookieSessionUpdate) {
+            // TODO: sync
+            const newSession = await client.controlProxy_http.updateCookieSession(callResult.doCookieSessionUpdate, (await this.initMessage).cookieSessionRequest); // Update on the http side and get the newer session
+            await this.doCall(client, serverSessionClassId, "updateCookieSession", [newSession]) // TODO: Performance: We could not wait for the result, cause this would likely succeed and further calls would be free to go immedieately
         }
 
         if (callResult.error) {

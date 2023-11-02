@@ -128,3 +128,63 @@ export class SingleRetryableOperationMap<K, T> {
         this.resultPromises.delete(key);
     }
 }
+
+/**
+ * Like the name says. Also if an old operation errors, this will be ignored
+ */
+class LatestGreatestOperation<T> {
+    protected latestPromise?: Promise<T>
+
+    /**
+     *  See class description
+     *  @return result from `operation` or a later operation
+     */
+    exec(operation: ((isOutdated?: () => boolean) => Promise<T>)): Promise<T> {
+        let operationsPromise: Promise<T> | undefined
+        const isOutdated = () => {
+            return operationsPromise !== undefined && operationsPromise !== this.latestPromise;
+        }
+
+        this.latestPromise = operationsPromise = (async () => {
+            const result = operation(isOutdated);
+            if(!isOutdated()) {
+                this.latestPromise = undefined; // Mark finished
+            }
+            return result; // Exec operation
+        })()
+
+        return this.getLatest() as Promise<T>
+    }
+
+    /**
+     * ..., does not care if the the promise succeeded or errored
+     */
+    async waitTilIdle() {
+        while(this.latestPromise) {
+            try {
+                await this.latestPromise
+            }
+            catch (e) {
+                // The other "thread" cares about catching errors. We don't care
+            }
+        }
+    }
+
+    /**
+     * Waits till the latest operation has finished. Will return undefined if no operations is currently running
+     */
+    async getLatest(): Promise<T | undefined> {
+        let result
+        while(this.latestPromise) {
+            try {
+                result = await this.latestPromise;
+            }
+            catch (e) {
+                if(!this.latestPromise) { // finished ?
+                    throw e;
+                }
+            }
+        }
+        return result;
+    }
+}
