@@ -797,11 +797,11 @@ export class ServerSession implements IServerSession {
             _.extend(serverSession, cookieSessionClone);
         }
 
-        const enhancedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
+        const csrfProtectedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result: unknown;
         try {
-            await enhanceViaProxyDuringCall(enhancedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
+            await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
                 // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                 let resultPromise: Promise<unknown>;
                 ServerSession.current.run(enhancedServerSession, () => {
@@ -824,11 +824,11 @@ export class ServerSession implements IServerSession {
             throw e;
         }
 
-        // Detect changes and return result:
+        // Check if modified:
         const modified = Object.keys(serverSession).some(k => {
             const key = k as keyof ServerSession; // Fix type
 
-            if(!cookieSession?.hasOwnProperty(key) && _.isEqual(serverSession[key], referenceInstance[key])) { // property was not yet in the cookieSession and it' still the original value
+            if(!cookieSession?.hasOwnProperty(key) && _.isEqual(serverSession[key], referenceInstance[key])) { // property was not yet in the cookieSession and is still the original value
                 return false;
             }
 
