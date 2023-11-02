@@ -59,11 +59,29 @@ export interface IServerSession {
 
     getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer>;
     getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer>;
+    updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession?: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer> | undefined>;
 }
 
 export interface CookieSession extends Record<string, unknown> {
     id: string
     version: number
+
+    /**
+     * Branch protection salt. We safe and check this also in the SessionValidator
+     * Because the commit to the SessionValidator does not happen at instant but before the next call, an attacker could use 2 socket connections and create 2 (/multiple) branches of CookieSessions with different content but (each time) the same version number.
+     * <p>
+     * More detail: To create such branching, one would have 2 socket connections, call a session-changing method, get the returned CookieSessionUpdate token and http-call the updateCookieSession() method with it **simultaneously**
+     * Should be possible in a browser (cross-site attacking scenario, when allowed for a subset of ServerSessions) and no problem with a non-browser client.
+     * </p>
+     */
+    bpSalt: string
+
+    /**
+     * To allow for a more stupid SessionValidator that just stores [id]_[version]_[bpSalt] entry strings
+     */
+    previousBpSalt?: string
+
+    commandDestruction?:boolean
 }
 
 export type Socket_Client2ServerMessage = {
@@ -99,7 +117,7 @@ export type Socket_MethodCallResult = {
     /**
      * Behaves as close as possible to the http api
      */
-    status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_waitingForCookieSessionCommit"
+    status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_waitingForCookieSessionSync"
 
     /**
      * If an error occurred
@@ -173,12 +191,7 @@ export type CookieSessionUpdate = {
      */
     serverSessionClassId: string,
 
-    /**
-     * Current / old version TODO: needed ?
-     */
-    oldVersion: number
-
-    newSession?: CookieSession
+    newSession: CookieSession
 }
 
 /**

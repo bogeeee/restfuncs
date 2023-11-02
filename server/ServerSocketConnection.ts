@@ -23,15 +23,16 @@ import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 
 export class ServerSocketConnection {
-    _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool
+    _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
 
     /**
      * The raw cookie-session values that were obtained from a http call.
-     * Lazy / can be undefined if no session-cookie was send. I.e the user did not yet login
+     * Lazy / can be undefined, if no session-cookie was yet set. I.e the user did not yet login
+     * "syncing" = we know that we don't have a valid info here. Rejects further ServerSession method calls then.
      */
-    cookieSession?: CookieSession // | "committing"
+    cookieSession?: CookieSession | "syncing" = "syncing"
 
     //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving. Invalidate, when the cookie session changes (cookieSession's csrfProtectionMode, tokens vs. SecurityPropertiesOfHttpRequest) )
 
@@ -195,6 +196,21 @@ export class ServerSocketConnection {
                     throw new Error("methodCall.serverSessionClassId not set");
                 }
 
+                // Validate cookieSession:
+                if(this.cookieSession === "syncing") {
+                    return {
+                        status: "dropped_waitingForCookieSessionSync"
+                    }
+                }
+                if(this.cookieSession && !(await this.server.cookieSessionIsValid(this.cookieSession))) { // Not valid ? Either a timeout or a newer version already exists
+                    this.cookieSession = "syncing"
+                    return {
+                        status: "needsCookieSession",
+                        //needsCookieSession: this.server.server2serverEncryptToken({serverSocketConnectionId: this.id, forceInitialize: false}, "GetCookieSession_question")
+                    }
+                }
+
+                // Obtain serverSessionClass:
                 const serverSessionClass = this.server.serverSessionClasses.get(methodCall.serverSessionClassId);
                 if (!serverSessionClass) {
                     throw new Error(`A ServerSessionClass with the id: '${methodCall.serverSessionClassId}' is not registered.`);
@@ -220,18 +236,17 @@ export class ServerSocketConnection {
                         status: "needsHttpSecurityProperties"
                     }
                 }
-
                 const securityPropsForThisCall: SecurityPropertiesOfHttpRequest = {
                     ...securityPropertiesOfHttpRequest,
                     serviceMethodName: methodCall.methodName,
                     readWasProven: true  // Flag that we are sure that our client made a successful read (he successfully passed us the GetHttpSecurityProperties_answer)
                 };
 
-                // @ts-ignore No Idea why we get a typescript error here
-                const enhancementProps: Partial<ServerSession> = {socketConnection: this};
-
+                // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    const { result, modifiedSession } = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, enhancementProps, {})
+                    // @ts-ignore No Idea why we get a typescript error here
+                    const enhancementProps: Partial<ServerSession> = {socketConnection: this};
+                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, enhancementProps, {})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {
@@ -271,24 +286,14 @@ export class ServerSocketConnection {
                             throw new Error("Illegal state: id and version should be set, cause this.cookieSession was already initialized before the call")
                         }
 
-                        // TODO: Instead: this.cookieSession = "committing"
-                        // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection can break.
-                        if(this.server.sessionValidator) {
-                            // *** With a validator, we can progressively install the new session here and don't have to wait for a http round trip ***
-                            // Safe in session Validator:
-                            await this.server.sessionValidator?.update(modifiedSession.id, modifiedSession!.version);
-                        }
-                        else {
-                            // An idea was to not progressively safe here but update and re-request from the http side, but an attacker could anyway replay / install any old cookieSession version. We could only prevent him from updating more than one step from there, but that's too much effort, as the user is aware of that implication.
-                        }
-                        this.cookieSession = modifiedSession as any as CookieSession // Progressively safe here,
 
+                        // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection to the client can break.
+                        this.cookieSession = "syncing"
                         return {
                             result,
                             doCookieSessionUpdate: this.server.server2serverEncryptToken({
                                 serverSessionClassId: serverSessionClass.id,
-                                oldVersion: this.cookieSession.version,
-                                newSession: modifiedSession as any as CookieSession
+                                newSession: modifiedSession as CookieSession /* cast cause we're sure now that there is an id */
                             }, "CookieSessionUpdate"),
                             status: "doCookieSessionUpdate"
                         }
@@ -380,30 +385,34 @@ export class ServerSocketConnection {
         if(answer.question.serverSocketConnectionId !== this.id) {
             throw new Error("Question was not for this connection");
         }
-        if(answer.question.forceInitialize && !answer.cookieSession) {
+        const newCookieSession = answer.cookieSession;
+        if(answer.question.forceInitialize && !newCookieSession) {
             throw new Error("not initialized")
         }
-        if(answer.cookieSession && (!answer.cookieSession.id || answer.cookieSession.version === undefined)) {
+        if(newCookieSession && (!newCookieSession.id || newCookieSession.version === undefined)) {
             throw new Error("answer.cookieSession.id/version not set");
         }
 
+        // Some more validation check fur user friendlyness, but they don't contribute to security (this does the validator). Without validator there would be other ways to sneak around these checks (i.e. with resetting the cookie first, or using another connection):
         if(this.cookieSession === undefined) { // New session ?
         }
-        else if(answer.cookieSession === undefined) { // Reset (i.e. after logout) or after timeout ?
+        else if(this.cookieSession === "syncing") {
         }
-        else if(this.cookieSession.id !== answer.cookieSession.id) { // Newer session ? I.e. a new session was created after a reset or a timeout ?
+        else if(newCookieSession === undefined) { // Reset (i.e. after logout) or after timeout ?
+        }
+        else if(this.cookieSession.id !== newCookieSession.id) { // Newer session ? I.e. a new session was created after a reset or a timeout ?
         }
         else { // Same session ?
-            if(this.cookieSession.version == answer.cookieSession.version) { // same version, but it could still have different content: I.e. an attacker from a second socket connection created it. This way, he could achieve a 2 step progression (one branch is 2 steps ahead, before it gets rolled back), which is not what we want to  allow.
+            if(this.cookieSession.version === newCookieSession.version) { // same version, but it could still have different content: I.e. an attacker from a second socket connection created it. This way, he could achieve a 2 step progression before it gets rolled back, which is not what we want to allow.
                 throw new Error(`Cannot update the cookieSession. It's the same version.`)
             }
-            if(this.cookieSession.version > answer.cookieSession.version) { // Version conflict or a replay attack ?
-                throw new Error(`Cannot update the cookieSession. Version conflict: ${this.cookieSession.version} > ${answer.cookieSession.version}`) // Either our answer arrived late, or this.session was progressed and the server did not get all updates. TODO: Recover from this and instruct the client to synchronize the sessions again ?
+            if(this.cookieSession.version > newCookieSession.version) { // Version conflict or a replay attack ?
+                throw new Error(`Cannot update the cookieSession. Version conflict: ${this.cookieSession.version} > ${newCookieSession.version}`) // Either our answer arrived late, or this.session was progressed and the server did not get all updates. TODO: Recover from this and instruct the client to synchronize the sessions again ?
             }
         }
 
         // Successfully update:
-        this.cookieSession = answer.cookieSession
+        this.cookieSession = newCookieSession
     }
 
     /**

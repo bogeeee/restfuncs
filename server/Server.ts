@@ -22,7 +22,7 @@ import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
-import {ServerPrivateBox} from "restfuncs-common";
+import {CookieSession, ServerPrivateBox} from "restfuncs-common";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -44,22 +44,61 @@ export type SessionHeader = {
 }
 
 /**
- * A plugin that allows you to keep track valid session tokens (whitelist). I.e. you could use a central (Redis) database.
- * <p>
- * Like Set (partial). The string argument to the methods is a composition of the session-id + version.
- * </p>
- *
+ * These values should form one record in your session validation table. Or you could simply concatenate these to a string.
+ */
+export type ValidSessionRecord = {
+    id: string,
+    version: number,
+
+    /**
+     * See CookieSession#bpSalt
+     */
+    bpSalt: string
+}
+
+/**
+ * A plugin that allows you to keep track of valid session records (whitelist). I.e. you could use a central (Redis) database.
+ * The implementation also cares about the timing-out of records itself (not called from external)
  */
 export abstract class SessionValidator {
     /**
-     * Updates or creates a new session entry.
-     * This should also check and error, if there's already a newer or same version
-     * @param sessionId
-     * @param version
+     * Seconds, after which the records will time out. Undefined = no timeout
      */
-    abstract update(sessionId: string, version: number): Promise<void>;
-    abstract isValid(sessionId: string, version: number): Promise<boolean>;
-    abstract delete(sessionId: string): Promise<void>;
+    protected timeout?: Number
+
+    /**
+     *
+     * @param timeout See {@link timeout}
+     */
+    constructor(timeout: Number) {
+        this.timeout = timeout;
+    }
+
+    abstract add(record: ValidSessionRecord): Promise<void>;
+    abstract has(record: ValidSessionRecord): Promise<boolean>;
+    abstract delete(record: ValidSessionRecord): Promise<void>;
+}
+
+export class MemorySessionValidator extends SessionValidator {
+    protected entries = new Set<string>()
+
+    // TODO: Implement timeout
+
+    protected recordToString(record: ValidSessionRecord) {
+        return `${record.id}_${record.version}_${record.bpSalt}`
+    }
+
+    async add(record: ValidSessionRecord) {
+        this.entries.add(this.recordToString(record));
+    }
+
+    async has(record: ValidSessionRecord) {
+        return this.entries.has(this.recordToString(record));
+    }
+
+    async delete(record: ValidSessionRecord) {
+        this.entries.delete(this.recordToString(record));
+    }
 }
 
 
@@ -75,9 +114,6 @@ export type ServerOptions = {
     // Let's make some smart default implementation so we don't have to place a security mention into the docs. Again 1 line saved ;)
     // As soon as the user switches to a multi-node environment by setting the secret, this will trigger an Error that guides the user into deciding for an explicit choice. Keeps the docs short.
     /**
-     * TODO: Implement
-     * TODO: If secret is set, we assume a multi-node environment. Force this option to be explicitly set then.
-     * TODO: Implement / mention timeouts.
      * How to track, that an attacker cannot switch / replay the session to an old state by presenting an old jwt session token ?
      *   - memory (default): A whitelist of valid tokens is kept in memory. This is as safe as traditional non-JWT sessions but does not work on a multi-node environment !
      *   - {@link SessionValidator}: Plug in your own. I.e. use a fast Redis database.
@@ -92,6 +128,11 @@ export type ServerOptions = {
      * </p>
      */
     sessionValidityTracking?: "memory" | SessionValidator | false
+
+    /**
+     * Default: 1 hour.
+     */
+    sessionTimeoutInSeconds?: number
 
     engineIoOptions?: AttachOptions & EngineIoServerOptions
 
@@ -344,6 +385,18 @@ class RestfuncsServerOOP {
             }));
         }
 
+        // Install a Session validator:
+        if(this.serverOptions.sessionValidityTracking === undefined) {
+            if(this.serverOptions.secret) {
+                throw new Error("It seems, you are in a multi-node environment (ServerOptions#secret is set). You must then choose for a ServerOptions#sessionValidityTracking strategy. See the JsDoc there.");
+            }
+
+            this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600) // Default
+        }
+        else if(this.serverOptions.sessionValidityTracking === "memory"){
+            this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600);
+        }
+
         // Register single instance:
         if(instance) {
             throw new Error("A RestfuncsServer instance already exists. There can be only one.", {cause: instance.diagnosis_creatorCallStack});
@@ -522,6 +575,40 @@ class RestfuncsServerOOP {
         }
 
         return {securityGroups, service2SecurityGroupMap}
+    }
+
+    /**
+     * Checks the validator, if the session is valid.
+     * Creates an entry on demand, if this is a legal newer version of valid entry.
+     * <p>
+     * Internal, do not override.
+     * </p>
+     * @param cookieSession
+     */
+    async cookieSessionIsValid(cookieSession: CookieSession): Promise<boolean> {
+        if (!this.sessionValidator) { // Validation disabled ?
+            return true;
+        }
+
+        const record = {id: cookieSession.id, version: cookieSession.version, bpSalt: cookieSession.bpSalt};
+        if (await this.sessionValidator.has(record)) {
+            return true;
+        }
+
+        // It failed, but check, if this is a newer version:
+        if(cookieSession.previousBpSalt) {
+            const previousSessionRecord: ValidSessionRecord = {
+                id: cookieSession.id,
+                version: cookieSession.version - 1,
+                bpSalt: cookieSession.previousBpSalt
+            }
+            if (!await this.sessionValidator.has(previousSessionRecord)) { // Yes, it is a newer version ?
+                await this.sessionValidator.add(record)
+                return true;
+            }
+        }
+
+        return false;
     }
 
 

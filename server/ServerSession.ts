@@ -45,6 +45,8 @@ import {
     WelcomeInfo
 } from "restfuncs-common";
 import {ServerSocketConnection,} from "./ServerSocketConnection";
+import nacl_util from "tweetnacl-util";
+import nacl from "tweetnacl";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
@@ -345,7 +347,7 @@ export class ServerSession implements IServerSession {
     /**
      * Those methods directly here on ServerSession are allowed to be called
      */
-    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession"]) as Set<string>
+    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession", "updateCookieSession"]) as Set<string>
 
     /**
      * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)
@@ -626,7 +628,15 @@ export class ServerSession implements IServerSession {
                     res.header("Access-Control-Allow-Credentials", "true")
                 }
 
-                const cookieSession = this.getFixedCookieSessionFromRequest(req);
+                // Obtain cookieSession:
+                let cookieSession = this.getFixedCookieSessionFromRequest(req);
+                // TODO: this should go into our express cookie handler
+                // Validate cookieSession
+                if(cookieSession && !(await this.server.cookieSessionIsValid(cookieSession))) { // cookieSession is invalid ?
+                    await this.destroyExpressSession(req);
+                    cookieSession = this.getFixedCookieSessionFromRequest(req);
+                    // cookieSession should be undefined now, in a normal, lazy-cookie implementation
+                }
 
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -681,11 +691,13 @@ export class ServerSession implements IServerSession {
                 });
 
                 if(modifiedSession) {
-                    _(req.session).extend(modifiedSession);
-
-                    // Safe in session Validator:
-                    const newCookieSession = this.getFixedCookieSessionFromRequest(req) // gets the id and makes it typesafe
-                    await this.server.sessionValidator?.update(newCookieSession!.id, newCookieSession!.version);
+                    if(modifiedSession.commandDestruction) {
+                        await this.destroyExpressSession(req);
+                    }
+                    else {
+                        _(req.session).extend(modifiedSession);
+                    }
+                    // Don't safe in session validator yet. Sending the response to the client can still fail. It's updated there before the next call.
                 }
 
                 sendResult(result, methodName);
@@ -727,6 +739,23 @@ export class ServerSession implements IServerSession {
         });
 
         return router;
+    }
+
+    /**
+     * Internal. Do not override
+     * @param req
+     */
+    static async destroyExpressSession(req: Request) {
+        await new Promise<void>((resolve, reject) => {
+            req.session.destroy(err => {
+                if(err) {
+                    reject(err);
+                }
+                else {
+                    resolve()
+                }
+            });
+        })
     }
 
     /**
@@ -805,11 +834,18 @@ export class ServerSession implements IServerSession {
 
             return (!_.isEqual(serverSession[key], cookieSession?cookieSession[key]:undefined))
         });
+
+        let modifiedSession: Omit<CookieSession, "id"> | undefined = undefined;
         if(modified) {
-            serverSession.version = (serverSession.version || 0) +1 ; // Init / increase version
+            modifiedSession = {
+                ...serverSession,
+                version: (serverSession.version || 0) +1, // Init / increase version
+                bpSalt: this.createBpSalt(),
+                previousBpSalt : cookieSession?.bpSalt
+            };
         }
         return {
-            modifiedSession: modified?serverSession:undefined, // Detect changes
+            modifiedSession,
             result
         };
     }
@@ -947,13 +983,18 @@ export class ServerSession implements IServerSession {
             ...reqSession,
             id: req.session.id, // Re-query that property accessor (otherwise it does not get included)
             version: (typeof reqSession.version === "number")?reqSession.version:0,
+            bpSalt: (typeof reqSession.bpSalt === "string")?reqSession.bpSalt: this.createBpSalt(),
         }
 
-        // Remove internal fields from the cookie handler
+        // Remove internal fields from the cookie handler to safe space / cut references:
         delete result["cookie"];
         delete result["req"]
 
         return result
+    }
+
+    private static createBpSalt() {
+        return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
 
     public getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
@@ -976,10 +1017,11 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Called via http if the webservice connection has written to the session to update the real session (cookie)
+     * Called via http, if the socket connection has written to the session, to safe to the real session-cookie
      * @param encryptedCookieSessionUpdate
+     * @param alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
-    public updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>) {
+    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession?: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer> | undefined> {
         // Security check:
         if(!this._httpCall) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
@@ -990,13 +1032,54 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError(`cookieSessionUpdate came from another service`)
         }
 
-        // TODO: check if session id matches and version number is exactly 1 higher
+        const oldCookieSession = this.clazz.getFixedCookieSessionFromRequest(this.req!);
+        if(!oldCookieSession) {
+            throw new CommunicationError("Session not yet initialized (or timed out). Can only update an existing session."); // You must got he 'New session' -> needsCookieSession way again // We can only accept updates to existing ones, to prevent an attacker to install his stock session.
+        }
+        const newCookieSession = cookieSessionUpdate.newSession;
+        if(oldCookieSession.id !== newCookieSession.id) {
+            throw new CommunicationError("Cannot update the session: Existing session has a different id (may be timed out and recreated).");
+        }
+        if(oldCookieSession.version +1 !== newCookieSession.version) {
+            // Error, but narrow down better error message:
+            if(oldCookieSession.version >= newCookieSession.version) {
+                if(oldCookieSession.bpSalt === newCookieSession.bpSalt) {
+                    throw new CommunicationError("Cannot update the session: updateCookieSession method called twice with the same value / already up2date");
+                }
+                else {
+                    throw new CommunicationError(`Cannot update the session: The version that your writes refer to, is outdated. Another ServerSession method call has updated the session in the meanwhile. Try to better synchronize such calls on the client side.`); // Most likely situation
+                }
+            }
+            throw new CommunicationError("Cannot update the session: Existing session has a different version (your call arrived to late, it was already modified by another).");
+        }
+        if(oldCookieSession.bpSalt !== newCookieSession.previousBpSalt) {
+            throw new CommunicationError("Cannot update the session: Wrong bpSalt");
+        }
 
-        // We can only accept updates. If session is still undefined, we cant' accept one, to prevent an attacker to install his stock session.
+        // Update the session:
+        if(newCookieSession.commandDestruction) {
+            await this.clazz.destroyExpressSession(this.req!);
+        }
+        else {
+            _(this.req!.session).extend(newCookieSession);
+        }
 
+        if(alsoReturnNewSession) {
+            return this.getCookieSession(alsoReturnNewSession);
+        }
     }
 
-
+    /**
+     * Unsets the cookie, after the call has finished.
+     * Till then, you might still see current values.
+     * @protected
+     */
+    protected destroy() {
+        (this as any as CookieSession).commandDestruction = true;
+        // Just for safety:
+        this.id = undefined
+        this.version = undefined
+    }
 
 
     /*
