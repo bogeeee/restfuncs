@@ -2143,7 +2143,7 @@ export class ServerSession implements IServerSession {
             if(this.server.serverOptions.installSessionHandler === false) {
                 throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed.")
             }
-            throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed. Please use `const app = restfuncsExpress({/* options */});` as a drop-in replacement for express. Or install your own (advanced).")
+            throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed. Please use `const app = restfuncsExpress();` as a drop-in replacement for express. Or install your own (advanced).")
         }
     }
 }
