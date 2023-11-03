@@ -1516,7 +1516,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 if (!sessionTokens[this.securityGroup.id]) {
-                    errorHints.push(`You provided a ${tokenType}, but no ${tokenType} was stored in the session for the ServerSession class (or same security group), you are using. Maybe the server restarted or the token, you presented, is for another ServerSession class. Please fetch the token again. ${diagnosis_seeDocs}`);
+                    errorHints.push(`You provided a ${tokenType}, but no ${tokenType} was stored in the session for the ServerSession class (or same security group), you are using. Maybe the server restarted or, the token, you presented, is for another ServerSession class. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
