@@ -117,7 +117,7 @@ export type Socket_MethodCallResult = {
     /**
      * Behaves as close as possible to the http api
      */
-    status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_waitingForCookieSessionSync"
+    status: 200 | 500 | 550 | "needsHttpSecurityProperties" | "needsCookieSession" | "doCookieSessionUpdate" | "dropped_CookieSessionIsOutdated"
 
     /**
      * If a CommunicationError was thrown, then that code

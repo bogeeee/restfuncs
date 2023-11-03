@@ -274,7 +274,7 @@ export class ClientSocketConnection {
          */
         const exec = async () => {
             const callResult = await exec_inner();
-            if(callResult.status === "dropped_waitingForCookieSessionSync") {
+            if(callResult.status === "dropped_CookieSessionIsOutdated") {
                 // TODO: exec again.
             }
             return callResult;

@@ -32,7 +32,7 @@ export class ServerSocketConnection {
      * Lazy / can be undefined, if no session-cookie was yet set. I.e the user did not yet login
      * "syncing" = we know that we don't have a valid info here. Rejects further ServerSession method calls then.
      */
-    cookieSession?: CookieSession | "syncing" = "syncing"
+    cookieSession?: CookieSession | "outdated" = "outdated"
 
     //cache_allowedSecurityGroupIds = new Set<string>(); // TODO: implement faster approving. Invalidate, when the cookie session changes (cookieSession's csrfProtectionMode, tokens vs. SecurityPropertiesOfHttpRequest) )
 
@@ -197,13 +197,13 @@ export class ServerSocketConnection {
                 }
 
                 // Validate cookieSession:
-                if(this.cookieSession === "syncing") {
+                if(this.cookieSession === "outdated") {
                     return {
-                        status: "dropped_waitingForCookieSessionSync"
+                        status: "dropped_CookieSessionIsOutdated"
                     }
                 }
                 if(this.cookieSession && !(await this.server.cookieSessionIsValid(this.cookieSession))) { // Not valid ? Either a timeout or a newer version already exists
-                    this.cookieSession = "syncing"
+                    this.cookieSession = "outdated"
                     return {
                         status: "needsCookieSession",
                         //needsCookieSession: this.server.server2serverEncryptToken({serverSocketConnectionId: this.id, forceInitialize: false}, "GetCookieSession_question")
@@ -288,7 +288,7 @@ export class ServerSocketConnection {
 
 
                         // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection to the client can break.
-                        this.cookieSession = "syncing"
+                        this.cookieSession = "outdated"
                         return {
                             result,
                             doCookieSessionUpdate: this.server.server2serverEncryptToken({
@@ -397,7 +397,7 @@ export class ServerSocketConnection {
         // Some more validation check fur user friendlyness, but they don't contribute to security (this does the validator). Without validator there would be other ways to sneak around these checks (i.e. with resetting the cookie first, or using another connection):
         if(this.cookieSession === undefined) { // New session ?
         }
-        else if(this.cookieSession === "syncing") {
+        else if(this.cookieSession === "outdated") {
         }
         else if(newCookieSession === undefined) { // Reset (i.e. after logout) or after timeout ?
         }
