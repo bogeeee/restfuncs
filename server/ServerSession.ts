@@ -633,7 +633,7 @@ export class ServerSession implements IServerSession {
                 // TODO: this should go into our express cookie handler
                 // Validate cookieSession
                 if(cookieSession && !(await this.server.cookieSessionIsValid(cookieSession))) { // cookieSession is invalid ?
-                    await this.destroyExpressSession(req);
+                    await this.regenerateExpressSession(req);
                     cookieSession = this.getFixedCookieSessionFromRequest(req);
                     // cookieSession should be undefined now, in a normal, lazy-cookie implementation
                 }
@@ -742,7 +742,10 @@ export class ServerSession implements IServerSession {
     }
 
     /**
+     * req.session is unset after that.
+     * <p>
      * Internal. Do not override
+     * </p>
      * @param req
      */
     static async destroyExpressSession(req: Request) {
@@ -756,6 +759,31 @@ export class ServerSession implements IServerSession {
                 }
             });
         })
+
+        if(req.session) {
+            throw new Error("Illegal state. Session should be unset");
+        }
+    }
+
+    /**
+     * Internal. Do not override
+     * @param req
+     */
+    static async regenerateExpressSession(req: Request) {
+        await new Promise<void>((resolve, reject) => {
+            req.session.regenerate(err => {
+                if(err) {
+                    reject(err);
+                }
+                else {
+                    resolve()
+                }
+            });
+        })
+
+        if(!req.session) {
+            throw new Error("Illegal state. Session should still be set");
+        }
     }
 
     /**
@@ -1059,6 +1087,15 @@ export class ServerSession implements IServerSession {
         // Update the session:
         if(newCookieSession.commandDestruction) {
             await this.clazz.destroyExpressSession(this.req!);
+
+            if(alsoReturnNewSession) {
+                // Do this manual, cause getCookieSession does not detect the destroyed session:
+                const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
+                return this.clazz.server.server2serverEncryptToken( {
+                    question: question,
+                    cookieSession: undefined
+                }, "GetCookieSession_answer");
+            }
         }
         else {
             _(this.req!.session).extend(newCookieSession);
