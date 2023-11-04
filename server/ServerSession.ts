@@ -1049,7 +1049,7 @@ export class ServerSession implements IServerSession {
      * @param encryptedCookieSessionUpdate
      * @param alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
-    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession?: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer> | undefined> {
+    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>> {
         // Security check:
         if(!this._httpCall) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
@@ -1088,22 +1088,18 @@ export class ServerSession implements IServerSession {
         if(newCookieSession.commandDestruction) {
             await this.clazz.destroyExpressSession(this.req!);
 
-            if(alsoReturnNewSession) {
-                // Do this manual, cause getCookieSession does not detect the destroyed session:
-                const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
-                return this.clazz.server.server2serverEncryptToken( {
-                    question: question,
-                    cookieSession: undefined
-                }, "GetCookieSession_answer");
-            }
+            // Do  "return this.getCookieSession(alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
+            const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
+            return this.clazz.server.server2serverEncryptToken( {
+                question: question,
+                cookieSession: undefined
+            }, "GetCookieSession_answer");
         }
         else {
             _(this.req!.session).extend(newCookieSession);
         }
 
-        if(alsoReturnNewSession) {
-            return this.getCookieSession(alsoReturnNewSession);
-        }
+        return this.getCookieSession(alsoReturnNewSession);
     }
 
     /**

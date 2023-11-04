@@ -63,9 +63,8 @@ export class SingleRetryableOperation<T> {
             try {
                 return await operation()
             }
-            catch (e) {
-                this.fail() // Next one will try again
-                throw e;
+            finally {
+                this.resultPromise = undefined;
             }
         })());
     }
@@ -88,6 +87,12 @@ export class SingleRetryableOperation<T> {
             catch (e) {
                 // The other "thread" cares about catching errors. We don't care
             }
+        }
+    }
+
+    expectIdle() {
+        if(this.resultPromise !== undefined) {
+            throw new Error("Operation is not idle");
         }
     }
 }

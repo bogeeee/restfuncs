@@ -140,8 +140,8 @@ export class ServerSocketConnection {
         else if(message.type === "updateHttpSecurityProperties") {
             this.updateHttpSecurityProperties(message.payload);
         }
-        else if(message.type === "initCookieSession") {
-            this.initCookieSession(message.payload);
+        else if(message.type === "setCookieSession") {
+            this.setCookieSession(message.payload);
         }
         else {
             throw new Error(`Unhandled message type: ${message.type}`)
@@ -181,21 +181,9 @@ export class ServerSocketConnection {
                 if (!_.isArray(methodCall.args)) {
                     throw new Error("methodCall.args is not an array");
                 }
-
-                // Special method:
-                if (methodCall.methodName === "updateCookieSession") {
-                    this.updateCookieSession(...methodCall.args);
-                    return {
-                        status: 200
-                    }
-                }
-
-                // Regular calls:
-                // Validate:
                 if (!methodCall.serverSessionClassId) {
                     throw new Error("methodCall.serverSessionClassId not set");
                 }
-
                 // Validate cookieSession:
                 if(this.cookieSession === "outdated") {
                     return {
@@ -271,9 +259,10 @@ export class ServerSocketConnection {
                             // - Con: When the session is tried to be installed on the http side and before that happens, the access check initializes it (i.e. for corsReadToken), there will be some trouble.
                             // - Con: Does not work with a non-restfuncs session handler that wants to do its own initialization (set its own id) / validation, etc.
 
-                            // Before proceeding, we must request and install an initial cookie session. The client must do the call again then.
+                            // Before proceeding, we must request and install an initial cookie session. See setCookieSession - scenario D. The client must do the call again then.
+                            this.cookieSession = "outdated"
                             return {
-                                needsCookieSession: this.server.server2serverEncryptToken({
+                                needsInitializedCookieSession: this.server.server2serverEncryptToken({
                                     serverSocketConnectionId: this.id,
                                     forceInitialize: true
                                 }, "GetCookieSession_question"),
@@ -346,41 +335,16 @@ export class ServerSocketConnection {
     }
 
     /**
-     * Initializes the cookie session with the value that's currently on the http side. Can be set to undefined, if there's no cookie present yet.
-     * <p>Called, when initializing the connection, so contrary to {@link updateCookieSession}, this method returns void / is never expected to fail because of conflicts. So the client does not wait for an answer</p>
+     * Called by the client either
+     * - A initially on a new connection
+     * - B or after it is flagged outdated by the validator here and the client re-fetched it
+     * - C or after a ServerSession method, called here, has written to fields and ordered the client to transfer it to the http side and re-fetched it from there (clean commit, to be safer against connection interruptions)
+     * - D or after a ServerSession method, called here wanted to write to fields and saw that the session is still uninitialized (undefined) (no lazy cookie sent yet) and ordered... like C
+     * - E or after the browser detected a change to the http cookie and re-fetched it (in the middle / state is not "outdated" here)
      * @param encryptedGetCookieSession_answer
      * @protected
      */
-    protected initCookieSession(encryptedGetCookieSession_answer: unknown) {
-
-        const answer: GetCookieSession_answer = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSession_answer")
-        // Validate:
-        if(answer.question.serverSocketConnectionId !== this.id) {
-            throw new Error("Question was not for this connection");
-        }
-        if(answer.question.forceInitialize) {
-            throw new Error("Illegal state: forceInitialize is set")
-        }
-        if(this.cookieSession) {
-            throw new Error("Illegal state: cookieSession has already been set")
-        }
-        if(answer.cookieSession && (!answer.cookieSession.id || answer.cookieSession.version === undefined)) {
-            throw new Error("answer.cookieSession.id/version not set");
-        }
-
-        this.cookieSession = answer.cookieSession
-    }
-
-    protected updateCookieSession(...args: unknown[]) {
-        // Validate
-        if(!_.isArray(args)) {
-            throw new Error("args is not an array")
-        }
-        if(args.length !== 1) {
-            throw new Error("illegal args value")
-        }
-        const encryptedGetCookieSession_answer = args[0];
-
+    protected setCookieSession(encryptedGetCookieSession_answer: unknown) {
         const answer: GetCookieSession_answer = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSession_answer")
         // Validate:
         if(answer.question.serverSocketConnectionId !== this.id) {
@@ -394,7 +358,7 @@ export class ServerSocketConnection {
             throw new Error("answer.cookieSession.id/version not set");
         }
 
-        // Some more validation check fur user friendlyness, but they don't contribute to security (this does the validator). Without validator there would be other ways to sneak around these checks (i.e. with resetting the cookie first, or using another connection):
+        // Some more validation check for user friendlyness, but they don't contribute to security (this does the validator). Without validator there would be other ways to sneak around these checks (i.e. with resetting the cookie first, or using another connection):
         if(this.cookieSession === undefined) { // New session ?
         }
         else if(this.cookieSession === "outdated") {

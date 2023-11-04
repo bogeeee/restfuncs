@@ -59,7 +59,7 @@ export interface IServerSession {
 
     getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer>;
     getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer>;
-    updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession?: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer> | undefined>;
+    updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>>;
 }
 
 export interface CookieSession extends Record<string, unknown> {
@@ -85,7 +85,7 @@ export interface CookieSession extends Record<string, unknown> {
 }
 
 export type Socket_Client2ServerMessage = {
-    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "initCookieSession"
+    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession"
     payload: Socket_MethodCall | unknown
 }
 
@@ -143,7 +143,7 @@ export type Socket_MethodCallResult = {
     /**
      * Request the cookie-session from the server by http
      */
-    needsCookieSession?: ServerPrivateBox<GetCookieSession_question>
+    needsInitializedCookieSession?: ServerPrivateBox<GetCookieSession_question>
 
     /**
      * Commands to update the cookieSession via http (so it really gets stored in the cookie)

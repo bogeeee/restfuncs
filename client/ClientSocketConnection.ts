@@ -2,7 +2,8 @@ import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, ExternalPromise, SingleRetryableOperationMap, SingleRetryableOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
-    IServerSession,
+    GetCookieSession_answer,
+    IServerSession, ServerPrivateBox,
     Socket_Client2ServerMessage,
     Socket_MethodCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
@@ -43,26 +44,19 @@ export class ClientSocketConnection {
     protected callIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
-    protected fetchInitialSessionOp = new SingleRetryableOperation<void>()
-
-    /**
-     * Whether the process of fetching (from http) and update the session is currently running. So we won't start it twice
-     * @protected
-     */
-    protected fetchSessionOp = new SingleRetryableOperation<void>()
-
-    /**
-     *  update to http side and fetch the latest session from there and install it on the websocket connection.
-     *  Or, if it was triggered by a session change on the http side, just update to the websocket connection
-     */
-    protected cookieSessionSyncOp = new SingleRetryableOperation<void>()  // TODO: LatestGreatestOperation
-
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
      * The key is either the security group id or ServerSession id, depending on what's the server's preference. See Socket_MethodCallResult#needsHttpSecurityProperties#syncKey
      * @protected
      */
     protected fetchHttpSecurityPropertiesOp  = new SingleRetryableOperationMap<string, void>()
+
+    /**
+     * If the cookieSession is currently "outdated" on the server, someone has to fix it by re-fetching it from the http side.
+     * See {@link ServerSocketConnection#setCookieSession} scenarios: B, C, D
+     * @protected
+     */
+    protected fixOutdatedCookieSessionOp = new SingleRetryableOperation<void>()
 
     /**
      * Whether this connection failed. When set, you must create a new ClientSocketConnection.
@@ -146,11 +140,7 @@ export class ClientSocketConnection {
         // Initialize the cookieSession
         const initMessage = await this.initMessage; // Wait till the server has sent us that message
         const getCookieSession_answer = await initClient.controlProxy_http.getCookieSession(initMessage.cookieSessionRequest);
-        this.sendMessage({
-            type: "initCookieSession",
-            payload: getCookieSession_answer
-        });
-
+        this.setCookieSessionOnServer(getCookieSession_answer);
     }
 
     protected failFatal(err: Error ) {
@@ -243,15 +233,19 @@ export class ClientSocketConnection {
         return this.constructor
     }
 
-    updateSession() {
-        // don't use doCall
+    /**
+     * Calls {@link ServerSocketConnection#setCookieSession} on the server
+     * Immediately returns without waiting for an ack.
+     */
+    setCookieSessionOnServer(encryptedGetCookieSession_answer: ServerPrivateBox<GetCookieSession_answer>) {
+        this.sendMessage({type: "setCookieSession", payload: encryptedGetCookieSession_answer})
     }
 
     async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
         this.checkFatal();
 
-        const exec_inner = async () => {
-            await this.cookieSessionSyncOp.waitTilIdle();
+        const exec = async () => {
+            await this.fixOutdatedCookieSessionOp.waitTilIdle(); // Wait til we have a valid cookie
 
             // Create and register a MethodCallPromise:
             const callId = ++this.callIdGenerator;
@@ -269,60 +263,52 @@ export class ClientSocketConnection {
             return await methodCallPromise // Wait till the return message arrived and the promise is resolved
         }
 
-        /**
-         * Exec with retry/waiting on cookieSession sync
-         */
-        const exec = async () => {
-            const callResult = await exec_inner();
-            if(callResult.status === "dropped_CookieSessionIsOutdated") {
-                // TODO: exec again.
-            }
-            return callResult;
+        let callResult: Socket_MethodCallResult;
+        while ( (callResult = await exec()).status === "dropped_CookieSessionIsOutdated") {
+            // (Somebody-) fetch the cookieSession:
+            await this.fixOutdatedCookieSessionOp.exec(async () => {
+                const answer = await client.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
+                this.setCookieSessionOnServer(answer);
+            })
         }
 
-        let callResult = await exec();
-
-
         if(callResult.needsHttpSecurityProperties) {
-            // Fetch the needed HttpSecurityProperties and update them on the server
-            await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => { // synchronize the operation with other calls
+            // (Somebody-) fetch the needed HttpSecurityProperties and update them on the server
+            await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => {
                 const answer = await client.controlProxy_http.getHttpSecurityProperties(callResult.needsHttpSecurityProperties!.question);
                 this.sendMessage({type: "updateHttpSecurityProperties", payload: answer});
             })
 
             callResult = await exec(); // Try again
 
+            // Safety check:
             if(callResult.needsHttpSecurityProperties) { // Still needing those ?
                 throw new Error("Illegal state: Call still needs httpSecurityProperties after they've already been installed")
             }
         }
 
-        if(callResult.needsCookieSession) {
-            // Fetch the needed cookieSession
-            await this.fetchInitialSessionOp.exec(async () => { // TODO: which synchronizer do we use ?
-                const answer = await client.controlProxy_http.getCookieSession(callResult.needsCookieSession!);
-
-                const ignoredPromise = (async () => { // Performance: We don't have to wait for the result because normally this will succeed and it's only important that the call is enqueued and send in-order before succeeding methods calls so they will enjoy the result
-                    try {
-                        await this.doCall(client, serverSessionClassId, "updateHttpSecurityProperties", [answer]);
-                    } catch (e) {
-                        this.failFatal(e as Error);
-                    }
-                })();
-
+        if(callResult.needsInitializedCookieSession) { // ServerSocketConnection#setCookieSession scenario D
+            // Fetch the needed cookieSession. Let others sync to us with fixOutdatedCookieSessionOp:
+            this.fixOutdatedCookieSessionOp.expectIdle(); // Safety check. We should be the first
+            await this.fixOutdatedCookieSessionOp.exec(async () => {
+                const answer = await client.controlProxy_http.getCookieSession(callResult.needsInitializedCookieSession!);
+                this.setCookieSessionOnServer(answer);
             })
 
             callResult = await exec(); // Try again
 
-            if(callResult.needsCookieSession) { // Still needing those ?
+            // Safety check:
+            if(callResult.needsInitializedCookieSession) { // Still needing those ?
                 throw new Error("Illegal state: Call still needs cookieSession after it's already been installed")
             }
         }
 
-        if(callResult.doCookieSessionUpdate) {
-            // TODO: sync
-            const newSession = await client.controlProxy_http.updateCookieSession(callResult.doCookieSessionUpdate, (await this.initMessage).cookieSessionRequest); // Update on the http side and get the newer session
-            await this.doCall(client, serverSessionClassId, "updateCookieSession", [newSession]) // TODO: Performance: We could not wait for the result, cause this would likely succeed and further calls would be free to go immedieately
+        if(callResult.doCookieSessionUpdate) { // ServerSocketConnection#setCookieSession scenario C
+            this.fixOutdatedCookieSessionOp.expectIdle(); // Safety check. We should be the only one
+            await this.fixOutdatedCookieSessionOp.exec(async () => {
+                const answerWithNewSession = await client.controlProxy_http.updateCookieSession(callResult.doCookieSessionUpdate!, (await this.initMessage).cookieSessionRequest); // Update on the http side and get the newer session
+                this.setCookieSessionOnServer(answerWithNewSession);
+            })
         }
 
         if (callResult.error) {
@@ -347,7 +333,7 @@ export class ClientSocketConnection {
     }
 
 
-    private sendMessage(message: Socket_Client2ServerMessage) {
+    protected sendMessage(message: Socket_Client2ServerMessage) {
         this.socket.send(this.serializeMessage(message))
     }
 
