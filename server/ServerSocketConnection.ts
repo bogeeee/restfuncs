@@ -193,8 +193,7 @@ export class ServerSocketConnection {
                 if(this.cookieSession && !(await this.server.cookieSessionIsValid(this.cookieSession))) { // Not valid ? Either a timeout or a newer version already exists
                     this.cookieSession = "outdated"
                     return {
-                        status: "needsCookieSession",
-                        //needsCookieSession: this.server.server2serverEncryptToken({serverSocketConnectionId: this.id, forceInitialize: false}, "GetCookieSession_question")
+                        status: "dropped_CookieSessionIsOutdated",
                     }
                 }
 
