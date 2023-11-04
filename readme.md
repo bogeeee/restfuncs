@@ -1,27 +1,29 @@
-_This is the 2.0 Version (API redesign), planned to be released before November 2023. Stay tuned ! Feedback welcome. 
+_This is the 2.0 Version (API redesign), planned to be released in November 2023. Stay tuned - @update: Working heavily on it ! Feedback welcome. 
 The [release on NPM](https://www.npmjs.com/package/restfuncs) is still an older version. Please refer to the docs there._
 # Restfuncs - HTTP API done proper (coming soon)
 
 ## Intro + features
 
-With restfuncs, you write your API endpoints just as **plain typescript functions**, further called "service methods".
-Nothing more is needed for such a method (no ZOD and no routing @decorators). Restfuncs will provide (a):
-- **Zero conf REST API**. Needs no routing @decorators, you can just call them in *all* (imaginable) ways.
-- **RPC client**  Just call your service method from the client/browser as if it was lokal like 'await myRemoteService.myAPIMethod(...)`, while enjoying full end2end type safety.
-  - With **Websockets** TODO: The client automatically tries to upgrade to fast websockets. Cookie sessions are automatically synced with the classic http requests and CORS setup and CSRF protection is of course regarded though all your ServerSession classes with different settings. _Multiplexed though a single socket while secured with signed/encrypted tokens_. So nothing to worry - all just working ;)
-- Typescript native **input validation**. You already declared your parameters by typescript (can be any complex type !), restfuncs will validate that automatically.  _No need to repeat yourself in any inconvenient declaration language, **no need to learn ZOD**. It is achieved by a build plugin that uses the [typescript-rtti](https://typescript-rtti.org/) library_
-- Typescript native **result validation** TODO. Also your output/result gets validated and shaped to what's declared. Improves safety and allows for [typescript tips and tricks](TODO) to shape an object to the form you want.
+With restfuncs, you write your API endpoints just as **plain typescript func**tion**s**, or better say: methods. 
+Just put them in a `ServerSession` subclass and Restfuncs will do the rest.  
+That is:
+- **Zero conf [REST interface](#rest-interface)**. _Especially no `@GET`, `@POST`, `@route` or `@param` decorations needed on your API methods._
+- **Typescript native input validation**: You already declared your parameters by typescript (can be any complex type !), restfuncs will validate that automatically.  _No need to repeat yourself in any inconvenient declaration language, **no need to learn ZOD**. It is achieved by a `(t)tsc` complier plugin that uses the [typescript-rtti](https://typescript-rtti.org/) library_
+- **Typescript native output validation**: TODO. Also your output/ method result gets validated and shaped to what's declared. Improves safety and allows for [typescript tips and tricks](TODO) to shape an object to the form you want.
+- **RPC client** (this is the best part): Just call your API methods from the client/browser as if they were lokal like 'await myRemoteSession.myAPIMethod(...)`, while enjoying full end2end type safety.
+  - Uses **engine.io (web-) sockets** (default): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. While Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls / non-restfuncs-clients / clients in other browser tabs.  
 - FUTURE (after 1.0): **API browser** (just point the url to your partners and they've got all the information and examples they need to call your methods from other programming languages )
   - FUTURE (after 1.0):  Also generates an **Openapi spec**.
-- **Callback functions** as usual parameters TODO. Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, ... _Those callbacks get **pushed** via websockets of course._ There are options for skipping and rate limiting.
-- **CSRF protection** by default / zero-conf.
-- **CORS** (cross-origin resource sharing). See `ServiceOptions.allowedOrigins`.
-- Simple **file uploads** TODO. You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
-- **Serve/stream resources**: You can also use your service methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
-- **Scalable** to a multi node environment. Uses stateless, encrypted tokens (JWT) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
+- **Callback functions** as usual parameters TODO: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, ... _Those callbacks get **pushed** via websockets of course._ There are options for skipping and rate limiting.
+- **Zero-conf CSRF protection**: Especially no csrf tokens need to be passed by **you**.  
+  As a **security-first** approach, all protection is in place **by default**, unless hinted otherwise in the docs _([friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection))_, or by friendly error messages on misconfiguration. _There's much effort and research behind the scenes for in-depth protection of all possible http call situations and also to secure the socket connection, even though for setups with different security settings per ServerSession class / even though those calls can be multiplexed though a single socket connection._
+- **CORS** of course also ;), _plays together with the above_.
+- Simple **file uploads** TODO: You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
+- **Serve/stream resources**: You can also use your API methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
+- **Scalable** to a multi node environment. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
 - Proper **error handling** and logging.
 - **Basic auth** handler TODO. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/1.x/examples/express-and-vite-with-authentication)
-- **[Collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
+- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
@@ -85,14 +87,14 @@ import {UploadFile} from "restfuncs-server";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
 
-const remote = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
+const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
 // ** Finally call your API method: **
-console.log( await remote.myAPIMethod({name: "Hans"}) );
+console.log( await myRemoteSession.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await remote.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myFile as UploadFile) // Must cast it to UploadFile    
+await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myFile as UploadFile) // Must cast it to UploadFile    
 ````
 
 ### Setting up the build (the annoying stuff)
@@ -132,7 +134,7 @@ In some cases where more configuration needs to be decided for, contextual error
 
 # Example projects
 
-- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) (proper / use as starter stack)
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) (use as starter stack)
 - [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-separate) (if you prefer that cleaner layout)
 - [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
 
@@ -144,7 +146,7 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 ### Html / images / binary as a result
 
-To serve a non API result, the service method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
+To serve a non API result, the API method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
 ```typescript
     @safe() // Lessen restrictions and allow this method to be called by GET ...
     async getAvatarImage(name: string) {
@@ -156,10 +158,10 @@ To serve a non API result, the service method must explicitly **set the content 
 
 ## REST interface
 
-Like the name restfuncs suggests, there's also a REST interface for the case that you don't use the neat RPC client or you want to call these from other languages, etc.  
+Like the name Restfuncs suggests, there's also a simple REST (http) interface for the case that you don't use the neat RPC client, or you want to call these from non-js languages, etc.  
 <br/>
-Restfuncs follows a **zero conf / gracefully accepting** approach:  
-The following example service method...
+Restfuncs follows a **zero conf / gracefully accepting / non-strict** approach (a client is still free to implement the strictness):  
+The following example API method...
 ```typescript
     async getBook(name: string, authorFilter?: string) {
         
@@ -249,7 +251,7 @@ Here are the modes. `ServerSessionOptions.csrfProtectionMode` / `RestfuncsClient
 
 * `csrfToken`
   Strictly checks for a token that's been delivered in the start page (by your implementation). It's checked on every call / every session access _(enforced by client / enforced by server)_. The advantage is just that it relies less on in-depth defence / reflection of browser-behaviour and is commonly considered a simple-and-effective industry standard.
-  - You deliver/embed the csrfToken, which you've got from `yourService.getCsrfToken(session: object)` or `app.getCsrfTokens(session: object)`, inside your *main / index.html* page. This is the tricky/inconvenient part, cause you usually use some web packer.
+  - You deliver/embed the csrfToken, which you've got from `yourServerSessionClass.getCsrfToken(session: object)` or `app.getCsrfTokens(session: object)`, inside your *main / index.html* page. This is the tricky/inconvenient part, cause you usually use some web packer.
   - When using the restfuncs client, you pass it to the options via {csrfProtectionMode:"csrfToken", csrfToken: theToken}.
   - With plain fetch requests, you include the parameter: `csrfToken=<the token>` _in the header, in the query (GET only) or in the body like a [usual named parameter](#rest-interface)_. A http response code `403` is sent when the token was missing/incorrect.
 
@@ -257,23 +259,17 @@ Here are the modes. `ServerSessionOptions.csrfProtectionMode` / `RestfuncsClient
 
 Notes:
 - [More on the security concept](server/Security%20concept.md#csrf-protection)
-- For, when having multiple services: _Services share the same session, but still every service has its individual corsReadToken and csrfToken (cause allowedOrigins or other security settings may be individual). For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._
+- For, when having multiple ServerSession classes: _They share the same cookieSession, but still every ServerSession class (or security group) has its individual corsReadToken and csrfToken there (cause allowedOrigins or other security settings may be individual). For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._
 
 
 ### Simple requests and @safe()
 
-On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). **Restfuncs blocks them** accordingly (while showing hintfull error messages), but your service methods can, if needed for some situations, be **opted in** for such calls by decorating them with `@safe()` which indicates, that you are sure, they make **read operations only**. See the JDDoc of `import {@safe} from "restfuncs-server"`
+On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). **Restfuncs blocks them** accordingly (while showing hintfull error messages), but your API methods can, if needed for some situations, be **opted in** for such calls by decorating them with `@safe()` which indicates, that you are sure, they make **read operations only**. See the JDDoc of `import {@safe} from "restfuncs-server"`
 
 ## Hardening security for the paranoid
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
 - Set `ServerSessionOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 - TODO: List all sorts of disableXXX options to disable unneeded features
-
-## Old: Security note**
-- TODO: null req.session / add proxy with errormessage instead if this notice.
-  Raw access to the session via `this.req.session` (or through plain express handlers or other middlewares) is not [shielded against csrf attacks](#csrf-protection). Use `this.session` from inside the service method instead, just like in the example above and you are fine.<br/><br/>
-
-
 
 
 # Performance
