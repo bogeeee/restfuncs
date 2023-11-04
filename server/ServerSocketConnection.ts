@@ -369,10 +369,12 @@ export class ServerSocketConnection {
         }
         else { // Same session ?
             if(this.cookieSession.version === newCookieSession.version) { // same version, but it could still have different content: I.e. an attacker from a second socket connection created it. This way, he could achieve a 2 step progression before it gets rolled back, which is not what we want to allow.
-                throw new Error(`Cannot update the cookieSession. It's the same version.`)
+                return; // Just return, don't set the connection into error state. The next failed validation + dropped_CookieSessionIsOutdated cycle will flush this out
+                //throw new Error(`Cannot update the cookieSession. It's the same version.`)
             }
             if(this.cookieSession.version > newCookieSession.version) { // Version conflict or a replay attack ?
-                throw new Error(`Cannot update the cookieSession. Version conflict: ${this.cookieSession.version} > ${newCookieSession.version}`) // Either our answer arrived late, or this.session was progressed and the server did not get all updates. TODO: Recover from this and instruct the client to synchronize the sessions again ?
+                return; // Just return, don't set the connection into error state. The next failed validation + dropped_CookieSessionIsOutdated cycle will flush this out
+                //throw new Error(`Cannot update the cookieSession. Version conflict: ${this.cookieSession.version} > ${newCookieSession.version}`) // Either our answer arrived late, or this.session was progressed and the server did not get all updates. TODO: Recover from this and instruct the client to synchronize the sessions again ?
             }
         }
 
