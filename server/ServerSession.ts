@@ -985,11 +985,18 @@ export class ServerSession implements IServerSession {
         }
         const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetCookieSession_question")
 
+        const reqSession = this.req!.session as any as Record<string, unknown>;
+
         if(question.forceInitialize) {
             this.req!.session.touch();
             if(!this.req!.session.id) {
                 throw new Error("Session should have an id by now.")
             }
+
+            reqSession.version = (typeof reqSession.version === "number")?reqSession.version:0, // Like in getFixedCookieSessionFromRequest. Initialize one field, so getFixedCookieSessionFromRequest will detect it as initialized
+            _(this.req!.session).extend(this.clazz.getFixedCookieSessionFromRequest(this.req!)) // store the rest of needed fields
+
+            //TODO: we would add it to the validator here
         }
 
         const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.req!);
