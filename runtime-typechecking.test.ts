@@ -5,39 +5,22 @@ import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
-import {restfuncsExpress} from "restfuncs-server";
+import {restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
+import {runClientServerTests, Service} from "./restfuncs.test";
+import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
-class Service extends ServerSession {
-}
+
 
 beforeEach(() => {
     develop_resetGlobals();
-});;
+});
 
-async function runClientServerTests<S extends Service>(service: S, clientTests: (proxy: ClientProxy<S>) => void, path = "/api") {
-
-
-    const serviceClass = service.clazz;
-    serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options}
-
-    const app = restfuncsExpress();
-    app.use(path, serviceClass.createExpressHandler());
-    const server = app.listen();
-    // @ts-ignore
-    const serverPort = server.address().port;
-
-    try {
-        const client = new RestfuncsClient<S>(`http://localhost:${serverPort}${path}`);
-        await clientTests(client.proxy);
-    }
-    finally {
-        // shut down server
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
-    }
+class TypecheckingService extends ServerSession {
+    static options: ServerSessionOptions = { checkArguments: true, logErrors: false, exposeErrors: true }
 }
+
 
 async function expectAsyncFunctionToThrow(f: (...any) => any, expected?: string | RegExp | Error | jest.Constructable) {
     let caught = null;
@@ -76,7 +59,7 @@ test('Test if if rtti is available', async () => {
 });
 
 test('Test arguments', async () => {
-    class ServerAPI extends Service{
+    class ServerAPI extends TypecheckingService{
         myVoidMethod() {
         }
         params1(x: string) {
@@ -120,7 +103,7 @@ test('Test arguments', async () => {
 })
 
 test('Test arguments - extra properties value', async () => {
-    class ServerAPI extends Service{
+    class ServerAPI extends TypecheckingService{
         params2(x: string, y: number, z: {}) {
         }
     };
@@ -156,7 +139,7 @@ test('Test BigInt', async () => {
  * See https://github.com/typescript-rtti/typescript-rtti/issues/92
  */
 test('Test additional properties / overstrict checks', async () => {
-    class ServerAPI extends Service {
+    class ServerAPI extends TypecheckingService {
         setObjWithValues(z: {prop1: boolean}) {
         }
 
@@ -172,7 +155,7 @@ test('Test additional properties / overstrict checks', async () => {
 
 
 test('Test rest arguments', async () => {
-    class ServerAPI extends Service {
+    class ServerAPI extends TypecheckingService {
         restParams(x: string, ...y: number[]) {
 
         }
@@ -234,7 +217,7 @@ test('Test destructuring arguments', async () => {
 */
 
 test('Test visibility', async () => {
-    class BaseServerAPI extends Service{
+    class BaseServerAPI extends TypecheckingService {
         protected myPublic(x: string) {
         }
     }
@@ -275,7 +258,7 @@ test('Test visibility', async () => {
 
 test('Test with anonymous class', async () => {
 
-    await runClientServerTests(new class extends Service{
+    await runClientServerTests(new class extends TypecheckingService{
             params1(x: string) {
             }
         },

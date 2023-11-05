@@ -24,7 +24,7 @@ function resetGlobalState() {
 const standardOptions = { checkArguments: false, logErrors: false, exposeErrors: true }
 
 
-class Service extends ServerSession {
+export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
 }
 
@@ -41,7 +41,7 @@ type runClientServerTests_Options = {
     useSocket?: boolean
 }
 
-async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, param_testOptions: runClientServerTests_Options = {}) {
+export async function runClientServerTests<Api extends object>(serverAPI: Api, clientTests: (proxy: ClientProxy<Api>) => void, param_testOptions: runClientServerTests_Options = {}) {
     if(param_testOptions.useSocket === undefined) {
         await inner(false); // Without engine.io sockets
         await inner(true); // With engine.io sockets
@@ -86,9 +86,9 @@ async function runClientServerTests<Api extends object>(serverAPI: Api, clientTe
     }
 }
 
-function toServiceClass<Api>(serverAPI: Api) : typeof Service {
+function toServiceClass<Api>(serverAPI: Api) : typeof ServerSession {
 
-    if (serverAPI instanceof Service) {
+    if (serverAPI instanceof ServerSession) {
         return serverAPI.clazz;
     } else {
         class ServiceWithTypeInfo extends Service { // Plain ServerSession was not compiled with type info but this file is
