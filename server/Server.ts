@@ -122,7 +122,7 @@ export type ServerOptions = {
      * {@link https://redis.com/blog/json-web-tokens-jwt-are-dangerous-for-user-sessions/ More info on security and performance}
      * </p>
      * <p>
-     * Note ob blacklisting: Blacklisting (through external server / database) is not offered by restfuncs:
+     * Note on blacklisting: Blacklisting (through external server / database) is not offered by restfuncs:
      * We've seen some JWT implementations and suggestions in the wild that offer those but let's be honest: This will never scale, be fast and keep security at the same time.
      * Imagine the time gap between the central database having the blacklisting transaction saved and published to all nodes. An attacker will just target that gap (i.e. try this a 1000 times on 2 nodes and you'll very likely get a lucky hit on that microsecond gap - it's just statistics)
      * </p>
@@ -137,7 +137,7 @@ export type ServerOptions = {
     engineIoOptions?: AttachOptions & EngineIoServerOptions
 
     /**
-     * Set to false, if you want to use your own session handler in express.
+     * Set to false, if you want to use your own session handler in express. {@link sessionValidityTracking} is disabled then.
      * Default: true
      */
     installSessionHandler?: boolean
@@ -383,19 +383,28 @@ class RestfuncsServerOOP {
                 store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
                 resave: false
             }));
-        }
 
-        // Install a Session validator:
-        if(this.serverOptions.sessionValidityTracking === undefined) {
-            if(this.serverOptions.secret) {
-                throw new Error("It seems, you are in a multi-node environment (ServerOptions#secret is set). You must then choose for a ServerOptions#sessionValidityTracking strategy. See the JsDoc there.");
+            // Install a Session validator:
+            if(this.serverOptions.sessionValidityTracking === undefined) {
+                if(this.serverOptions.secret) {
+                    throw new Error("It seems, you are in a multi-node environment (ServerOptions#secret is set). You must then choose for a ServerOptions#sessionValidityTracking strategy. See the JsDoc there.");
+                }
+
+                this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600) // Default
+            }
+            else if(this.serverOptions.sessionValidityTracking === "memory"){
+                this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600);
             }
 
-            this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600) // Default
+            this.sessionValidator = undefined; // Hack, until we have out JWT session handler implemented. TODO: remove line
         }
-        else if(this.serverOptions.sessionValidityTracking === "memory"){
-            this.sessionValidator = new MemorySessionValidator(this.serverOptions.sessionTimeoutInSeconds || 3600);
+        else {
+            if(this.serverOptions.sessionValidityTracking) {
+                throw new Error("Invalid ServerOptions: installSessionHandler is set to false, but sessionValidityTracking is set.")
+            }
         }
+
+
 
         // Register single instance:
         if(instance) {

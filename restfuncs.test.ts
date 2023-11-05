@@ -8,8 +8,8 @@ import {CommunicationError} from "restfuncs-server/CommunicationError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
-import {develop_resetGlobals, restfuncsExpress} from "./server/Server";
-import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
+import {develop_resetGlobals, restfuncsExpress, ServerOptions} from "./server/Server";
+import {CookieSession, ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
 
@@ -1034,13 +1034,18 @@ test("generateSecret", () => {
     }
     {
         resetGlobalState()
-        const app = restfuncsExpress({secret:"1234567800"});
+        const app = restfuncsExpress({secret:"1234567800", sessionValidityTracking: "memory"});
         expect(app.secret.length).toBeGreaterThanOrEqual(8);
     }
 
 });
 
 describe("server 2 server encryption", () => {
+
+    function createRestfuncsExpress(options: ServerOptions) {
+        return restfuncsExpress({...options, sessionValidityTracking: "memory"});
+    }
+
     beforeEach(() => {
         resetGlobalState();
     })
@@ -1067,21 +1072,21 @@ describe("server 2 server encryption", () => {
     });
 
     it('should work between 2 different servers', () => {
-        const app = restfuncsExpress({secret: "test"});
+        const app = createRestfuncsExpress({secret: "test"});
         const token = app.server2serverEncryptToken("hallo", "myType");
         resetGlobalState()
-        expect(restfuncsExpress({secret: "test"}).server2serverDecryptToken(token, "myType")).toBe("hallo")
+        expect(createRestfuncsExpress({secret: "test"}).server2serverDecryptToken(token, "myType")).toBe("hallo")
     });
 
     it('should work fail with wrong secret', () => {
-        const app = restfuncsExpress({secret: "test"});
+        const app = createRestfuncsExpress({secret: "test", sessionValidityTracking: "memory"});
         const token = app.server2serverEncryptToken("hallo", "myType");
         resetGlobalState()
-        expect(() => restfuncsExpress({secret: "secret2"}).server2serverDecryptToken(token, "myType")).toThrow("decryption failed")
+        expect(() => createRestfuncsExpress({secret: "secret2"}).server2serverDecryptToken(token, "myType")).toThrow("decryption failed")
     });
 
     it('should work fail with wrong nonce', () => {
-        const app = restfuncsExpress({secret: "test"});
+        const app = createRestfuncsExpress({secret: "test", sessionValidityTracking: "memory"});
         const token = app.server2serverEncryptToken("hallo", "myType");
 
         expect(() => app.server2serverDecryptToken({...token, nonce: nacl_util.encodeBase64(nacl.randomBytes(24))}, "myType")).toThrow("decryption failed")
@@ -1156,6 +1161,27 @@ test('Session fields compatibility - type definitions', () => {
 test('Session change detection', async () => {
 
     function expectSame(a: object, b: object) {
+        function removeInternalFields(session?: Partial<CookieSession>) {
+            if(!session) {
+                return session;
+            }
+
+            if(session.id) {
+                if(! (session.version && session.bpSalt)) {
+                    throw new Error("illegal session state")
+                }
+                //session.hasInternals = true
+            }
+            delete session.id
+            delete session.version
+            delete session.bpSalt
+            delete session.previousBpSalt
+
+            return session
+        }
+
+        a = removeInternalFields(a);
+
         function sortKeys(o: object) {
             const result = {};
             Object.keys(o).sort().forEach( k => result[k] = o[k])

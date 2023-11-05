@@ -635,7 +635,9 @@ export class ServerSession implements IServerSession {
                 if(cookieSession && !(await this.server.cookieSessionIsValid(cookieSession))) { // cookieSession is invalid ?
                     await this.regenerateExpressSession(req);
                     cookieSession = this.getFixedCookieSessionFromRequest(req);
-                    // cookieSession should be undefined now, in a normal, lazy-cookie implementation
+                    if(cookieSession !== undefined) {
+                        throw new Error("Illegal state: fresh cookieSession is not undefined.");
+                    }
                 }
 
                 // retrieve method name:
@@ -679,8 +681,10 @@ export class ServerSession implements IServerSession {
                     }
                 }
 
+                // Compose enhancementProps:
+                const _httpCall: ServerSession["_httpCall"] = {securityProperties: securityPropertiesOfRequest};
                 // @ts-ignore No Idea why we get a typescript error here
-                const enhancementProps: Partial<ServerSession> = {req, res, _httpCall: {securityPropertiesOfRequest}};
+                const enhancementProps: Partial<ServerSession> = {req, res, _httpCall};
 
                 // Do the call:
                 let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
@@ -695,6 +699,7 @@ export class ServerSession implements IServerSession {
                         await this.destroyExpressSession(req);
                     }
                     else {
+                        this.ensureSessionHandlerInstalled(req);
                         _(req.session).extend(modifiedSession);
                     }
                     // Don't safe in session validator yet. Sending the response to the client can still fail. It's updated there before the next call.
@@ -749,6 +754,10 @@ export class ServerSession implements IServerSession {
      * @param req
      */
     static async destroyExpressSession(req: Request) {
+        if(req.session === undefined) { // Either destroyed or no session handler installed
+            return;
+        }
+
         await new Promise<void>((resolve, reject) => {
             req.session.destroy(err => {
                 if(err) {
@@ -999,7 +1008,9 @@ export class ServerSession implements IServerSession {
      * @param req
      */
     protected static getFixedCookieSessionFromRequest(req: Request) : CookieSession | undefined {
-        this.ensureSessionHandlerInstalled(req);
+        if (!req.session) { // No session handler is installed (legal use case)
+            return undefined;
+        }
 
         if (!req.session.id) { // Session does not exists ?
             return undefined;
@@ -1096,6 +1107,7 @@ export class ServerSession implements IServerSession {
             }, "GetCookieSession_answer");
         }
         else {
+            this.clazz.ensureSessionHandlerInstalled(this.req!);
             _(this.req!.session).extend(newCookieSession);
         }
 
