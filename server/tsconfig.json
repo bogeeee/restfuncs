@@ -20,6 +20,7 @@
     "strict": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
+    "plugins": [{ "transform": "typescript-rtti/dist/transformer" }],
   },
   "exclude": ["dist"]
 }
