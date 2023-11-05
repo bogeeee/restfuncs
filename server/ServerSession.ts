@@ -1475,8 +1475,14 @@ export class ServerSession implements IServerSession {
         // Runtime type checking of args:
         if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(this))) { // Checking required or available ?
             const reflectedMethod = reflect(this).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
-            checkMethodAccessibility(<ReflectedMethod> reflectedMethod);
-            checkParameterTypes(<ReflectedMethod> reflectedMethod,args);
+
+            // Safety check:
+            if(! (reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class)) ) { // not available for the actual declaring superclass ?
+                throw new Error(`No runtime type information available for the super class '${reflectedMethod.class?.class?.name}' which declared the actual method. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            }
+
+            checkMethodAccessibility(reflectedMethod);
+            checkParameterTypes(reflectedMethod,args);
         }
     }
 
