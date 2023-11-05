@@ -134,10 +134,17 @@ export type ServerOptions = {
      */
     sessionTimeoutInSeconds?: number
 
+    /**
+     * Allows clients to connect via engine.io transports (websockets, long-polling, ...)
+     * Default: true
+     * @see engineIoOptions
+     */
+    installEngineIoServer?: boolean
+
     engineIoOptions?: AttachOptions & EngineIoServerOptions
 
     /**
-     * Set to false, if you want to use your own session handler in express. {@link sessionValidityTracking} is disabled then.
+     * Set to false, if you want to use your own session handler in express. {@link sessionValidityTracking} is not possible then !
      * Default: true
      */
     installSessionHandler?: boolean
@@ -404,6 +411,10 @@ class RestfuncsServerOOP {
             }
         }
 
+        if(this.serverOptions.secret && this.serverOptions.installSessionHandler === false && this.serverOptions.installEngineIoServer !== false) {
+            throw new Error("It seems, you are in a multi-node environment (ServerOptions#secret is set). You can't have at the same time serverOptions#installSessionHandler=false and serverOptions#installEngineIoServer=true (default)");
+        }
+
 
 
         // Register single instance:
@@ -421,7 +432,9 @@ class RestfuncsServerOOP {
     listen(...args: unknown[]): HttpServer {
         // @ts-ignore
         const server: HttpServer =  this.expressOriginalMethods.listen.apply(this, args);
-        const engineIoServer = this.installEngineIoServer(server);
+        if(this.serverOptions.installEngineIoServer !== false) {
+            this.installEngineIoServer(server);
+        }
         return server;
     }
 
