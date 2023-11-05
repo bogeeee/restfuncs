@@ -114,11 +114,15 @@ await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback sa
     "clean": "ttsc --build --clean",
     "build": "ttsc --build --force",
     "start": "ts-node server.js"
-}
+},
 "dependencies": {
   "restfuncs-server": "^2.x",
   "restfuncs-client": "^2.x"
-}
+},
+"devDependencies": {
+  "typescript": "4.9",
+  "ttypescript": "^1.5.15"
+},
 ````
 _Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
 In some cases where a (configuration) decision must be made 
