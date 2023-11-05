@@ -106,7 +106,7 @@ export class ClientSocketConnection {
                         this.handleMessage(message as Socket_Server2ClientMessage);
                     }
                     catch (e: any) {
-                        this.failFatal(typeof data === "string" && data.startsWith("[Error]") ? data : e)
+                        this.failFatal(typeof data === "string" && data.startsWith("[Error]") ? new Error(`ServerSocketConnection sent an error: ${data}`) : e)
                     }
                 }));
                 resolve();
