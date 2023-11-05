@@ -16,6 +16,6 @@
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
     "experimentalDecorators": true,
-    "plugins": [{ "transform": "typescript-rtti/dist/transformer" }]
+    "plugins": [{ "transform": "restfuncs-server/tscTransformer" }]
   }
 }

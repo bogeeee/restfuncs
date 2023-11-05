@@ -15,6 +15,9 @@
     ".": {
       "browser": "./dist/mjs/index.js",
       "default": "./index.js"
+    },
+    "./tscTransformer": {
+      "default": "./tscTransformer.js"
     }
   },
   "scripts": {
@@ -22,7 +25,7 @@
     "build": "tsc && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
-    "restfuncs-server": "0.9.2",
-    "restfuncs-client": "0.9.2"
+    "restfuncs-server": "0.10.0",
+    "restfuncs-client": "1.0.0"
   }
 }

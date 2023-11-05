@@ -18,6 +18,9 @@
     },
     "./Util": {
       "default": "./Util.js"
+    },
+    "./tscTransformer": {
+      "default": "./tscTransformer.js"
     }
   },
   "scripts": {

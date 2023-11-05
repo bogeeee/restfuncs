@@ -104,7 +104,7 @@ await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback sa
 "compilerOptions": {
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "plugins": [{ "transform": "restfuncs/transformer" }]
+    "plugins": [{ "transform": "restfuncs-server/tscTransformer" }]
 }
 ````
 **package.json**
@@ -115,8 +115,9 @@ await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback sa
     "build": "ttsc --build --force",
     "start": "ts-node server.js"
 }
-"devDependencies": {
-    "restfuncs-transformer": "^TODO"
+"dependencies": {
+  "restfuncs-server": "^2.x",
+  "restfuncs-client": "^2.x"
 }
 ````
 _Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
