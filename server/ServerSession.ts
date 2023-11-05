@@ -992,9 +992,23 @@ export class ServerSession implements IServerSession {
             }
         }
 
+        const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.req!);
+        // Safety check
+        if(question.forceInitialize && !cookieSession) {
+            throw new Error("cookieSession not detected as initialized");
+        }
+
+        if(cookieSession && this.clazz.server.serverOptions.installSessionHandler === false) { // Some 3rd party cookiehandler ?
+            // getFixedCookieSessionFromRequest may have falsely detected the cookieSession as initialized because it has an id, but the cookie handler could still feature lazy cookies and not send it to the browser (= we would call that not initialized).
+            // A false assumption leads to bugs, so we have to make some write to the session, so it will be definitely sent:
+            this.req!.session.touch();
+            _(this.req!.session).extend(cookieSession)
+        }
+
+
         const answer: GetCookieSession_answer = {
             question: question,
-            cookieSession: this.clazz.getFixedCookieSessionFromRequest(this.req!)
+            cookieSession: cookieSession
         }
 
 
@@ -1012,11 +1026,16 @@ export class ServerSession implements IServerSession {
             return undefined;
         }
 
-        if (!req.session.id) { // Session does not exists ?
+        // Detect uninitialized session:
+        if (!req.session.id) { // Session is not initialized ?
             return undefined;
         }
-
         const reqSession = req.session as any as Record<string, unknown>;
+        // Detect uninitialized session:
+        const standardSessionFields = new Set(["id","cookie", "req"]);
+        if(!Object.keys(reqSession).some(key => !standardSessionFields.has(key))) { // Session ha only standard fields set ?
+            return undefined; // Treat that as uninitialized
+        }
 
         const result: CookieSession =  {
             ...reqSession,
