@@ -1,7 +1,7 @@
 {
   "name": "restfuncs",
-  "version": "0.9.2",
-  "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser).",
+  "version": "1.0.0",
+  "description": "Use restfuncs-server or restfuncs-client instead.",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
   "repository": {
@@ -9,23 +9,5 @@
     "url": "https://github.com/bogeeee/restfuncs.git",
     "directory": "restfuncs-metapackage"
   },
-  "license": "MIT",
-  "main": "index.js",
-  "exports": {
-    ".": {
-      "browser": "./dist/mjs/index.js",
-      "default": "./index.js"
-    },
-    "./tscTransformer": {
-      "default": "./tscTransformer.js"
-    }
-  },
-  "scripts": {
-    "clean": "tsc --build --clean && rm -rf dist LICENSE readme.md",
-    "build": "tsc && tsc -module ES6 --outDir dist/mjs"
-  },
-  "dependencies": {
-    "restfuncs-server": "0.10.0",
-    "restfuncs-client": "1.0.0"
-  }
+  "license": "MIT"
 }
