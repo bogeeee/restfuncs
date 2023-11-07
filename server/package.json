@@ -18,9 +18,6 @@
     },
     "./Util": {
       "default": "./Util.js"
-    },
-    "./tscTransformer": {
-      "default": "./tscTransformer.js"
     }
   },
   "scripts": {
@@ -49,6 +46,7 @@
     "@types/busboy": "^1.5.0",
     "ts-node": "^10.9.1",
     "typescript": "4.9",
-    "nodemon": "^2.0.15"
+    "nodemon": "^2.0.15",
+    "restfuncs-transformer-tsc": "^0.9.6"
   }
 }

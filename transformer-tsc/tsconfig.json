@@ -20,7 +20,6 @@
     "strict": true,
     "experimentalDecorators": true,
     "skipLibCheck": true,
-    "plugins": [{ "transform": "restfuncs-transformer-tsc" }],
   },
   "exclude": ["dist"]
 }

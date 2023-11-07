@@ -104,7 +104,7 @@ await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback sa
 "compilerOptions": {
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "plugins": [{ "transform": "restfuncs-server/tscTransformer" }]
+    "plugins": [{ "transform": "restfuncs-transformer-tsc" }]
 }
 ````
 **package.json**
@@ -121,10 +121,11 @@ await myRemoteSession.myAPIMethod(...,  (progress) => console.log(`myCallback sa
 },
 "devDependencies": {
   "typescript": "4.9",
-  "ttypescript": "^1.5.15"
+  "ttypescript": "^1.5.15",
+  "restfuncs-transformer-tsc": "^0.9.6"
 },
 ````
-_Here we compile with `ttsc` (instad of tsc) which **allows for our compiler plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
+_Here we compile with `ttsc` (instad of tsc) which **allows for our `restfuncs-transformer-tsc` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
 In some cases where a (configuration) decision must be made 
 See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite bundling for the client/browser._
 

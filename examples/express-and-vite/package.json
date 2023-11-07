@@ -23,6 +23,7 @@
     "ts-node": "^10.9.1",
     "typescript": "4.9",
     "ttypescript": "^1.5.15",
+    "restfuncs-transformer-tsc": "^0.9.6",
     "nodemon": "^2.0.15",
     "cross-env": "^7.0.3"
   }
