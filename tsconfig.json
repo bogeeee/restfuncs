@@ -1,7 +1,7 @@
 // A tsconfig file must be present, or tsc complains
 {
   "exclude": [
-    "examples", "tests"
+    "examples", "tests/crossSiteSecurity"
   ],
   "references": [
     {

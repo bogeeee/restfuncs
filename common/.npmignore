@@ -1,1 +1,3 @@
 /**/tsconfig.*
+/**/*.test.*
+/__tests__

@@ -294,6 +294,6 @@ Places where your help would be needed
 
 - Client code generator for Java, C#, Python, Rust. Typesafe / with types. The idea is to integrate this as a download inside the (upcoming) API -/ docs browser. This would all be generated automatically at runtime. We already have typescript-rtti but there also needs to be some transformer that makes the jsdoc available.   
 - Security review this and of typescript-rtti
-- Enhance [testcases for typescript-rtti](runtime-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
+- Enhance [testcases for typescript-rtti](tests/clientServer/runtime-typechecking.test.ts) to cover the complete typescript language spec / check for all kinds of escapes.
 - Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
 - Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).   

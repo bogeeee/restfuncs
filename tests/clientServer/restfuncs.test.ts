@@ -8,7 +8,7 @@ import {CommunicationError} from "restfuncs-server/CommunicationError";
 import crypto from "node:crypto";
 import _ from "underscore";
 import session from "express-session";
-import {develop_resetGlobals, restfuncsExpress, ServerOptions} from "./server/Server";
+import {develop_resetGlobals, restfuncsExpress, ServerOptions} from "restfuncs-server/Server";
 import {CookieSession, ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
