@@ -3,6 +3,7 @@
   "description": "Tests and build/publish scripts",
   "type": "module",
   "scripts": {
+    "dev:fastbuild": "ttsc --build",
     "dev:watch-and-run-tests": "nodemon -e ts --exec npm run dev:_compile_and_run_tests",
     "dev:_compile_and_run_tests": "clear && ttsc --build && jest --runInBand",
     "dev:runSpecificTest": "clear && ttsc --build && jest --runInBand restfuncs --testNamePattern=parseQuery",
