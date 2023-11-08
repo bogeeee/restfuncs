@@ -1834,24 +1834,33 @@ export class ServerSession implements IServerSession {
      * @returns undefined, if not a @remote method
      */
     protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
-        const ownResult = this.getOwnRemoteMethodOptions(methodName);
-        // @ts-ignore
-        const parentResult = (this.superClass instanceof ServerSession)?this.superClass.getRemoteMethodOptions(methodName):undefined
 
-        if(this.prototype.hasOwnProperty(methodName) && !ownResult) {
-            if(parentResult) {
+        // @ts-ignore
+        const parentResult = this.superClass.getRemoteMethodOptions?.(methodName);
+
+        if (!this.prototype.hasOwnProperty(methodName)) { // No own method ?
+            return parentResult;
+        }
+
+        const ownResult = this.getOwnRemoteMethodOptions(methodName);
+        // Safety / error check:
+        if (!ownResult) {
+            if (parentResult) {
                 throw new CommunicationError(`${this.name}'s method: ${methodName} does not have a @remote() decorator, like it's super method does (forgotten ?).${diagnois_tsConfig(this)}`)
             }
             throw new CommunicationError(`Method: ${methodName} does not have a @remote() decorator.${diagnois_tsConfig(this)}`);
         }
 
         return {
+            // Inherited from parent:
             ...{
                 ...(parentResult || {}),
-                isSafe: false // don't inherit
+                isSafe: false // don't inherit this one
             },
+
             ...ownResult,
         }
+
 
         function diagnois_tsConfig(clazz: object) {
             return (!clazz.hasOwnProperty("remoteMethod2Options"))?` Hint: No @remote() decorator was found at all in this class. Please make sure to enable "experimentalDecorators" in tsconfig.json.`:"";
