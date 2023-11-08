@@ -1711,12 +1711,11 @@ export class ServerSession implements IServerSession {
                 if (typeof target[p] === "function") {
                     return target[p]; // allow
                 }
-                if(target.hasOwnProperty(p)) {
-                    checkFieldAccess(true); // If you first wonder, why need we a read proof for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
-                }
-                else { // Field access to a user's new ServerSession's default fields ?
-                    checkFieldAccess(true); // Also, at first, this sounds like it could be allowed/unchecked. But imagine an existing session where the user is logged on. An attacker could leak information THAT the user is logged in. Or leak information from other fields (whether they're still on the default value or not)
-                }
+
+                // If you first wonder, why need to trigger the csrf check for read access: This read may get the userId and call makes WRITES to the DB with it afterwards.
+                // Also we cant make an exception for field access to a user's new ServerSession's default fields. At first, this sounds like it could be allowed/unchecked. But imagine an existing session where the user is logged on. An attacker could leak information THAT the user is logged in. Or leak information from other fields (whether they're still on the default value or not)
+                // Also there could be a read + deep modification.
+                checkFieldAccess(false);
 
                 return target[p];
             },
