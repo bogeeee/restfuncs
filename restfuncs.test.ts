@@ -548,10 +548,6 @@ test('Safe methods call', async () => {
     });
 })
 
-test('Safe methods security for static methods', async () => {
-    throw new Error("TODO");
-})
-
 test('auto convert parameters', async () => {
 
     await runRawFetchTests(new class extends Service {
