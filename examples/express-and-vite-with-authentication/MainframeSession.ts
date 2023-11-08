@@ -1,4 +1,4 @@
-import {CommunicationError, ServerSession} from "restfuncs-server";
+import {CommunicationError, remote, ServerSession} from "restfuncs-server";
 import _ from "underscore";
 
 class NotLoggedInError extends CommunicationError {
@@ -22,6 +22,7 @@ export class MainframeSession extends ServerSession {
         return await super.doCall(funcName, args);
     }
 
+    @remote()
     async login(userName: string) {
         const shallPass = _(["admin", "alice", "bob"]).contains(userName.toLowerCase());
         if(shallPass) {
@@ -30,6 +31,7 @@ export class MainframeSession extends ServerSession {
         return shallPass
     }
 
+    @remote()
     async multiplyBy10(value: number) {
         return value * 10
     }

@@ -39,9 +39,9 @@ export class ServerSocketConnection {
     /**
      *
      */
-    securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, Readonly<Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">>>
+    securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, Readonly<SecurityPropertiesOfHttpRequest>>
 
-    serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">>>
+    serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
     /**
      * Whether to use the security group or the ServerSession class to associate security state
@@ -225,7 +225,6 @@ export class ServerSocketConnection {
                 }
                 const securityPropsForThisCall: SecurityPropertiesOfHttpRequest = {
                     ...securityPropertiesOfHttpRequest,
-                    serviceMethodName: methodCall.methodName,
                     readWasProven: true  // Flag that we are sure that our client made a successful read (he successfully passed us the GetHttpSecurityProperties_answer)
                 };
 

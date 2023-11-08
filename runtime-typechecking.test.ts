@@ -17,7 +17,7 @@ beforeEach(() => {
     develop_resetGlobals();
 });
 
-class TypecheckingService extends ServerSession {
+class TypecheckingService extends Service {
     static options: ServerSessionOptions = { checkArguments: true, logErrors: false, exposeErrors: true }
 }
 

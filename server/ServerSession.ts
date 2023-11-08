@@ -208,7 +208,7 @@ export type ServerSessionOptions = {
      *  - Host the backend and frontend on different (sub-) domains.
      *  - Provide authentication methods to other web applications.
      *  - Consume authentication responses from 3rd party authentication providers. I.e. form- posted SAML responses.
-     *  - Provide client side service methods to other web applications (that need the current user's session).
+     *  - Provide services to other web applications (that need the current user's session).
      *  - Have a reverse proxy in front of this web app and you get an error cause the same-origin check fails for simple, non preflighted, requests like form posts. Alternatively check the trust proxy settings: http://expressjs.com/en/4x/api.html#app.settings.table (currently this does not work properly with express 4.x)
      *
      * Values:
@@ -240,7 +240,7 @@ export type ServerSessionOptions = {
      * - implement the access token logic yourself, see {@link ServerSession.proofRead()}
      * - disable this feature and trust on browsers to make preflights and bail if they fail.
      *
-     * Note: For client developers with tokenized modes: You may wonder wonder why some requests will still pass without token checks. They may be already considered safe according the the origin/referrer headers or for @safe methods.
+     * Note: For client developers with tokenized modes: You may wonder wonder why some requests will still pass without token checks. They may be already considered safe according the the origin/referrer headers or when the remote method is flagged with `isSafe`.
      * If you want this stricter while developing your clients and raise early errors, enable the {@link devForceSessionCSRFProtection} and {@link devForceTokenCheck} developlment options.
      *
      * Default: true
@@ -339,15 +339,21 @@ export class ServerSession implements IServerSession {
     options?: never;
 
     /**
-     * Lists the methods that are flagged as @safe
-     * filled on annotation loading: for each concrete subclass such a static field is created
+     * Set the defaults for every method that is decorated with {@link remote @remote} at this class's level or in a subclass.
+     *
+     * @protected
      */
-    static safeInstanceMethods?: Set<string>
+    protected static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+
+    /**
+     * Filled on decorator loading time: for each concrete subclass such a static field is created
+     */
+    protected static remoteMethod2Options?: Map<string, RemoteMethodOptions>
 
     /**
      * Those methods directly here on ServerSession are allowed to be called
      */
-    static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession", "updateCookieSession"]) as Set<string>
+    protected static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession", "updateCookieSession"]) as Set<string>
 
     /**
      * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)
@@ -470,7 +476,7 @@ export class ServerSession implements IServerSession {
                 throw new CommunicationError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
             }
             else if(this.options.checkArguments === undefined) {
-                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your service method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
+                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your remote method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
             }
         }
     }
@@ -643,8 +649,8 @@ export class ServerSession implements IServerSession {
                 // retrieve method name:
                 const fixedPath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
                 let methodNameFromPath = fixedPath.split("/")[0];
-                const methodName = this.getMethodNameForCall(req.method, this.prototype, methodNameFromPath);
-                if(!methodName) {
+                const remoteMethodName = this.getMethodNameForCall(req.method, this.prototype, methodNameFromPath);
+                if(!remoteMethodName) {
                     if(!methodNameFromPath) {
                         throw new CommunicationError(`No method name set as part of the url. Use ${req.baseUrl}/yourMethodName.`)
                     }
@@ -652,7 +658,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Collect params / metaParams,...:
-                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(methodName, req, enableMultipartFileUploads);
+                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(remoteMethodName, req, enableMultipartFileUploads);
                 cleanupStreamsAfterRequest = c;
 
                 // Collect / pre-compute securityProperties:
@@ -660,7 +666,6 @@ export class ServerSession implements IServerSession {
                 const securityPropertiesOfRequest: SecurityPropertiesOfHttpRequest = {
                     ...metaParams,
                     httpMethod: req.method,
-                    serviceMethodName: methodName,
                     origin,
                     destination: getDestination(req),
                     browserMightHaveSecurityIssuseWithCrossOriginRequests: userAgent?browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: userAgent}):false,
@@ -671,7 +676,8 @@ export class ServerSession implements IServerSession {
                     const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityPropertiesOfRequest.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        const remoteMethodOptions = this.getRemoteMethodOptions(remoteMethodName);
+                        this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, remoteMethodOptions, securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
                             http: {
                                 acceptedResponseContentTypes,
                                 contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
@@ -687,7 +693,7 @@ export class ServerSession implements IServerSession {
                 const enhancementProps: Partial<ServerSession> = {req, res, _httpCall};
 
                 // Do the call:
-                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, methodName, methodArguments, enhancementProps, {
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, enhancementProps, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -705,7 +711,7 @@ export class ServerSession implements IServerSession {
                     // Don't safe in session validator yet. Sending the response to the client can still fail. It's updated there before the next call.
                 }
 
-                sendResult(result, methodName);
+                sendResult(result, remoteMethodName);
             }
             catch (caught) {
                 if(caught instanceof Error) {
@@ -800,19 +806,20 @@ export class ServerSession implements IServerSession {
      * Does various stuff / look at the implementation.
      * @param cookieSession
      * @param securityPropertiesOfHttpRequest
-     * @param methodName
+     * @param remoteMethodName
      * @param methodArguments
      * @param enhancementProps the properties that should be made available for the user during call time. like req, res, ...
      * @param diagnosis
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, methodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+        const remoteMethodOptions = this.getRemoteMethodOptions(remoteMethodName);
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
         {
             const cookieSessionParam = cookieSession as SecurityRelevantSessionFields || {}; // _Don't know why typescript complains without a cast, as SecurityRelevantSessionFields has all props optional_
-            this.checkIfRequestIsAllowedToRunCredentialed(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSessionParam, {
+            this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, remoteMethodOptions, securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSessionParam, {
                 ...diagnosis,
                 isSessionAccess: false
             });
@@ -823,7 +830,7 @@ export class ServerSession implements IServerSession {
         let serverSession: ServerSession = new this();
         serverSession.validateFreshInstance();
 
-        serverSession.validateCall(methodName, methodArguments);
+        serverSession.validateCall(remoteMethodName, methodArguments);
 
         {
             // *** Prepare serverSession for change tracking **
@@ -834,7 +841,7 @@ export class ServerSession implements IServerSession {
             _.extend(serverSession, cookieSessionClone);
         }
 
-        const csrfProtectedServerSession = this.createCsrfProtectedSessionProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
+        const csrfProtectedServerSession = this.createCsrfProtectedSessionProxy(remoteMethodName, remoteMethodOptions, serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result: unknown;
         try {
@@ -842,11 +849,11 @@ export class ServerSession implements IServerSession {
                 // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                 let resultPromise: Promise<unknown>;
                 ServerSession.current.run(enhancedServerSession, () => {
-                    resultPromise = enhancedServerSession.doCall(methodName, methodArguments); // Call method with user's doCall interceptor;
+                    resultPromise = enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
                 })
 
                 result = await resultPromise!;
-            }, methodName);
+            }, remoteMethodName);
         }
         catch (e) {
             // Handle non-errors:
@@ -894,17 +901,16 @@ export class ServerSession implements IServerSession {
     /**
      * @return The / index- / home page
      */
-    @safe()
+    @remote({isSafe: true})
     public async getIndex() {
         let className: string | undefined = this.constructor?.name;
         className = className === "Object"?undefined:className;
         const title = className?`Index of class ${className}`:`Index of {}`
 
-        const example = 'import {safe} from "restfuncs-server"; // dont forget that import\n\n' +
-            (className?`class ${className} {`:'    //...inside your ServerSession class: ') +' \n\n' +
-            '    @safe()\n' +
+        const example = (className?`class ${className} {`:'    //...inside your ServerSession class: ') +' \n\n' +
+            '    @remote({isSafe: true})\n' +
             '    getIndex() {\n\n' +
-            '        //... must perform non-state-changing operations only !\n\n' +
+            '        //... you sayed, `isSafe`, so you must perform non-state-changing operations only !\n\n' +
             '        this.res?.contentType("text/html; charset=utf-8");\n' +
             '        return "<!DOCTYPE html><html><body>I\'m aliiife !</body></html>"\n' +
             '    }\n\n' +
@@ -941,7 +947,9 @@ export class ServerSession implements IServerSession {
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
      * </p>
      */
-    //@safe() // <- don't use safe / don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
+    @remote({
+        isSafe: false // Don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
+    })
     public getCorsReadToken(): string {
         // Security check that is's called via http:
         if(!this._httpCall) {
@@ -1503,13 +1511,15 @@ export class ServerSession implements IServerSession {
      * Meaning it passes all the CSRF prevention requirements
      *
      * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqSecurityProps to make it clearer readable.
+     * @param remoteMethodName
+     * @param remoteMethodOptions
      * @param reqSecurityProps
      * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
      * @param allowedOrigins from the options
      * @param cookieSession holds the tokens
      * @param diagnosis
      */
-    protected static checkIfRequestIsAllowedToRunCredentialed(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
+    protected static checkIfRequestIsAllowedToRunCredentialed(remoteMethodName: string, remoteMethodOptions: RemoteMethodOptions, reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on cookieSession value access where enforcedCsrfProtectionMode is set to the mode that's stored in the cookieSession.
 
         const errorHints: string[] = [];
@@ -1524,7 +1534,6 @@ export class ServerSession implements IServerSession {
         const isAllowedInner = () => {
 
             const diagnosis_seeDocs = "See https://github.com/bogeeee/restfuncs/#csrf-protection."
-            const diagnosis_decorateWithsafeExample = `Example:\n\nimport {safe} from "restfuncs-server";\n...\n@safe() // <-- read JSDoc \nfunction ${reqSecurityProps.serviceMethodName}(...) {\n    //... must perform non-state-changing operations only\n}`;
 
             // Fix / default some reqSecurityProps for convenience:
             if (reqSecurityProps.csrfToken && reqSecurityProps.csrfProtectionMode && reqSecurityProps.csrfProtectionMode !== "csrfToken") {
@@ -1623,18 +1632,18 @@ export class ServerSession implements IServerSession {
 
             if (reqSecurityProps.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
                 // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
-                if (reqSecurityProps.httpMethod === "GET" && this.methodIsSafe(reqSecurityProps.serviceMethodName)) {
-                    return true // Exception is made for GET to a @safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
+                if (reqSecurityProps.httpMethod === "GET" && remoteMethodOptions.isSafe) {
+                    return true // Exception is made for GET to a safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
                 } else {
                     // Deny
 
                     // Add error hints:
                     if (diagnosis.http?.contentType == "application/x-www-form-urlencoded" || diagnosis.http?.contentType == "multipart/form-data") { // SURELY came from html form ?
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && diagnosis.http && _(diagnosis.http.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
-                        errorHints.push(`GET requests to '${reqSecurityProps.serviceMethodName}' from top level navigations (=having no origin)  are not allowed because '${reqSecurityProps.serviceMethodName}' is not considered safe.`);
-                        errorHints.push(`If you want to allow '${reqSecurityProps.serviceMethodName}', make sure it contains only read operations and decorate it with @safe(). ${diagnosis_decorateWithsafeExample}`)
-                        if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, reqSecurityProps.serviceMethodName)) {
-                            errorHints.push(`NOTE: '${reqSecurityProps.serviceMethodName}' was only decorated with @safe() in a parent class, but it is missing on your *overwritten* method.`)
+                        errorHints.push(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`);
+                        errorHints.push(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`)
+                        if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, remoteMethodName)) {
+                            errorHints.push(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`)
                         }
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
                         errorHints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
@@ -1649,7 +1658,7 @@ export class ServerSession implements IServerSession {
             } else { // Surely a non-simple request ?
                 // *** here we are only secured by the browser's preflight ! ***
 
-                if (reqSecurityProps.serviceMethodName === "getCorsReadToken") {
+                if (remoteMethodName === "getCorsReadToken") {
                     return true;
                 }
 
@@ -1669,19 +1678,21 @@ export class ServerSession implements IServerSession {
 
     /**
      * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access (with the session's csrfProtectionMode)
+     * @param remoteMethodName
+     * @param remoteMethodOptions
      * @param session
      * @param reqSecurityProperties
      * @param allowedOrigins
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
+    protected static createCsrfProtectedSessionProxy(remoteMethodName: string, remoteMethodOptions: RemoteMethodOptions, session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
 
-            this.checkIfRequestIsAllowedToRunCredentialed(reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
+            this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, remoteMethodOptions, reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
         }
 
         return new Proxy(session, {
@@ -1727,7 +1738,7 @@ export class ServerSession implements IServerSession {
                     checkIfSecurityFieldsAreValid(newFields);
                     _(session).extend(newFields)
 
-                    checkFieldAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the service method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
+                    checkFieldAccess(false); // Check access again. It might likely be the case that we don't have the corsRead token yet. So we don't let the following write pass. It's no security issue but it would be confusing behaviour, if the remote method failed in the middle of 2 session accesses. Breaks the testcase acutally. See restfuncs.test.ts -> Sessions#note1
                 }
 
                 // @ts-ignore
@@ -1793,28 +1804,58 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * You can override this as part of the API
-     * @param methodName method/function name
-     * @see ServerSessionOptions.allowGettersFromAllOrigins
-     * @return Whether the method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), i.e., performs *read-only* operations only ! Looks, if it's marked with a @safe decorator.
+     * Method option at this class's level.
+     * <p>
+     *     You can override this as part of the restfuncs API
+     * </p>
+     * @param methodName
+     * @returns undefined, if not a @remote method
+     * @see getRemoteMethodOptions
      */
-    protected static methodIsSafe(methodName: string) : boolean {
-       if(this.prototype.hasOwnProperty(methodName)) { // Instance method defined at this level  ?
-            if(!this.hasOwnProperty("safeInstanceMethods")) { // Class does not have a static safeInstanceMethods property on its own ?
-                return false;
-            }
-
-            return this.safeInstanceMethods !== undefined &&  this.safeInstanceMethods.has(methodName);
-       }
-       // TODO: check static method
-
-        // Check at parent level
-        const baseClass = Object.getPrototypeOf(this);
-        if(baseClass) {
-            return this.methodIsSafe.apply(baseClass, [methodName]);
+    protected static getOwnRemoteMethodOptions(methodName: string) : RemoteMethodOptions | undefined {
+        if (!this.prototype.hasOwnProperty(methodName)) { // Instance method not defined at this level  ?
+            return undefined
         }
 
-        return false;
+        if (!this.hasOwnProperty("remoteMethod2Options")) {
+            return undefined;
+        }
+
+        return {
+            ...this.defaultRemoteMethodOptions,
+            ...this.remoteMethod2Options!.get(methodName) // from @remote decorator
+        }
+    }
+
+    /**
+     * ..., errors if not a @remote method.
+     * You can override this as part of the Restfuncs API
+     * @param methodName
+     * @returns undefined, if not a @remote method
+     */
+    protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+        const ownResult = this.getOwnRemoteMethodOptions(methodName);
+        // @ts-ignore
+        const parentResult = (this.superClass instanceof ServerSession)?this.superClass.getRemoteMethodOptions(methodName):undefined
+
+        if(this.prototype.hasOwnProperty(methodName) && !ownResult) {
+            if(parentResult) {
+                throw new CommunicationError(`${this.name}'s method: ${methodName} does not have a @remote() decorator, like it's super method does (forgotten ?).${diagnois_tsConfig(this)}`)
+            }
+            throw new CommunicationError(`Method: ${methodName} does not have a @remote() decorator.${diagnois_tsConfig(this)}`);
+        }
+
+        return {
+            ...{
+                ...(parentResult || {}),
+                isSafe: false // don't inherit
+            },
+            ...ownResult,
+        }
+
+        function diagnois_tsConfig(clazz: object) {
+            return (!clazz.hasOwnProperty("remoteMethod2Options"))?` Hint: No @remote() decorator was found at all in this class. Please make sure to enable "experimentalDecorators" in tsconfig.json.`:"";
+        }
     }
 
     /**
@@ -2168,6 +2209,10 @@ export class ServerSession implements IServerSession {
         return this.constructor
     }
 
+    static get superClass(): typeof Object {
+        return Object.getPrototypeOf(this);
+    }
+
     /**
      * Returns an id for this ServerSession.
      *
@@ -2225,43 +2270,36 @@ export class ServerSession implements IServerSession {
     }
 }
 
+
+export type RemoteMethodOptions = {
+    /**
+     * Indicates, that this method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), meaning that you are sure, it essentially performs only *read* operations.
+     *
+     * This flag is needed to allow for some cases where cross site security can't be checked otherwise. i.e:
+     *   - A remote method that serves a html page so it should be accessible by top level navigation (i.e from a bookmark or an email link) as these don't send an origin header.
+     *   - Remote methods that serve an image publicly to all origins.
+     * <p>
+     * This option is not inherited from the super method or the defaultRemoteMethodOptions. You have to mark it actually, where the implementation is.
+     * </p>
+     */
+    isSafe?: boolean
+}
+
 /**
- *
- * Flag your function with this decorator as [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), if you are sure it essentially performs only *read* operations.
- *
- * This flag is needed to allow for some cases where cross site security can't be checked otherwise. i.e:
- *   - A function that serves a html page so it should be accessible by top level navigation (i.e from a bookmark or an email link) as these don't send an origin header.
- *   - functions that serve an image publicly to all origins.
- *
- *
- * @example
- * <pre>
- * import {safe} from "restfuncs-server";
- *
- *     //...inside your service class/object:
- *
- *     @safe()
- *     getUserStatusPage() {
- *
- *         // ... SECURITY: code in @safe() methods must perform read operations only !
- *
- *         this.res?.contentType("text/html; charset=utf-8");
- *         return `<html>
- *             isLoggedOn: ${isLoggedOn},
- *             yourLibraryKey: ${escapeHtml(xy)} // You can still send sensitive information because a browser script from a non allowed origins can't extract the contents of simple/non-preflighted GET requests
- *         </html>`;
- *     }
- * </pre>
+ * Allows this method to be called from the outside via http / websockets
+ * @param options
  */
-export function safe() {
+export function remote(options?: RemoteMethodOptions) {
     return function (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
         // TODO: handle static methods
         const clazz = target.clazz;
-        if(!Object.getOwnPropertyDescriptor(clazz,"safeInstanceMethods")?.value) { // clazz does not have it's OWN .safeInstanceMethods initialized yet ?
-            clazz.safeInstanceMethods = new Set<string>();
+        if(!Object.getOwnPropertyDescriptor(clazz,"remoteMethod2Options")?.value) { // clazz does not have it's OWN .remoteMethod2Options initialized yet ?
+            // @ts-ignore we want the field to stay protected
+            clazz.remoteMethod2Options = new Map();
         }
 
-        clazz.safeInstanceMethods!.add(methodName);
+        // @ts-ignore we want the field to stay protected
+        clazz.remoteMethod2Options!.set(methodName, options || {});
     };
 }
 

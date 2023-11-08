@@ -5,10 +5,6 @@ export type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
 export type SecurityPropertiesOfHttpRequest = {
     httpMethod: string,
     /**
-     * The / your ServerSession's method name that's about to be called
-     */
-    serviceMethodName: string,
-    /**
      * Computed origin
      * @see getOrigin
      */
@@ -168,7 +164,7 @@ export type GetHttpSecurityProperties_question = {
 
 export type GetHttpSecurityProperties_answer = {
     question: GetHttpSecurityProperties_question,
-    result: Omit<SecurityPropertiesOfHttpRequest, "serviceMethodName">
+    result: SecurityPropertiesOfHttpRequest
 }
 
 /**

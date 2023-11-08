@@ -1,4 +1,4 @@
-import {CommunicationError, ServerSession} from "restfuncs-server";
+import {CommunicationError, remote, ServerSession} from "restfuncs-server";
 import _ from "underscore";
 import {TestServiceSessionBase} from "./TestsService.js";
 
@@ -20,6 +20,7 @@ export class MainframeService extends TestServiceSessionBase {
         return await super.doCall(funcName, args);
     }
 
+    @remote()
     async login(userName: string) {
         const shallPass = _(["admin", "alice", "bob"]).contains(userName.toLowerCase());
         if(shallPass) {
@@ -28,10 +29,12 @@ export class MainframeService extends TestServiceSessionBase {
         return shallPass
     }
 
+    @remote()
     async multiplyBy10(value: number) {
         return `Logged in as ${this.user}. Result is: ${value * 10}`;
     }
 
+    @remote()
     async getConcat(a: string, b: number) {
         return `Logged in as ${this.user}. Result is: ${a + b}`;
     }

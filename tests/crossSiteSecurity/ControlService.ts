@@ -1,4 +1,4 @@
-import {ServerSessionOptions, ServerSession} from "restfuncs-server";
+import {ServerSessionOptions, ServerSession, remote} from "restfuncs-server";
 import session from "express-session";
 import express from "express"
 import _ from "underscore";
@@ -10,6 +10,7 @@ export class ControlService extends ServerSession {
 
     static options: ServerSessionOptions = {allowedOrigins: "all", exposeErrors: true}
 
+    @remote()
     async resetSession() {
         if(!this.req?.session) {
             return;
@@ -21,6 +22,8 @@ export class ControlService extends ServerSession {
             session.destroy((err: any) => {if(!err) resolve(); else reject(err)})
         })
     }
+
+    @remote()
     async getCorsReadTokenForService(name: string) {
 
         const ServiceClass = ControlService.services[name].service
@@ -30,6 +33,7 @@ export class ControlService extends ServerSession {
     }
 
 
+    @remote()
     async getCsrfTokenForService(name: string) {
         return ControlService.services[name].service.getCsrfToken(this.req!.session)
     }
@@ -38,6 +42,7 @@ export class ControlService extends ServerSession {
      * The browser code does not have direct access to shieldTokenAgainstBREACH_unwrap or node's Buffer class
      * @param shieldedToken
      */
+    @remote()
     async shieldTokenAgainstBREACH_unwrap(shieldedToken: string): Promise<string> {
         return shieldTokenAgainstBREACH_unwrap(shieldedToken).toString("hex");
     }

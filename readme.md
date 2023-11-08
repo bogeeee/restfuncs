@@ -4,13 +4,12 @@ The [release on NPM](https://www.npmjs.com/package/restfuncs) is still an older 
 
 ## Intro + features
 
-With restfuncs, you write your API endpoints just as **plain typescript func**tion**s**, or better say: methods. 
-Just put them in a `ServerSession` subclass and Restfuncs will do the rest.  
-That is:
-- **Zero conf [REST interface](#rest-interface)**. _Especially no `@GET`, `@POST`, `@route` or `@param` decorations needed on your API methods._
+With restfuncs, you write your http API endpoints just as **plain typescript func**tion**s**. Or better say: methods. Just put them in a `ServerSession` subclass, decorate them with `@remote()` and Restfuncs will do the rest.  
+That is (features):
+- **Zero conf [REST interface](#rest-interface)**. _Especially no `@GET`, `@POST`, `@route` or `@param` decorations needed on your remote methods._
 - **Typescript native input validation**: You already declared your parameters by typescript (can be any complex type !), restfuncs will validate that automatically.  _No need to repeat yourself in any inconvenient declaration language, **no need to learn ZOD**. It is achieved by a `(t)tsc` complier plugin that uses the [typescript-rtti](https://typescript-rtti.org/) library_
 - **Typescript native output validation**: TODO. Also your output/ method result gets validated and shaped to what's declared. Improves safety and allows for [typescript tips and tricks](TODO) to shape an object to the form you want.
-- **RPC client** (this is the best part): Just call your API methods from the client/browser as if they were lokal like 'await myRemoteSession.myAPIMethod(...)`, while enjoying full end2end type safety.
+- **RPC client** (this is the best part): Just call your remote methods from the client/browser as if they were lokal like 'await myRemoteSession.myAPIMethod(...)`, while enjoying full end2end type safety.
   - Uses **engine.io (web-) sockets** (default): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. While Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls / non-restfuncs-clients / clients in other browser tabs.  
 - FUTURE (after 1.0): **API browser** (just point the url to your partners and they've got all the information and examples they need to call your methods from other programming languages )
   - FUTURE (after 1.0):  Also generates an **Openapi spec**.
@@ -19,10 +18,11 @@ That is:
   As a **security-first** approach, all protection is in place **by default**, unless hinted otherwise in the docs _([friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection))_, or by friendly error messages on misconfiguration. _There's much effort and research behind the scenes for in-depth protection of all possible http call situations and also to secure the socket connection, even though for setups with different security settings per ServerSession class / even though those calls can be multiplexed though a single socket connection._
 - **CORS** of course also ;), _plays together with the above_.
 - Simple **file uploads** TODO: You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
-- **Serve/stream resources**: You can also use your API methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
-- **Scalable** to a multi node environment. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
+- **Serve/stream resources**: You can also use your remote methods to [serve/stream resources like html pages/images/pdfs/...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
+- **Scalable to a multi node environment**. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
 - Proper **error handling** and logging.
 - **Basic auth** handler TODO. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/1.x/examples/express-and-vite-with-authentication)
+- **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
 - **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
@@ -32,7 +32,7 @@ That is:
 **MyServerSession.ts**
 
 ````typescript
-import {ServerSession, UploadFile} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, UploadFile, remote} from "restfuncs-server";
 
 /**
  * An instance of MyServerSession is created for every browser session.
@@ -40,19 +40,19 @@ import {ServerSession, UploadFile} from "restfuncs-server";
  */
 export class MyServerSession extends ServerSession {
 
-  static options: ServerSessionOptions = {/* ServerSessionOptions */}
+  static options: ServerSessionOptions = {/* ... */}
 
   myLogonUserId?: string // As sayed, stored in the cookie. Make use of the fact that this property is shared with all your ServerSessions classes. It is adviced to have a common base class for all logon specific fields and methods.
 
   /**
-   * ---- Write your API method as a plain typescript method... ----
+   * ---- Write your remote method as a plain typescript method... ----
    * This JSDoc also gets outputted in the API browser / OpenAPI spec.
-   * Use the 'public' modifier to make them callable from a client.
    * @param myComplexParam Your parameters can be of any typescript type. They are automatically validated at runtime.
    * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
    * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request.
    */
-  public myAPIMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
+  @remote({/* RemoteMethodOptions */})
+  myAPIMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
     // ADVANCED:
     // this.req.... // Access the raw (express) request.  Field is simulated at call time.
     // this.res.... // Access the raw (express) response. Field is simulated at call time.
@@ -60,10 +60,10 @@ export class MyServerSession extends ServerSession {
 
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myAPIMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
   }
-    
-  // ... <-- More API methods  
-  // ... <-- Methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
-  // ... <-- Override `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
+
+  // ... <-- More @remote methods  
+  // ... <-- @remote methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
+  // ... <-- Override the `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
   // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description)
 }
 ````
@@ -72,7 +72,7 @@ export class MyServerSession extends ServerSession {
 import {restfuncsExpress} from "restfuncs-server/Server";
 import {MyServerSession} from "MyServerSession";
 
-const app = restfuncsExpress({/* options */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
+const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
 app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- Serve it ---- 
 // ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples.
@@ -83,13 +83,13 @@ app.listen(3000); // Listen on Port 3000
 **client.ts**
 ````typescript
 // Use a bundler like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
-import {UploadFile} from "restfuncs-server";
+import {UploadFile} from "restfuncs-common";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
 
 const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
-// ** Finally call your API method: **
+// ** Finally call your remote method: **
 console.log( await myRemoteSession.myAPIMethod({name: "Hans"}) );
 
 // ** Example with a callback + a file upload: **
@@ -152,10 +152,10 @@ _They use vite, which is a very minimalistic/ (zero conf) web packer with full s
 
 ### Html / images / binary as a result
 
-To serve a non API result, the API method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
+To serve a non API result, the remote method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
 ```typescript
-    @safe() // Lessen restrictions and allow this method to be called by GET ...
-    async getAvatarImage(name: string) {
+    @remote({isSafe: true /* Lessen restrictions and allow this method to be called by GET ... */}) 
+    getAvatarImage(name: string) {
         // ... therefore (SECURITY) code in @safe() methods must perform read operations only !
         this.res?.contentType("image/x-png")
         return fs.createReadStream("/someImage.png") // Returns a Readable which is streamed to client. You can also return Buffer, String, File(TODO)
@@ -167,7 +167,7 @@ To serve a non API result, the API method must explicitly **set the content type
 Like the name Restfuncs suggests, there's also a simple REST (http) interface for the case that you don't use the neat RPC client, or you want to call these from non-js languages, etc.  
 <br/>
 Restfuncs follows a **zero conf / gracefully accepting / non-strict** approach (a client is still free to implement the strictness):  
-The following example API method...
+The following example remote method...
 ```typescript
     async getBook(name: string, authorFilter?: string) {
         
@@ -266,11 +266,6 @@ Here are the modes. `ServerSessionOptions.csrfProtectionMode` / `RestfuncsClient
 Notes:
 - [More on the security concept](server/Security%20concept.md#csrf-protection)
 - For, when having multiple ServerSession classes: _They share the same cookieSession, but still every ServerSession class (or security group) has its individual corsReadToken and csrfToken there (cause allowedOrigins or other security settings may be individual). For csrfTokens, you can pass all tokens as one comma separated string, and the server will just try them all out._
-
-
-### Simple requests and @safe()
-
-On some requests, the browser will not make preflights for legacy reason. These are called [Simple requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests). **Restfuncs blocks them** accordingly (while showing hintfull error messages), but your API methods can, if needed for some situations, be **opted in** for such calls by decorating them with `@safe()` which indicates, that you are sure, they make **read operations only**. See the JDDoc of `import {@safe} from "restfuncs-server"`
 
 ## Hardening security for the paranoid
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins

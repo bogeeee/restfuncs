@@ -6,7 +6,7 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 import 'reflect-metadata' // Must import
 
 export {RestfuncsServer, ServerOptions, restfuncsExpress, getServerInstance, SessionValidator} from "./Server"
-export {ServerSession, ServerSessionOptions, safe} from "./ServerSession";
+export {ServerSession, ServerSessionOptions, remote, RemoteMethodOptions} from "./ServerSession";
 export {CommunicationError} from "./CommunicationError";
 
 

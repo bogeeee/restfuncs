@@ -1,4 +1,4 @@
-import {ServerSessionOptions, safe, ServerSession as ServerSession} from "restfuncs-server";
+import {ServerSessionOptions, ServerSession as ServerSession} from "restfuncs-server";
 import express from "express";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -12,6 +12,7 @@ import {develop_resetGlobals, restfuncsExpress, ServerOptions} from "./server/Se
 import {CookieSession, ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
+import {remote} from "restfuncs-server/ServerSession";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -26,6 +27,11 @@ const standardOptions = { checkArguments: false, logErrors: false, exposeErrors:
 
 export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
+
+    // Hack: To lazy to mark all methods with @remote()
+    protected static getOwnRemoteMethodOptions(methodName: string) {
+        return super.getOwnRemoteMethodOptions(methodName) || {}
+    }
 }
 
 beforeEach(() => {
@@ -428,13 +434,12 @@ test('Exceptions', async () => {
 
 test('Safe methods decorators', async () => {
 
-    class BaseService extends Service {
+    class BaseService extends ServerSession {
         static options = {checkArguments: false, logErrors: false, exposeErrors: true}
 
         // Escalate to 'public'
-        public static methodIsSafe(...args: any) {
-            // @ts-ignore
-            return super.methodIsSafe(...args);
+        public static methodIsSafe(name) {
+            return this.getRemoteMethodOptions(name)?.isSafe
         }
     }
 
@@ -448,12 +453,10 @@ test('Safe methods decorators', async () => {
     }
 
     expect(Service1.methodIsSafe("getIndex")).toBeTruthy()
-    expect(Service2.methodIsSafe("doCall")).toBeFalsy() // Just test some other random method that exists out there
-    expect(Service3.methodIsSafe("getIndex")).toBeTruthy()
 
-    // With overwrite and @safe:
+    // With overwrite and isSafe:
     class ServiceA extends BaseService {
-        @safe()
+        @remote({isSafe: true})
         async getIndex() {
             return "";
         }
@@ -461,8 +464,9 @@ test('Safe methods decorators', async () => {
 
     expect(ServiceA.methodIsSafe("getIndex")).toBeTruthy()
 
-    // With overwrite but no @safe:
+    // With overwrite but not marked as safe:
     class ServiceB extends BaseService {
+        @remote()
         async getIndex() {
             return "";
         }
@@ -480,19 +484,19 @@ test('Safe methods call', async () => {
             return "ok";
         }
 
-        @safe()
+        @remote({isSafe: true})
         safeFromBase() {
             wasCalled = true;
             return "ok";
         }
 
-        @safe()
+        @remote({isSafe: true})
         overwriteMe1() {
             wasCalled = true;
             return "ok";
         }
 
-        @safe()
+        @remote({isSafe: true})
         overwriteMe2() {
             wasCalled = true;
             return "ok";
@@ -505,19 +509,19 @@ test('Safe methods call', async () => {
             return "ok";
         }
 
-        @safe()
+        @remote({isSafe: true})
         safeTest() {
             wasCalled = true;
             return "ok";
         }
 
-        @safe()
+        @remote({isSafe: true})
         overwriteMe1() {
             wasCalled = true;
             return "ok";
         }
 
-        // forgot the @safe annotation -> should not execute the call
+        // forgot the @remote({isSafe: true}) annotation -> should not execute the call
         overwriteMe2() {
             wasCalled = true;
             return "ok";

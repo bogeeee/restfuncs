@@ -17,7 +17,8 @@ export const SessionValidator = cjsServer.SessionValidator
 import cjsServerSession from "./ServerSession.js";
 export const ServerSession = cjsServerSession.ServerSession
 export const ServerSessionOptions = cjsServerSession.ServerSessionOptions
-export const safe = cjsServerSession.safe
+export const remote = cjsServerSession.remote
+export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
 
 import cjsCommunicationError from "./CommunicationError.js"
 export const CommunicationError = cjsCommunicationError.CommunicationError;

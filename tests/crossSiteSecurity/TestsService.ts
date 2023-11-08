@@ -1,6 +1,7 @@
-import {ServerSession, safe, ServerSessionOptions} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
+import {remote} from "restfuncs-server/ServerSession";
 
 export class TestServiceSessionBase extends ServerSession {
     user?: string;
@@ -9,10 +10,12 @@ export class TestServiceSessionBase extends ServerSession {
 
 export class TestsService extends TestServiceSessionBase {
 
+    @remote()
     unsafeMethod() {
         return "test"
     }
 
+    @remote()
     async logon(user: string) {
         this.user = user;
 
@@ -22,6 +25,7 @@ export class TestsService extends TestServiceSessionBase {
         this.bankAccounts[this.user] = 5000;
     }
 
+    @remote()
     async spendMoney() {
         if(!this.user) {
             throw new Error("Not logged it");
@@ -33,7 +37,7 @@ export class TestsService extends TestServiceSessionBase {
     }
 
 
-    @safe()
+    @remote({isSafe: true})
     async spendMoneyAccidentlyMarkedAsSafe() {
         if(!this.user) {
             throw new Error("Not logged it");
@@ -45,6 +49,7 @@ export class TestsService extends TestServiceSessionBase {
         this.bankAccounts[this.user] = 0;
     }
 
+    @remote()
     async getBalance(user: string) {
         if(!this.user) {
             throw new Error("Not logged it");
@@ -56,6 +61,7 @@ export class TestsService extends TestServiceSessionBase {
     }
 
 
+    @remote()
     async test() {
         return "ok";
     }
@@ -63,14 +69,17 @@ export class TestsService extends TestServiceSessionBase {
 
     static lastCallWasSimpleRequest = false;
 
+    @remote()
     getLastCallWasSimpleRequest() {
         return TestsService.lastCallWasSimpleRequest;
     }
 
+    @remote()
     getIsSimpleRequest(body?: string) {
         return isSimpleRequest(this.req)
     }
 
+    @remote()
     getTestImage() {
         this.res?.contentType("image/x-png")
         return fs.createReadStream("teeest.png")

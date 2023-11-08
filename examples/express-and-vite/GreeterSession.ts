@@ -1,4 +1,4 @@
-import {ServerSession, ServerSessionOptions} from "restfuncs-server";
+import {remote, ServerSession, ServerSessionOptions} from "restfuncs-server";
 
 export class GreeterSession extends ServerSession {
 
@@ -6,9 +6,10 @@ export class GreeterSession extends ServerSession {
         checkArguments: (process.env.NODE_ENV === 'development'?undefined:true)
     }
 
+    @remote()
     async greet(name: string) {
         return `Hello ${name} from the server`
     }
 
-    // ... more API methods go here
+    // ... more remote methods go here
 }
