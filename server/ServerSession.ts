@@ -2283,6 +2283,37 @@ export type RemoteMethodOptions = {
      * </p>
      */
     isSafe?: boolean
+
+    /**
+     *
+     * Default: true
+     */
+    validateArguments?: boolean
+
+    /**
+     *
+     * Default: Depends on the client
+     */
+    shapeArgumens?: boolean
+
+    /**
+     * Disable, to improve performance. Like you usually know, what your remove method outputs.
+     * Default: true
+     */
+    validateResult?: boolean
+
+    /**
+     *
+     * Default: true
+     */
+    shapeResult?: boolean
+
+    apiBrowserOptions?: {
+        /**
+         * Indicates this to the viewer by showing a lock symbol.
+         */
+        needsAuthorization?: boolean
+    }
 }
 
 /**
