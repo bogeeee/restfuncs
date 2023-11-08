@@ -6,8 +6,8 @@ import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
-import {runClientServerTests, Service} from "./restfuncs.test";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
+import {runClientServerTests, Service} from "./lib";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
