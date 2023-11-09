@@ -131,6 +131,18 @@ export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: 
             continue;
         }
 
+        // Bug workaround: Buffer causes a validation error:
+        if(arg instanceof Buffer) {
+            // Obtain type (class) of parameter:
+            const typeRef = (parameter.type as any)?.ref;
+            if(typeRef === undefined) {
+                throw new Error("Cannot obtain typeRef. This may be due to nasty unsupported API usage of typescript-rtti by restfuncs and the API has may be changed. Report this as a bug to the restfuncs devs and try to go back to a bit older (minor) version of 'typescript-rtti'.")
+            }
+            if(typeRef === Buffer) {
+                continue; // Skip validation of fields
+            }
+        }
+
         validateAndCollectErrors(parameter, arg);
     }
 
