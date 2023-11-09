@@ -36,12 +36,15 @@ import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
     CookieSession,
-    CSRFProtectionMode, GetCookieSession_answer, GetCookieSession_question,
+    CookieSessionUpdate,
+    CSRFProtectionMode,
+    GetCookieSession_answer,
+    GetCookieSession_question,
     GetHttpSecurityProperties_answer,
     GetHttpSecurityProperties_question,
     IServerSession,
     SecurityPropertiesOfHttpRequest,
-    ServerPrivateBox, CookieSessionUpdate,
+    ServerPrivateBox,
     WelcomeInfo
 } from "restfuncs-common";
 import {ServerSocketConnection,} from "./ServerSocketConnection";
@@ -328,11 +331,11 @@ export class ServerSession implements IServerSession {
     options?: never;
 
     /**
-     * Set the defaults for every method that is decorated with {@link remote @remote} at this class's level or in a subclass.
+     * Set the defaults for every method that is decorated with {@link remote @remote} at this class's level (does not affect methods, declared in subclasses or the parent class)
      *
      * @protected
      */
-    protected static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+    protected static defaultRemoteMethodOptions?: RemoteMethodOptions
 
     /**
      * Filled on decorator loading time: for each concrete subclass such a static field is created
@@ -1819,7 +1822,7 @@ export class ServerSession implements IServerSession {
         }
 
         return {
-            ...this.defaultRemoteMethodOptions,
+            ...(this.hasOwnProperty("defaultRemoteMethodOptions") && this.defaultRemoteMethodOptions) || {}, // defaultRemoteMethodOptions only from this level
             ...this.remoteMethod2Options!.get(methodName) // from @remote decorator
         }
     }
@@ -1850,12 +1853,11 @@ export class ServerSession implements IServerSession {
 
         return {
             // Inherited from parent:
-            ...{
-                ...(parentResult || {}),
-                isSafe: false // don't inherit this one
-            },
-
             ...ownResult,
+            apiBrowserOptions: {
+                needsAuthorization:  parentResult?.apiBrowserOptions?.needsAuthorization, // Inherited
+                ...ownResult.apiBrowserOptions
+            }
         }
 
 
@@ -2295,7 +2297,10 @@ export type RemoteMethodOptions = {
     isSafe?: boolean
 
     /**
-     *
+     * Validates, that the arguments have the proper type at runtime. The remote method's class has to be compiled with the restfuncs-transformer therefore.
+     * <p>
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity}.
+     * </p>
      * Default: true
      */
     validateArguments?: boolean
@@ -2321,6 +2326,7 @@ export type RemoteMethodOptions = {
     apiBrowserOptions?: {
         /**
          * Indicates this to the viewer by showing a lock symbol.
+         * Flag is inherited to overridden methods
          */
         needsAuthorization?: boolean
     }
