@@ -93,7 +93,7 @@ export async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFe
 
     const app = restfuncsExpress();
     let serviceClass = toServiceClass(serverAPI);
-    serviceClass.options = {checkArguments: false, logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
+    serviceClass.options = {logErrors: false, exposeErrors: true, ...serviceClass.options} // Not the clean way. It should all go through the constructor. TODO: improve it for all the callers
     app.use(path, serviceClass.createExpressHandler());
     const server = app.listen();
     // @ts-ignore

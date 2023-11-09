@@ -83,11 +83,6 @@ function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
     if(reflectedMethod.isPrivate) {
         throw new CommunicationError("Method is private.")
     }
-
-    // The other blocks should have already caught it. But just to be safe for future language extensions we explicitly check again:
-    if(reflectedMethod.visibility !== "public") {
-        throw new CommunicationError("Method is not public")
-    }
 }
 
 /**
@@ -95,7 +90,7 @@ function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
  * @param reflectedMethod
  * @param args
  */
-export function checkParameterTypes(reflectedMethod: ReflectedMethod, args: Readonly<unknown[]>) {
+export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: Readonly<unknown[]>) {
     // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
     let argsStack = [...args]; // shallow clone
     argsStack.reverse();
@@ -167,18 +162,6 @@ export type ServerSessionOptions = {
      * TODO: implement. Maybe instead of ignoresHeader, react on a hook when the header is accessed.
      */
     basicAuth?: ((user: string, password: string) => boolean) | "ignoresHeader"
-
-
-    /**
-     * TODO: use global disableSecurity option
-     * Enable checking your func's arguments at runtime (shielding).
-     *
-     * To make it work, See https://github.com/bogeeee/restfuncs#runtime-arguments-typechecking-shielding-against-evil-input
-     * See also the security notes there.
-     *
-     * When undefined, arguments typechecking will be tried but a warning is issued when not possible. It's recommended to explicitly enable this.
-     */
-    checkArguments?: boolean
 
     /**
      * Whether errors during call should be logged to the console.
@@ -255,6 +238,12 @@ export type ServerSessionOptions = {
      * </p>
      */
     devForceTokenCheck?: boolean
+
+    /**
+     * Disables all argument- and output validation and shaping and all allowed origin and CSRF protection checks.
+     * Default: false
+     */
+    devDisableSecurity?: boolean
 
 
     /**
@@ -470,14 +459,9 @@ export class ServerSession implements IServerSession {
         }
         checkAllowedOrigins();
 
-        // Warn/error if type info is not available:
-        if(!isTypeInfoAvailable(new this)) {
-            if(this.options.checkArguments) {
-                throw new CommunicationError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
-            }
-            else if(this.options.checkArguments === undefined) {
-                console.warn("**** SECURITY WARNING: Runtime type information is not available. This can be a security risk as your remote method's arguments cannot be checked automatically !\n" + this._diagnosisWhyIsRTTINotAvailable())
-            }
+        // Check that type info is available
+        if(!this.options.devDisableSecurity && !isTypeInfoAvailable(new this)) {
+            throw new CommunicationError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
         }
     }
 
@@ -1398,7 +1382,7 @@ export class ServerSession implements IServerSession {
                         convertAndAddParams(rawBodyText, null); // no conversion
                         // Do a full check to provoke error for, see catch
                         if (reflectedMethod) {
-                            checkParameterTypes(reflectedMethod, result.methodArguments);
+                            validateMethodArguments(reflectedMethod, result.methodArguments);
                         }
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
@@ -1475,22 +1459,36 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError(`${methodName} is not a function`)
         }
 
-        // Make sure that args is an array:
+        // Check that args is an array:
         if(!args || args.constructor !== Array) {
             throw new CommunicationError("args is not an array")
         }
 
-        // Runtime type checking of args:
-        if(options.checkArguments || (options.checkArguments === undefined && isTypeInfoAvailable(this))) { // Checking required or available ?
-            const reflectedMethod = reflect(this).getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
+        const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName); // Will also throw when @remote is missing
 
-            // Safety check:
-            if(! (reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class)) ) { // not available for the actual declaring superclass ?
-                throw new Error(`No runtime type information available for the super class '${reflectedMethod.class?.class?.name}' which declared the actual method. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
-            }
+        if(this.clazz.options.devDisableSecurity) {
+            return;
+        }
 
-            checkMethodAccessibility(reflectedMethod);
-            checkParameterTypes(reflectedMethod,args);
+        // obtain reflectedMethod:
+        if (!isTypeInfoAvailable(this)) {
+            throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+        }
+        let reflectedClass = reflect(this);
+        const reflectedMethod = reflectedClass.getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
+        // Check if full type info is available:
+        if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
+            throw new Error(`No runtime type information available for the super class '${reflectedMethod.class?.class?.name}' which declared the actual method. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+        }
+
+        if (reflectedMethod.isProtected) {
+            throw new CommunicationError("Method is protected.")
+        }
+        if (reflectedMethod.isPrivate) {
+            throw new CommunicationError("Method is private.")
+        }
+        if(remoteMethodOptions.validateArguments !== false) {
+            validateMethodArguments(reflectedMethod, args);
         }
     }
 
@@ -2051,6 +2049,7 @@ export class ServerSession implements IServerSession {
             }
 
             try {
+                // TODO: also check for @remote decorator
                 checkMethodAccessibility(<ReflectedMethod>reflectedMethod);
                 return true;
             }
@@ -2060,6 +2059,9 @@ export class ServerSession implements IServerSession {
         })
     }
 
+    /**
+     * TODO: Remove method and dependants if not needed
+     */
     static mayNeedFileUploadSupport() {
         // Check if this service has methods that accept buffer
 

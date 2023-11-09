@@ -401,7 +401,7 @@ test('Safe methods call', async () => {
 test('auto convert parameters', async () => {
 
     await runRawFetchTests(new class extends Service {
-        static options = {checkArguments: true}
+        static options: ServerSessionOptions = {devDisableSecurity: false}
         getNum(num?: number) {
             return num;
         }
@@ -710,7 +710,7 @@ test('Http stream and buffer results', async () => {
 test('Http multipart file uploads', async () => {
 
     await runRawFetchTests(new class extends Service {
-        static options: ServerSessionOptions = {allowedOrigins: "all" , checkArguments: true};
+        static options: ServerSessionOptions = {allowedOrigins: "all" , devDisableSecurity: false};
         uploadFile(file_name_0: string, file_name_1: string, upload_file_0: Buffer, upload_file_1: Buffer) {
             return [file_name_0, file_name_1, upload_file_0.toString(), upload_file_1.toString()]
         }
@@ -838,7 +838,6 @@ test('.req, .res and Resources leaks', async () => {
 
 test('parseQuery', () => {
     class TestSession extends Service{
-        static options = {checkArguments: false}
 
         // Escalate to 'public'
         public static parseQuery(...args: any) {

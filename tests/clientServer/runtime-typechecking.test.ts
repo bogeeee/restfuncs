@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 class TypecheckingService extends Service {
-    static options: ServerSessionOptions = { checkArguments: true, logErrors: false, exposeErrors: true }
+    static options: ServerSessionOptions = {devDisableSecurity: false, logErrors: false, exposeErrors: true }
 }
 
 
