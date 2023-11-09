@@ -8,7 +8,7 @@ export function resetGlobalState() {
     restfuncsClientCookie = undefined;
 }
 
-export const standardOptions = {checkArguments: false, logErrors: false, exposeErrors: true}
+export const standardOptions = {logErrors: false, exposeErrors: true, devDisableSecurity: true}
 
 export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
@@ -47,6 +47,11 @@ export async function runClientServerTests<Api extends object>(serverAPI: Api, c
         const app = restfuncsExpress();
         const service = toServiceClass(serverAPI);
         service.options = {...standardOptions, ...service.options}
+
+        if(service.name === "ServiceWithTypeInfo" && !service.options.devDisableSecurity) {
+            throw new Error("Arguments validation does not work on your on-the-fly service. Please declare a proper, fixed Service subclass, set devDisableSecurity: true")
+        }
+
         app.use(testOptions.path, service.createExpressHandler());
         const server = app.listen();
         // @ts-ignore
