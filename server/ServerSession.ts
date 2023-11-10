@@ -22,6 +22,7 @@ import {
     fixTextEncoding,
     getDestination,
     getOrigin,
+    isTypeInfoAvailable,
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
     shieldTokenAgainstBREACH_unwrap
@@ -52,27 +53,6 @@ import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
-
-
-export function isTypeInfoAvailable(service: object) {
-    const r = reflect(service);
-
-    // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
-    // TODO: improve checks for security reasons !
-
-    /*
-    if(r.methods.length === 0) {
-        return false;
-    }
-    // Still this check was not enough because we received  the methods of the prototype
-    */
-
-    if(r.getProperty("xxyyyyzzzzzdoesntExist") !== undefined) { // non existing property reported as existing ?
-        return false;
-    }
-
-    return true
-}
 
 
 /**
@@ -358,6 +338,8 @@ export class ServerSession implements IServerSession {
      * Those methods directly here on ServerSession are allowed to be called
      */
     protected static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession", "updateCookieSession"]) as Set<string>
+
+    //public static diagnosis_ownFieldnames = new Set</* keyof ServerSession does not work for "req" */string>(["id", "clazz", "version", "classType", "options", "req", "res", "socketConnection", "_httpCall"]);
 
     /**
      * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)

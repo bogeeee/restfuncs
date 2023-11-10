@@ -1,8 +1,8 @@
 import 'reflect-metadata'
-import {isTypeInfoAvailable, ServerSession as ServerSession} from "restfuncs-server/ServerSession";
+import {ServerSession as ServerSession} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
-import {extendPropsAndFunctions} from "restfuncs-server/Util";
+import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {restfuncsExpress, ServerSessionOptions} from "restfuncs-server";

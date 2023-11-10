@@ -8,7 +8,7 @@ import crypto from "node:crypto"
 import {Request} from "express";
 import URL from "url";
 import {CommunicationError} from "./CommunicationError";
-import _ from "underscore";
+import {reflect} from "typescript-rtti";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -573,4 +573,24 @@ export function getMethodNames(obj: object) {
         }
     });
     return result;
+}
+
+export function isTypeInfoAvailable(value: object) {
+    const r = reflect(value);
+
+    // *** Some heuristic checks: (the rtti api currently has no really good way to check it)
+    // TODO: improve checks for security reasons !
+
+    /*
+    if(r.methods.length === 0) {
+        return false;
+    }
+    // Still this check was not enough because we received  the methods of the prototype
+    */
+
+    if (r.getProperty("xxyyyyzzzzzdoesntExist") !== undefined) { // non existing property reported as existing ?
+        return false;
+    }
+
+    return true
 }

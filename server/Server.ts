@@ -14,7 +14,7 @@ import {
     Socket
 } from "engine.io"
 import _ from "underscore";
-import {getAllFunctionNames, getMethodNames} from "./Util";
+import {getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 import session from "express-session";
 import {ServerSocketConnection} from "./ServerSocketConnection";
@@ -23,6 +23,7 @@ import nacl_util from "tweetnacl-util"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import {CookieSession, ServerPrivateBox} from "restfuncs-common";
+import {reflect, ReflectedClass, ReflectedProperty} from "typescript-rtti";
 
 export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
 
@@ -169,6 +170,11 @@ export type ServerOptions = {
      * Therefore the default is: true (enabled)
      */
     socket_requireAccessProofForIndividualServerSession?: boolean
+
+    /**
+     * Disable some conenience checks. You'll be notified when you need this.
+     */
+    _diagnosis_skipValidatingServerSessionFieldTypes?: boolean
 }
 
 /*
@@ -261,6 +267,8 @@ class RestfuncsServerOOP {
      * The ServerSession constructor registers itself here.
      */
     serverSessionClasses = new Map<string, typeof ServerSession>()
+
+    protected diagnosis_cookieSessionFieldTypes = new Map<string, ReflectedProperty>()
 
     /**
      * computed / cached values, after all serverSessionClasses have been registered.
@@ -530,6 +538,10 @@ class RestfuncsServerOOP {
             throw new Error(`There is already another ServerSession class registered with the id: '${clazz.id}'. Make sure, you have unique class names or otherwise implement the id field accessor in your class(es)`);
         }
 
+        if(isTypeInfoAvailable(clazz)) {
+            this.diagnosis_validateServiceFieldTypes(clazz);
+        }
+
         this.serverSessionClasses.set(clazz.id, clazz);
     }
 
@@ -597,6 +609,50 @@ class RestfuncsServerOOP {
         }
 
         return {securityGroups, service2SecurityGroupMap}
+    }
+
+    /**
+     * Makes sure, that the types of newService are compatible with the ones of already registered serverSessionClasses,
+     * meaning they share the same cookie, so they must not declare a field with the same name but conflicting types
+     */
+    diagnosis_validateServiceFieldTypes(newService: typeof ServerSession) {
+        if(this.serverOptions._diagnosis_skipValidatingServerSessionFieldTypes) {
+            return;
+        }
+
+        if(!isTypeInfoAvailable(newService)) {
+            throw new Error("Type info is not available for " + newService.name);
+        }
+
+        reflect(newService).properties.forEach(reflectedProp => {
+            if(reflectedProp.isStatic) {
+                return;
+            }
+            if(reflectedProp.class.class === ServerSession) {
+                return; // Skip check for ServerSession's own fields
+            }
+
+            let existingProp = this.diagnosis_cookieSessionFieldTypes.get(reflectedProp.name); // Determine existing prop from other (registered) service
+            if(existingProp) {
+                if (reflectedProp.type.equals(existingProp.type)) {
+                    return;
+                }
+
+                let sameStringified
+                try {
+                    sameStringified = reflectedProp.type.toString() === existingProp.type.toString();
+                }
+                catch (e) {
+                    throw new Error(`Error (likely a bug), while checking the fields ${newService.name}#${reflectedProp.name} and ${existingProp.class.class.name}#${existingProp.name} for type compatibility: ${(e as Error)?.message || e}. \n Please enable ServerOptions#_diagnosis_skipValidatingServiceFieldTypes`);
+                }
+                if(!sameStringified) {
+                    throw new Error(`It seems like the property ${newService.name}#${reflectedProp.name} is not compatible with ${existingProp.class.class.name}#${existingProp.name}. \nNote: This check is done because ServerSessions will share overlapping values via the same cookieSession (there's only one). \nUnfortunately this check sometimes generates false positives for fields of type object. In that case, enable ServerOptions#_diagnosis_skipValidatingServiceFieldTypes`);
+                }
+            }
+            else {
+                this.diagnosis_cookieSessionFieldTypes.set(reflectedProp.name, reflectedProp)
+            }
+        })
     }
 
     /**
