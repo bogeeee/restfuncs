@@ -10,7 +10,6 @@ import crypto from "node:crypto";
 
     const app = restfuncsExpress()
 
-    // Remote service(s):
     app.use("/greeterAPI", GreeterSession.createExpressHandler() )
 
     // Client web:

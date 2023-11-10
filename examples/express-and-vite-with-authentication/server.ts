@@ -9,12 +9,11 @@ import {restfuncsExpress} from "restfuncs-server";
     const port = 3000
 
     MainframeSession.options = {
-        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true) // Strictly require parameter checking for production
+        devDisableSecurity: (process.env.NODE_ENV === 'development')
     }
 
     const app = restfuncsExpress()
 
-    // Remote service(s):
     app.use("/mainframeAPI", MainframeSession.createExpressHandler())
 
     // Client web:

@@ -10,7 +10,6 @@ import {restfuncsExpress} from "restfuncs-server";
 
     const app = restfuncsExpress()
 
-    // Remote service(s):
     app.use("/greeterAPI", GreeterSession.createExpressHandler() )
 
     // Client web:

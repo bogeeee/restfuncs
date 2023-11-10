@@ -3,7 +3,7 @@ import {remote, ServerSession, ServerSessionOptions} from "restfuncs-server";
 export class GreeterSession extends ServerSession {
 
     static options: ServerSessionOptions = {
-        checkArguments: (process.env.NODE_ENV === 'development'?undefined:true)
+        devDisableSecurity: (process.env.NODE_ENV === 'development')
     }
 
     @remote()
