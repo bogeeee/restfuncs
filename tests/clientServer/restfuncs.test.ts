@@ -942,69 +942,114 @@ describe("server 2 server encryption", () => {
     });
 });
 
-test('Session fields compatibility - type definitions', () => {
-    function checkCompatibility(classes : (typeof ServerSession)[]) {
-        let app = restfuncsExpress();
-        classes.forEach(clazz => app.registerServerSessionClass(clazz)  );
+describe('Session fields compatibility - type definitions', () => {
+    function checkCompatibility(classes: (typeof ServerSession)[]) {
+        [classes, classes.reverse()].forEach(classes => {
+            resetGlobalState()
+            let app = restfuncsExpress();
+            classes.forEach(clazz => app.registerServerSessionClass(clazz));
+        })
     }
 
-    {
-        class SessionA extends ServerSession {
-            myField: string
-        }
-        class SessionB extends ServerSession {
-            myField: any
-        }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
-    }
+    test('Various different ServerSession classes', () => {
+        {
+            class SessionA extends ServerSession {
+                myField: string
+            }
 
-    {
-        type MyField = {a: string, b: number, c?: object}
+            class SessionB extends ServerSession {
+                myField: any
+            }
+
+            expect(() => {
+                checkCompatibility([SessionA, SessionB])
+            }).toThrow("myField")
+        }
+
+        {
+            type MyField = { a: string, b: number, c?: object }
+
+            class SessionA extends ServerSession {
+                myField: MyField
+            }
+
+            class SessionB extends ServerSession {
+                myField: MyField
+            }
+
+            expect(() => {
+                checkCompatibility([SessionA, SessionB])
+            }).not.toThrow()
+        }
+
+        {
+            type MyField = { a: string, b: number, c?: object }
+
+            class SessionA extends ServerSession {
+                myField: MyField
+            }
+
+            class SessionB extends ServerSession {
+                myField: { a: string, b: number, c?: object, d: string } // Additional property d
+            }
+
+            expect(() => {
+                checkCompatibility([SessionA, SessionB])
+            }).toThrow("myField")
+        }
+
+        {
+            class SessionA extends ServerSession {
+                myField: string
+                anotherField: string = "123"
+            }
+
+            class SessionB extends ServerSession {
+                myField: string
+            }
+
+            expect(() => {
+                checkCompatibility([SessionA, SessionB])
+            }).not.toThrow()
+        }
+
+    });
+
+    test('FAIL ACCEPTED: With extra optional property', () => {
+        type MyField = { a: string, b: number, c?: object }
+
         class SessionA extends ServerSession {
             myField: MyField
         }
-        class SessionB extends ServerSession {
-            myField: MyField
-        }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
-    }
 
-    {
-        type MyField = {a: string, b: number, c?: object}
-        class SessionA extends ServerSession {
-            myField: MyField
-        }
-        class SessionB extends ServerSession {
-            myField: {a: string, b: number, c?: object, d: string} // Additional property d
-        }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
-    }
-
-    {
-        type MyField = {a: string, b: number, c?: object}
-        class SessionA extends ServerSession {
-            myField: MyField
-        }
         class SessionC extends ServerSession {
-            myField: {a: string, b: number, c?: object, d?: string} // Should be ok, because d is optional
+            myField: { a: string, b: number, c?: object, d?: string } // Should be ok, because d is optional
         }
+
         class SessionB extends ServerSession {
             myField: MyField
         }
-        expect(() => { checkCompatibility([SessionA, SessionB, SessionC])}).toReturn()
-    }
 
-    {
+        expect(() => {
+            checkCompatibility([SessionA, SessionB, SessionC])
+        }).not.toThrow()
+    });
+
+    test('With array as property', () => {
+
         class SessionA extends ServerSession {
-            myField: string
-            anotherField: string = "123"
+            myField: string[]
         }
-        class SessionB extends ServerSession {
-            myField: string
-        }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
-    }
 
+        class SessionB extends ServerSession {
+            myField: string[]
+        }
+
+        expect(() => {
+            checkCompatibility([SessionA, SessionB])
+        }).not.toThrow()
+
+    });
 });
 
 test('Session change detection', async () => {
