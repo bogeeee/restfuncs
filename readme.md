@@ -249,7 +249,7 @@ To specify what you want to **receive** in the response, Set the `Accept` header
 Restfuncs has the following 3 protection levels (weakest to hardest) to protect against CSRF attacks. See list below.
 You can enforce it by the `ServerSessionOptions#csrfProtectionMode` setting.  
 **By default/ undefined, the client can decide the protection mode**. _"wait a minute, how can this be secure ?" See explanation_. This way, all sorts of clients can be served. Think of non-browser clients where CSRF does not have relevance, so their devs are not bugged with implementing token fetches.  
-_Explanation: The clients indicate, which csrfProtection mode they want to "play" in a header proactively on every request. Restfuncs will raise an error, if another browser client (or i.e an attacker from another browser tab) wants to play a different mode, at the moment it tries to access the (same) session. Meaning, once the (cookie-) session is created,  the protection mode is stored in there._
+_Explanation: The clients indicate, which csrfProtection mode they want to "play" in a header proactively on every request. Restfuncs will raise an error, if another browser client (or i.e an attacker from another browser tab) wants to play a different mode, at the moment it tries to access the (same) session. Meaning, once the (cookie-) session is created,  the protection mode is stored in there. Note: "proactively" means still: no header = default ist allowed, as long as it's consistent._
 
 The above policy (let the clients decide) only covers sessions. So <strong>when using client-certificates or basic auth, you must explicitly decide for a setting</strong>, and you should use at least set it to `corsReadToken` when dealing with browser clients.
 
