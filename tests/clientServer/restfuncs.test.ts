@@ -942,7 +942,7 @@ describe("server 2 server encryption", () => {
     });
 });
 
-describe('Session fields compatibility - type definitions', () => {
+describe('FAIL ACCEPTED (1) Session fields compatibility - type definitions', () => {
     function checkCompatibility(classes: (typeof ServerSession)[]) {
         [classes, classes.reverse()].forEach(classes => {
             resetGlobalState()
@@ -1103,6 +1103,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField: string
+            @remote()
             myMethod() {
 
             }
@@ -1119,6 +1120,7 @@ test('Session change detection', async () => {
         class SessionA extends SessionBase {
             myId = ++idGenerator
             otherField=false;
+            @remote()
             myMethod() {
                 this.otherField=false;
             }
@@ -1143,6 +1145,7 @@ test('Session change detection', async () => {
     for(const defaultValue of["default", undefined]) {
         class SessionA extends SessionBase {
             myField = defaultValue;
+            @remote()
             myMethod() {
                 this.myField = defaultValue;
             }
@@ -1155,6 +1158,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField = {deep: "default"};
+            @remote()
             myMethod() {
                 this.myField.deep = "default";
             }
@@ -1169,6 +1173,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField: string
+            @remote()
             myMethod() {
                 this.myField="modified"
             }
@@ -1182,6 +1187,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField: string = "default"
+            @remote()
             myMethod() {
 
             }
@@ -1195,6 +1201,7 @@ test('Session change detection', async () => {
     for(const defaultValue of["default", undefined]) {
         class SessionA extends SessionBase {
             myField?: string = defaultValue
+            @remote()
             myMethod() {
                 this.myField ="modified"
             }
@@ -1208,6 +1215,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField = {inner: "defaultInner"}
+            @remote()
             myMethod() {
                 this.myField.inner ="modified"
             }
@@ -1222,6 +1230,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField = "default"
+            @remote()
             myMethod() {
                 // @ts-ignore
                 this.otherField ="modified"
@@ -1236,6 +1245,7 @@ test('Session change detection', async () => {
     {
         class SessionA extends SessionBase {
             myField = "default"
+            @remote()
             myMethod() {
                 // @ts-ignore
                 this.otherField.deep ="modified"
@@ -1252,6 +1262,7 @@ test('Session change detection', async () => {
             a = "a"
             b = undefined
             c = "c"
+            @remote()
             myMethod() {
 
             }
@@ -1265,6 +1276,7 @@ test('Session change detection', async () => {
 
 test('Session fields compatibility - actual values', () => {
     function checkCompatibility(classes : (typeof ServerSession)[]) {
+        resetGlobalState()
         let app = restfuncsExpress();
         classes.forEach(clazz => app.registerServerSessionClass(clazz)  );
     }
@@ -1296,9 +1308,9 @@ test('Session fields compatibility - actual values', () => {
             myField? = "123"
         }
         class SessionB extends ServerSession {
-            myField = undefined
+            myField?: string = undefined
         }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
     }
 
     {
@@ -1308,7 +1320,7 @@ test('Session fields compatibility - actual values', () => {
         class SessionB extends ServerSession {
             myField = {a:1, b:2}
         }
-        expect(() => { checkCompatibility([SessionA, SessionB])}).toReturn()
+        expect(() => { checkCompatibility([SessionA, SessionB])}).not.toThrow()
     }
 
     {
@@ -1318,6 +1330,34 @@ test('Session fields compatibility - actual values', () => {
         }
         class SessionB extends ServerSession {
             myField = {a:1, b:3}
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    // Non deterministic
+    {
+        let counterA = 0;
+        let counterB = 0;
+        // Non deterministic
+        class SessionA extends ServerSession {
+            myField = counterA++
+        }
+        class SessionB extends ServerSession {
+            myField = counterB++
+        }
+        expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
+    }
+
+    // Non deterministic, deep
+    {
+        let counterA = 0;
+        let counterB = 0;
+        // Non deterministic
+        class SessionA extends ServerSession {
+            myField = {deep: counterA++}
+        }
+        class SessionB extends ServerSession {
+            myField = {deep: counterB++}
         }
         expect(() => { checkCompatibility([SessionA, SessionB])}).toThrow("myField")
     }

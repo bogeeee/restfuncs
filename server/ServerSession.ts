@@ -467,8 +467,24 @@ export class ServerSession implements IServerSession {
      * The (single) instance to compare against, so you can check if any fields were modified.
      * @protected
      */
-    protected static get referenceInstance() {
-        return this._referenceInstance || (this._referenceInstance = new this)
+    static get referenceInstance() {
+        if(this.hasOwnProperty("_referenceInstance")) { // Already initialized ?
+            return this._referenceInstance!;
+        }
+
+        const result = new this;
+
+        // Safety check, if instantiation is deterministic:
+        let serverSessionBase = new ServerSession();
+        const anotherInstance = new this;
+        for(const k in result) {
+            const key = k as keyof ServerSession;
+            if (!_.isEqual(result[key], anotherInstance[key])) {
+                throw new Error(`Creating a new ${this.name} instance is not deterministic. Field ${key} has a different value each time. If you want to store things like generated ids, create them lazily, i.e. via a get accessor. \nNote: this is needed for detecting actual changes to the session and lazy cookie behaviour. \n`)
+            }
+        }
+
+        return this._referenceInstance = result;
     }
 
     /**

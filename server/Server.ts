@@ -14,7 +14,7 @@ import {
     Socket
 } from "engine.io"
 import _ from "underscore";
-import {getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util";
+import {diagnisis_shortenValue, getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util";
 import {ServerSessionOptions, ServerSession} from "./ServerSession";
 import session from "express-session";
 import {ServerSocketConnection} from "./ServerSocketConnection";
@@ -269,6 +269,7 @@ class RestfuncsServerOOP {
     serverSessionClasses = new Map<string, typeof ServerSession>()
 
     protected diagnosis_cookieSessionFieldTypes = new Map<string, ReflectedProperty>()
+    protected diagnosis_cookieSessionFieldInitialValues = new Map<string, {value: unknown, exampleService: typeof ServerSession}>()
 
     /**
      * computed / cached values, after all serverSessionClasses have been registered.
@@ -541,6 +542,7 @@ class RestfuncsServerOOP {
         if(isTypeInfoAvailable(clazz)) {
             this.diagnosis_validateServiceFieldTypes(clazz);
         }
+        this.diagnosis_validateServiceFieldInitialValues(clazz);
 
         this.serverSessionClasses.set(clazz.id, clazz);
     }
@@ -651,6 +653,31 @@ class RestfuncsServerOOP {
             }
             else {
                 this.diagnosis_cookieSessionFieldTypes.set(reflectedProp.name, reflectedProp)
+            }
+        })
+    }
+
+    /**
+     * Makes sure, that the types of newService are compatible with the ones of already registered serverSessionClasses,
+     * meaning they share the same cookie, so they must not declare a field with the same name but conflicting initial values
+     */
+    diagnosis_validateServiceFieldInitialValues(newService: typeof ServerSession) {
+        const keysToIgnore = new Set(Object.keys(ServerSession.referenceInstance))
+
+        Object.keys(newService.referenceInstance).forEach((key)=> {
+            if(keysToIgnore.has(key)) {
+                return;
+            }
+
+            let value = newService.referenceInstance[key as keyof ServerSession];
+            let existingRecord = this.diagnosis_cookieSessionFieldInitialValues.get(key);
+            if(existingRecord) {
+                if(!_.isEqual(value, existingRecord.value)) {
+                    throw new Error(`Properties in ServerSessions must have the same initial values, but \nnew ${newService.name}().${key} -> ${diagnisis_shortenValue(value)} \nnew ${existingRecord.exampleService.name}().${key} -> ${diagnisis_shortenValue(existingRecord.value)} \nNote: This check is done because ServerSessions will share overlapping values via the same cookieSession (there's only one).`);
+                }
+            }
+            else {
+                this.diagnosis_cookieSessionFieldInitialValues.set(key, {value, exampleService: newService})
             }
         })
     }
