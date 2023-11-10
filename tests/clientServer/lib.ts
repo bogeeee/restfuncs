@@ -58,7 +58,7 @@ export async function runClientServerTests<Api extends object>(serverAPI: Api, c
         const serverPort = server.address().port;
 
         try {
-            const client = new RestfuncsClient_fixed<Api & Service>(`http://localhost:${serverPort}${testOptions.path}`, {
+            const client = new RestfuncsClient<Api & Service>(`http://localhost:${serverPort}${testOptions.path}`, {
                 useSocket: useSockets
             });
             try {
@@ -124,23 +124,6 @@ export function createServer(serviceClass: typeof Service) {
  * Cookie that's used by restfuncsClient_fixed.
  */
 let restfuncsClientCookie: string;
-
-/**
- * Implements a cookie, cause the current nodejs implementations lacks of support for it.
- */
-export class RestfuncsClient_fixed<S extends Service> extends RestfuncsClient<S> {
-    async httpFetch(url: string, request: RequestInit) {
-        const result = await super.httpFetch(url, {
-            ...request,
-            headers: {...(request.headers || {}), "Cookie": restfuncsClientCookie}
-        });
-        const setCookie = result.headers.get("Set-Cookie");
-        if (setCookie) {
-            restfuncsClientCookie = setCookie;
-        }
-        return result;
-    }
-}
 
 export async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<any>, expected?: string | RegExp | Error | jest.Constructable) {
     let caught = null;

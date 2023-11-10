@@ -16,7 +16,6 @@ import {
     createServer,
     expectAsyncFunctionToThrow,
     resetGlobalState,
-    RestfuncsClient_fixed,
     runClientServerTests,
     runRawFetchTests,
     Service,
@@ -87,7 +86,7 @@ test('Non restfuncsExpress server', async () => {
         // @ts-ignore
         const serverPort = server.address().port;
 
-        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
+        const greeterService = new RestfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
     }
     finally {
@@ -131,7 +130,7 @@ test('Non restfuncsExpress server with own session handler', async () => {
         // @ts-ignore
         const serverPort = server.address().port;
 
-        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
+        const greeterService = new RestfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
         await greeterService.writeSession();
         expect(await greeterService.readSession()).toBe("123");
@@ -162,7 +161,7 @@ test('Proper example with express and type support', async () => {
         // @ts-ignore
         const serverPort = server.address().port;
 
-        const greeterService = new RestfuncsClient_fixed<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
+        const greeterService = new RestfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
         expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
     }
     finally {
@@ -231,7 +230,7 @@ test('Exceptions', async () => {
 
         }
         ,async (apiProxy) => {
-            const client = new RestfuncsClient_fixed(`http://localhost:${63000}/apiXY`).proxy; // Connect to server port that does not yet exist
+            const client = new RestfuncsClient(`http://localhost:${63000}/apiXY`).proxy; // Connect to server port that does not yet exist
 
 
             await expectAsyncFunctionToThrow(async () => {
@@ -1443,7 +1442,7 @@ test('Sessions', async () => {
         try {
             // @ts-ignore
             const port = server.address().port;
-            const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket}).proxy
+            const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
 
             await apiProxy.checkInitialSessionValues();
 
@@ -1487,7 +1486,7 @@ test('Sessions - clearing values', async () => {
         try {
             // @ts-ignore
             const port = server.address().port;
-            const apiProxy = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket}).proxy
+            const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
 
             // Set a value to null:
             initialValue = "initial";
@@ -1536,7 +1535,7 @@ test('Automatically fetch corsReadToken', async () => {
             const port = server.address().port;
 
             // @ts-ignore
-            const client = new RestfuncsClient_fixed<MyService>(`http://localhost:${port}`, {useSocket})
+            const client = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket})
             const allowedService = client.proxy
             await allowedService.logon("bob");
             // @ts-ignore
@@ -1577,7 +1576,7 @@ test('Intercept with doCall (client side)', async () => {
         }
     }
 
-    class MyClient extends RestfuncsClient_fixed<MyService> {
+    class MyClient extends RestfuncsClient<MyService> {
 
         async doCall(funcName: string, args: any[]) {
             args[0] = "b"
@@ -1840,7 +1839,7 @@ test('ClientSocketConnection synchronizations', async () => {
     const serverPort = server.address().port;
 
     try {
-        const client = new RestfuncsClient_fixed<MyServerSession>(`http://localhost:${serverPort}/api`,{
+        const client = new RestfuncsClient<MyServerSession>(`http://localhost:${serverPort}/api`,{
             useSocket: true,
             csrfProtectionMode: "corsReadToken"
         });

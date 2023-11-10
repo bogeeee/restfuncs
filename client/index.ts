@@ -3,7 +3,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
-import {SingleRetryableOperation} from "./Util";
+import {isNode, SingleRetryableOperation} from "./Util";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -106,6 +106,12 @@ export class RestfuncsClient<S extends IServerSession> {
     protected _corsReadToken?: string
 
     public csrfToken?: string
+
+    /**
+     * The node fetch implementation lacks of cookie support, so we implement this ourself
+     * @protected
+     */
+    protected _nodeCookie?: string;
 
     get absoluteUrl() {
         // Validity check
@@ -286,13 +292,25 @@ export class RestfuncsClient<S extends IServerSession> {
     }
 
     /**
-     * Like fetch (from the browser api) but with a better errormessage and fixed session handling in the testcases, cause support for session is missing when run from node
+     * Like fetch (from the browser api) but with a better errormessage and poly filled session handling for  node
      * @param request
      */
     async httpFetch(url: string, request: RequestInit) {
-        let response;
+        if(isNode && this._nodeCookie) {
+            request.headers = {...(request.headers || {}), "Cookie": this._nodeCookie}
+        }
+
         try {
-            return await fetch(url, request);
+            const result = await fetch(url, request);
+
+            if(isNode) {
+                const setCookie = result.headers.get("Set-Cookie");
+                if (setCookie) {
+                    this._nodeCookie = setCookie;
+                }
+            }
+
+            return result;
         } catch (e) {
             // @ts-ignore
             if (e?.cause) {
