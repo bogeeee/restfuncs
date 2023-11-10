@@ -1113,6 +1113,8 @@ test('Session change detection', async () => {
         expect((await SessionA.callDoCall_outer(Object.create({a: 1, b: 2, c: {d:3}}))).modifiedSession).toBeUndefined(); // With prototype
     }
 
+    /*
+    // Non-deterministic fields are actually not allowed, so this would make no sense:
     // Test id:
     let idGenerator = 0;
     {
@@ -1139,6 +1141,7 @@ test('Session change detection', async () => {
 
         expectSame((await SessionA.callDoCall_outer({myId: "fromCookie", otherField:true})).modifiedSession, {myId: "fromCookie", otherField:false}); // Force a change of otherField, by myId should not have increased
     }
+    */
 
     // Setting a field back to its default:
     for(const defaultValue of["default", undefined]) {
@@ -1465,7 +1468,7 @@ test('Sessions', async () => {
     }
 });
 
-test('Sessions - clearing values', async () => {
+test('Sessions - clearing values Note: Fails but should work with future JWT handler', async () => {
     let initialValue = undefined;
     class MyService extends Service{
 
@@ -1501,7 +1504,7 @@ test('Sessions - clearing values', async () => {
             // Set a value to undefined
             initialValue = "initial";
             await apiProxy.storeValueInSession(undefined);
-            expect(await apiProxy.getValueFromSession()).toBe(undefined);
+            expect(await apiProxy.getValueFromSession()).toBe(undefined); // Does not work with the traditional cookie handler, cause it can't store undefined.
         } finally {
             // shut down server:
             server.closeAllConnections();
