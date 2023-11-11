@@ -14,8 +14,9 @@ export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
 
     // Hack: To lazy to mark all methods with @remote()
-    protected static getOwnRemoteMethodOptions(methodName: string) {
-        return super.getOwnRemoteMethodOptions(methodName) || {}
+    protected static getRemoteMethodOptions(methodName: string) {
+        // @ts-ignore
+        return (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner(methodName) || {}
     }
 }
 

@@ -5,7 +5,7 @@ import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
-import {restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
+import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import {runClientServerTests, Service} from "./lib";
 
@@ -102,17 +102,22 @@ test('Test arguments', async () => {
     );
 })
 
-test('Test arguments - extra properties value', async () => {
-    class ServerAPI extends TypecheckingService{
+test('Test arguments - extra properties value: TODO: implement shaping', async () => {
+    class ServerAPI extends ServerSession{
+        @remote()
+        params1(x: string, y: number, z: {}) {
+        }
+
+        @remote({shapeArgumens: false})
         params2(x: string, y: number, z: {}) {
         }
     };
 
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
+            await apiProxy.params1("ok", 123, {someExtraProperty: true});
+            await expectAsyncFunctionToThrow( async () => {await apiProxy.params2("ok", 123, {someExtraProperty: true});});
 
-            // Extra property: (we could argue that we want to get an error here, or erase the additional value at runtime - to enhance security)
-            await apiProxy.params2("ok", 123, {someExtraProperty: true});
         }
     );
 })
@@ -215,46 +220,6 @@ test('Test destructuring arguments', async () => {
 
 });
 */
-
-test('Test visibility', async () => {
-    class BaseServerAPI extends TypecheckingService {
-        protected myPublic(x: string) {
-        }
-    }
-
-    class ServerAPI extends BaseServerAPI{
-        myVoidMethod() {
-        }
-
-        public myPublic(x: string) {
-        }
-
-        protected myProtected(x: string) {
-
-        }
-
-        private myPrivate(x:string) {
-
-        }
-
-    };
-
-    await runClientServerTests(new ServerAPI(),
-        async (apiProxy) => {
-            await apiProxy.myVoidMethod();
-
-            await apiProxy.myPublic("x");
-
-            // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.myProtected("x"), "protected");
-
-
-            // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.myPrivate("x"), "private");
-
-        }
-    );
-})
 
 test('Test with anonymous class', async () => {
 

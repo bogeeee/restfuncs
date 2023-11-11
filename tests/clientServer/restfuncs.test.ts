@@ -11,7 +11,7 @@ import {restfuncsExpress, ServerOptions} from "restfuncs-server/Server";
 import {CookieSession, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
-import {remote} from "restfuncs-server/ServerSession";
+import {remote, RemoteMethodOptions} from "restfuncs-server/ServerSession";
 import {
     createServer,
     expectAsyncFunctionToThrow,
@@ -28,6 +28,155 @@ jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging pos
 beforeEach(() => {
     resetGlobalState();
 });;
+
+describe("getRemoteMethodOptions", () => {
+    class BaseService extends ServerSession {
+        // Elevate to public
+        static getRemoteMethodOptions(name: string) {
+            return super.getRemoteMethodOptions(name);
+        }
+    }
+
+    test("No @remote decorator", () => {
+        class MyService extends BaseService {
+            myMethod() {
+            }
+        }
+        expect( () => MyService.getRemoteMethodOptions("myMethod")).toThrow("@remote")
+    })
+
+    it("Should still throw with no @remote decorator but with defaultRemoteMethodOptions set", () => {
+        class MyService extends BaseService {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+            myMethod() {
+            }
+        }
+        expect( () => MyService.getRemoteMethodOptions("myMethod")).toThrow("@remote")
+    })
+
+    test("With @remote decorator", () => {
+        class MyService extends BaseService {
+            @remote()
+            myMethod() {
+            }
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options).toBeDefined()
+    })
+
+    test("Check for proper defaults", () => {
+        class MyService extends BaseService {
+            @remote()
+            myMethod() {
+            }
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options.isSafe).toBeFalsy()
+        expect(options.validateArguments !== false).toBeTruthy()
+        expect(options.validateResult !== false).toBeTruthy()
+        expect(options.shapeArgumens === undefined).toBeTruthy()
+        expect(options.shapeResult !== false).toBeTruthy()
+        expect(options.apiBrowserOptions.needsAuthorization).toBeFalsy()
+    })
+
+    test("inherited from parent method and parent defaultRemoteMethodOptions", () => {
+
+        let provokingChanges: RemoteMethodOptions = {
+            isSafe: true, // Should not be inherited
+            validateArguments: false,// Should not be inherited
+            validateResult: false, // Should not be inherited
+            shapeArgumens: false, // Should be inherited
+            shapeResult: false, // Should not be inherited
+            apiBrowserOptions: {needsAuthorization: true} // thould be inherited
+
+        };
+
+        class MyServiceParent extends BaseService {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {...provokingChanges, isSafe: undefined}
+
+            @remote(provokingChanges)
+            myMethod() {
+            }
+        }
+
+        class MyService extends MyServiceParent {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+            @remote()
+            myMethod() {
+            }
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options.isSafe).toBeFalsy()
+        expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
+    })
+
+
+
+    test("defaultRemoteMethodOptions options at this level", () => {
+        class MyService extends BaseService {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {
+                validateArguments: false,// Should be used
+                validateResult: false, // Should be used
+                shapeArgumens: false, // Should be used
+                shapeResult: false, // Should be used
+                apiBrowserOptions: {needsAuthorization: true} // Should be used
+            }
+
+            @remote()
+            myMethod() {
+            }
+
+            @remote()
+            mySubclassOnlyMethod() {
+            }
+        }
+
+        for(const methodName of ["myMethod", "mySubclassOnlyMethod"]) {
+            let options = MyService.getRemoteMethodOptions(methodName);
+            expect(options.isSafe).toBeFalsy()
+            expect(options.validateArguments === false).toBeTruthy()
+            expect(options.validateResult === false).toBeTruthy()
+            expect(options.shapeArgumens === false).toBeTruthy()
+            expect(options.shapeResult === false).toBeTruthy()
+            expect(options.apiBrowserOptions.needsAuthorization).toBeTruthy()
+        }
+    })
+
+
+    test("Actual defaultRemoteMethodOptions but method inherited", () => {
+        class MyServiceParent extends BaseService {
+            @remote()
+            myMethod() {
+            }
+        }
+
+        class MyService extends MyServiceParent {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {
+                validateArguments: false,// Should not be used
+                validateResult: false, // Should not be used
+                shapeArgumens: false, // Should not be used (but we could do so)
+                shapeResult: false, // Should not be used
+                apiBrowserOptions: {needsAuthorization: true} // should not be used
+            }
+            // myMethod() {} // Inherited
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options.isSafe).toBeFalsy()
+        expect(options.validateArguments !== false).toBeTruthy() // Should not be affected
+        expect(options.validateResult !== false).toBeTruthy() // Should not be affected
+        expect(options.shapeArgumens === undefined).toBeTruthy() // Should not be affected
+        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected
+        expect(options.apiBrowserOptions.needsAuthorization === undefined).toBeTruthy() // Should not be affected
+    })
+});
 
 
 test('Simply call a Void method', async () => {
@@ -327,7 +476,7 @@ test('Safe methods decorators', async () => {
 test('Safe methods call', async () => {
 
     let wasCalled = false; // TODO: We could simply check if methods returned successfully as the non-browser client shouldn't restrict reading the result. But now to lazy to change that.
-    class BaseService extends Service{
+    class BaseService extends ServerSession{
         unsafeFromBase() {
             wasCalled = true;
             return "ok";
@@ -1378,20 +1527,33 @@ test('diagnosis_looksLikeJson', () => {
     expect(diagnosis_looksLikeJSON('0.523')).toBeTruthy();
 });
 
-test('Reserved names', async () => {
-    await runClientServerTests(new class extends Service{
+describe('Reserved names', () => {
 
-    },async apiProxy => {
-        for(const forbiddenName of ["req", "res", "session", "doCall","methodIsSafe"]) {
-            // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
-        }
+    for(const forbiddenName of ["req", "res", "session", "doCall","methodIsSafe"]) {
+        test(`with ${forbiddenName}`, async () => {
+            class MyService extends ServerSession {
 
-        // Check that these can't be used if not defined:
-        for(const forbiddenName of ["get", "set"]) {
-            // @ts-ignore
-            await expectAsyncFunctionToThrow(async () => {await apiProxy.doCall(forbiddenName)}, /You are trying to call a remote method that is a reserved name|No method candidate found/);
-        }
+            }
+            await runClientServerTests(new MyService(), async apiProxy => {
+                await expectAsyncFunctionToThrow(async () => {
+                    // @ts-ignore
+                    await apiProxy.doCall(forbiddenName)
+                }, /You are trying to call a remote method that is a reserved name|No method candidate found|does not have a @remote\(\) decorator/);
+
+            });
+        });
+    }
+
+    test(`Check that these can't be used if not defined`, async () => {
+        await runClientServerTests(new class extends Service {
+        }, async apiProxy => {
+            for (const forbiddenName of ["get", "set"]) {
+                await expectAsyncFunctionToThrow(async () => {
+                    // @ts-ignore
+                    await apiProxy.doCall(forbiddenName)
+                }, /You are trying to call a remote method that is a reserved name|No method candidate found|does not have a @remote\(\) decorato/);
+            }
+        });
     });
 });
 
@@ -1657,7 +1819,7 @@ test('validateCall security', async () => {
     expect(service.validateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
 
     // Malformed method name:
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"reserved name");
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"does not have a @remote() decorator");
     await expectAsyncFunctionToThrow(async () => await service.validateCall(null, []),"methodName not set");
     await expectAsyncFunctionToThrow(async () => await service.validateCall("", []),"methodName not set");
     // @ts-ignore

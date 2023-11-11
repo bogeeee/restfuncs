@@ -323,7 +323,8 @@ export class ServerSession implements IServerSession {
     options?: never;
 
     /**
-     * Set the defaults for every method that is decorated with {@link remote @remote} at this class's level (does not affect methods, declared in subclasses or the parent class)
+     * Set the defaults for every method that is decorated with {@link remote @remote}.
+     * For some fields (see description there), this inherits to overridden methods in subclasses.
      *
      * @protected
      */
@@ -333,13 +334,6 @@ export class ServerSession implements IServerSession {
      * Filled on decorator loading time: for each concrete subclass such a static field is created
      */
     protected static remoteMethod2Options?: Map<string, RemoteMethodOptions>
-
-    /**
-     * Those methods directly here on ServerSession are allowed to be called
-     */
-    protected static whitelistedMethodNames = new Set<keyof ServerSession>(["getIndex", "getCorsReadToken", "getWelcomeInfo", "getHttpSecurityProperties", "getCookieSession", "updateCookieSession"]) as Set<string>
-
-    //public static diagnosis_ownFieldnames = new Set</* keyof ServerSession does not work for "req" */string>(["id", "clazz", "version", "classType", "options", "req", "res", "socketConnection", "_httpCall"]);
 
     /**
      * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)
@@ -928,6 +922,7 @@ export class ServerSession implements IServerSession {
      *
      * Don't override. Not part of the API.
      */
+    @remote()
     public getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
@@ -983,6 +978,7 @@ export class ServerSession implements IServerSession {
         return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
+    @remote()
     public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer> {
         // Security check:
         if(!this._httpCall) {
@@ -1067,6 +1063,7 @@ export class ServerSession implements IServerSession {
         return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
 
+    @remote()
     public getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
         if(!this._httpCall) {
@@ -1091,6 +1088,7 @@ export class ServerSession implements IServerSession {
      * @param encryptedCookieSessionUpdate
      * @param alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
+    @remote()
     public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>> {
         // Security check:
         if(!this._httpCall) {
@@ -1474,7 +1472,7 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError("args is not an array")
         }
 
-        const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName); // Will also throw when @remote is missing
+        const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName); // Will throw when @remote is missing
 
         if(this.clazz.options.devDisableSecurity) {
             return;
@@ -1811,59 +1809,49 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Method option at this class's level.
-     * <p>
-     *     You can override this as part of the restfuncs API
-     * </p>
-     * @param methodName
-     * @returns undefined, if not a @remote method
-     * @see getRemoteMethodOptions
-     */
-    protected static getOwnRemoteMethodOptions(methodName: string) : RemoteMethodOptions | undefined {
-        if (!this.prototype.hasOwnProperty(methodName)) { // Instance method not defined at this level  ?
-            return undefined
-        }
-
-        if (!this.hasOwnProperty("remoteMethod2Options")) {
-            return undefined;
-        }
-
-        return {
-            ...(this.hasOwnProperty("defaultRemoteMethodOptions") && this.defaultRemoteMethodOptions) || {}, // defaultRemoteMethodOptions only from this level
-            ...this.remoteMethod2Options!.get(methodName) // from @remote decorator
-        }
-    }
-
-    /**
      * ..., errors if not a @remote method.
      * You can override this as part of the Restfuncs API
      * @param methodName
-     * @returns undefined, if not a @remote method
+     * @returns
      */
     protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+        const result = this.getRemoteMethodOptions_inner(methodName);
+        // Safety check:
+        if(!result) {
+            throw new Error(`Cant' determine result. Does methodName ${methodName} really exist`)
+        }
+        return result
+    }
 
-        // @ts-ignore
-        const parentResult = this.superClass.getRemoteMethodOptions?.(methodName);
-
-        if (!this.prototype.hasOwnProperty(methodName)) { // No own method ?
+    private static getRemoteMethodOptions_inner(methodName: string) : RemoteMethodOptions | undefined {
+        const parentResult: RemoteMethodOptions | undefined = (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner?.(methodName);
+        if (!this.prototype.hasOwnProperty(methodName)) { // Instance method not defined at this level  ?
             return parentResult;
         }
 
-        const ownResult = this.getOwnRemoteMethodOptions(methodName);
+        const ownMethodOptions = this.hasOwnProperty("remoteMethod2Options") &&  this.remoteMethod2Options!.get(methodName) // from @remote decorator
         // Safety / error check:
-        if (!ownResult) {
+        if (!ownMethodOptions) {
             if (parentResult) {
                 throw new CommunicationError(`${this.name}'s method: ${methodName} does not have a @remote() decorator, like it's super method does (forgotten ?).${diagnois_tsConfig(this)}`)
             }
             throw new CommunicationError(`Method: ${methodName} does not have a @remote() decorator.${diagnois_tsConfig(this)}`);
         }
 
+        const ownDefaultOptions = (this.hasOwnProperty("defaultRemoteMethodOptions") && this.defaultRemoteMethodOptions) || {};
+        if(ownDefaultOptions.isSafe) {
+            throw new CommunicationError("Cannot define isSafe in the defaultRemoteMethodOptions, because this is a statement about each method's individual implementation");
+        }
+
+
         return {
-            // Inherited from parent:
-            ...ownResult,
+            isSafe: ownMethodOptions.isSafe,
+            validateArguments: (ownMethodOptions.validateArguments !== undefined)?ownMethodOptions.validateArguments: ownDefaultOptions.validateArguments,
+            validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
+            shapeResult: (ownMethodOptions.shapeResult !== undefined)?ownMethodOptions.shapeResult: ownDefaultOptions.shapeResult,
+            shapeArgumens: (ownMethodOptions.shapeArgumens !== undefined)?ownMethodOptions.shapeArgumens : (parentResult?.shapeArgumens !== undefined?parentResult.shapeArgumens : ownDefaultOptions.shapeArgumens),
             apiBrowserOptions: {
-                needsAuthorization:  parentResult?.apiBrowserOptions?.needsAuthorization, // Inherited
-                ...ownResult.apiBrowserOptions
+                needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions?.needsAuthorization : (parentResult?.apiBrowserOptions!.needsAuthorization !== undefined?parentResult.apiBrowserOptions!.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
             }
         }
 
@@ -2228,7 +2216,7 @@ export class ServerSession implements IServerSession {
         return this.constructor
     }
 
-    static get superClass(): typeof Object {
+    static get superClass(): typeof Object | typeof ServerSession {
         return Object.getPrototypeOf(this);
     }
 
@@ -2297,8 +2285,9 @@ export type RemoteMethodOptions = {
      * This flag is needed to allow for some cases where cross site security can't be checked otherwise. i.e:
      *   - A remote method that serves a html page so it should be accessible by top level navigation (i.e from a bookmark or an email link) as these don't send an origin header.
      *   - Remote methods that serve an image publicly to all origins.
+     *
      * <p>
-     * This option is not inherited from the super method or the defaultRemoteMethodOptions. You have to mark it actually, where the implementation is.
+     * Inheritance: not inherited from the super method or the defaultRemoteMethodOptions. You have to mark it actually, where the implementation is.
      * </p>
      */
     isSafe?: boolean
@@ -2308,32 +2297,48 @@ export type RemoteMethodOptions = {
      * <p>
      * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity}.
      * </p>
-     * Default: true
+     * <p>
+     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether validation is taken care of)
+     * </p>
+     * <p>
+     * &lt;- Default: true
+     * </p>
      */
     validateArguments?: boolean
 
     /**
      *
-     * Default: Depends on the client
+     * Inheritance: this method &lt;- super method &lt;- ... &lt;- this class's defaultRemoteMethodOptions &lt;- super class's defaultRemoteMethodOptions &lt;- the client's "shapeArguments" http header
+     * <p>
+     * &lt;- Default: false (but RestfuncsClient enables it)
+     * </p>
      */
     shapeArgumens?: boolean
 
     /**
      * Disable, to improve performance. Like you usually know, what your remove method outputs.
-     * Default: true
+     * <p>
+     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether validation is taken care of)
+     * </p>
+     * &lt;- Default: true
      */
     validateResult?: boolean
 
     /**
-     *
-     * Default: true
+     * <p>
+     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether shaping is necessary)
+     * </p>
+     * &lt;- Default: true
      */
     shapeResult?: boolean
 
     apiBrowserOptions?: {
         /**
          * Indicates this to the viewer by showing a lock symbol.
-         * Flag is inherited to overridden methods
+         * <p>
+         * Inheritance: Full: this method &lt;- super method &lt;- ... &lt;- this class's defaultRemoteMethodOptions &lt;- super class's defaultRemoteMethodOptions
+         * </p>
+         * &lt;- Default: false
          */
         needsAuthorization?: boolean
     }
