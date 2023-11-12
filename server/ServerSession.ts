@@ -1115,7 +1115,7 @@ export class ServerSession implements IServerSession {
                     throw new CommunicationError("Cannot update the session: updateCookieSession method called twice with the same value / already up2date");
                 }
                 else {
-                    throw new CommunicationError(`Cannot update the session: The version that your writes refer to, is outdated. Another ServerSession method call has updated the session in the meanwhile. Try to better synchronize such calls on the client side.`); // Most likely situation
+                    throw new CommunicationError(`Cannot update the session: The version that your writes refer to, is outdated. Another remote method call has updated the session in the meanwhile. Try to better synchronize your calls on the client side.`); // Most likely situation
                 }
             }
             throw new CommunicationError("Cannot update the session: Existing session has a different version (your call arrived to late, it was already modified by another).");
