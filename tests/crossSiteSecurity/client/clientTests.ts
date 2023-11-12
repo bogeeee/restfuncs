@@ -140,28 +140,22 @@ function makeSimpleXhrRequest(method: string, url: string, body = ""): Promise<s
 
 }
 
-export async function runAlltests() {
-    failed = false;
+const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {useSocket: false}).proxy
 
-    if(!isMainSite) {
-        // cheap prevention of race condition if both browser windows reload at the same time:
-        await new Promise(resolve => setTimeout(resolve, 4000)); // Wait a bit
+async function createRestfuncsClient(serviceName: string, csrfProtectionMode: string) {
+    // @ts-ignore
+    const result = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {csrfProtectionMode});
+    if(csrfProtectionMode === "csrfToken") {
+        // Fetch the token first:
+        result.csrfToken = await controlService.getCsrfTokenForService(serviceName)
     }
+    return result;
+}
 
-    const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {}).proxy
-
-    async function createRestfuncsClient(serviceName: string, csrfProtectionMode: string) {
-        // @ts-ignore
-        const result = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {csrfProtectionMode});
-        if(csrfProtectionMode === "csrfToken") {
-            // Fetch the token first:
-            result.csrfToken = await controlService.getCsrfTokenForService(serviceName)
-        }
-        return result;
-    }
-
-
-    // Test CORS and simple requests. All with "preflight" security:
+/**
+ * Test CORS and simple requests. All with "preflight" security:
+ */
+async function testSuite_CORSAndSimpleRequests() {
     {
         await controlService.resetSession();
 
@@ -237,8 +231,13 @@ export async function runAlltests() {
             }));
         }
     }
+}
 
-    if(isMainSite) {
+/**
+ * Copying corsReadToken from an allowed service to a restricted service, ...
+ */
+async function testSuite_copyCorsReadToken() {
+    if (isMainSite) {
         // isMainSite: AllowedTestsService_eraseOrigin doesn't work cross origin. We would need to mock it somehow that in the normal response the access-control-allow-origin header is filled with i.e localhost:3666.
         // Sencondly: The TestsService is blocked by browser's CORS anyway
 
@@ -285,10 +284,12 @@ export async function runAlltests() {
             assertEquals(await restrictedService.getBalance("bob"), 5000);
         });
     }
+}
 
+async function testSuite_csrfToken() {
     // CSRFToken:
-    for(const serviceName of ["TestsService","AllowedTestsService"]) {
-        if(serviceName === "TestsService" && !isMainSite) {
+    for (const serviceName of ["TestsService", "AllowedTestsService"]) {
+        if (serviceName === "TestsService" && !isMainSite) {
             continue; // TestsService is blocked anyway by browser's CORS
         }
         await testAssertWorksSSAndXS(`Check if no/wrong csrfToken is rejected and proper token is accepted for ${serviceName}`, async () => {
@@ -313,11 +314,14 @@ export async function runAlltests() {
 
             // right token but from wrong service:
             client.csrfToken = await controlService.getCsrfTokenForService("MainframeService");
-            await assertFails(async () => {await service.logon("bob")});
+            await assertFails(async () => {
+                await service.logon("bob")
+            });
         });
     }
+}
 
-
+async function testSuite_csrfProtectionModesCollision() {
     // Test the "collision" of different csrfProtection modes:
     {
         for (const mode1 of ["preflight", "corsReadToken", "csrfToken"]) {
@@ -361,12 +365,12 @@ export async function runAlltests() {
                         await controlService.resetSession();
 
                         {
-                            const corsAllowedService =  (await createRestfuncsClient("AllowedForceTokenCheckService", mode1)).proxy
+                            const corsAllowedService = (await createRestfuncsClient("AllowedForceTokenCheckService", mode1)).proxy
                             await corsAllowedService.test();
                         }
                         {
                             await assertFails(async () => {
-                                const corsAllowedService = (await createRestfuncsClient("AllowedForceTokenCheckService",mode2)).proxy
+                                const corsAllowedService = (await createRestfuncsClient("AllowedForceTokenCheckService", mode2)).proxy
                                 await corsAllowedService.test();
                             })
                         }
@@ -375,7 +379,6 @@ export async function runAlltests() {
 
                     await testAssertWorksSSAndXS(`Requests from different session protection modes with session access, (${mode1} vs ${mode2} )`, async () => {
                         await controlService.resetSession();
-
 
 
                         const service1 = (await createRestfuncsClient("AllowedTestsService", mode1)).proxy
@@ -403,10 +406,30 @@ export async function runAlltests() {
 
             // @ts-ignore
             const corsAllowedService2 = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService`, {csrfProtectionMode: "corsReadToken"}).proxy
-            await assertFails(async () => {await corsAllowedService2.getBalance("bob") });
+            await assertFails(async () => {
+                await corsAllowedService2.getBalance("bob")
+            });
         });
 
     }
+}
+
+export async function runAlltests() {
+    failed = false;
+
+    if(!isMainSite) {
+        // cheap prevention of race condition if both browser windows reload at the same time:
+        await new Promise(resolve => setTimeout(resolve, 4000)); // Wait a bit
+    }
+
+
+    await testSuite_CORSAndSimpleRequests();
+
+    await testSuite_copyCorsReadToken();
+
+    await testSuite_csrfToken();
+
+    await testSuite_csrfProtectionModesCollision();
 
     return !failed;
 }
