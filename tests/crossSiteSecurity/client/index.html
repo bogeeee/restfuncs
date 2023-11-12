@@ -17,14 +17,14 @@
 <input type="text" id="numberInput"><button id="multiplyButton">Multiply by 10</button> <span id="multiplyResult"></span>
 
 
-<form action="http://localhost:3000/mainframeAPI/getConcat" method="get">
+<form action="http://localhost:3000/MainframeService/getConcat" method="get">
     <h2>GET form</h2>
     <input type="text" name="a"/>
     <input type="text" name="b"/>
     <input type="submit" value="submit"/>
 </form>
 
-<form action="http://localhost:3000/mainframeAPI/getConcat" method="post">
+<form action="http://localhost:3000/MainframeService/getConcat" method="post">
     <h2>POST form</h2>
     <input type="text" name="a"/>
     <input type="text" name="b"/>
@@ -32,12 +32,12 @@
 </form>
 
 <h2>Navigation by link</h2>
-<a href="http://localhost:3000/mainframeAPI/getConcat?a=a&b=b">http://localhost:3000/mainframeAPI/getConcat?a=a&b=b</a>
+<a href="http://localhost:3000/MainframeService/getConcat?a=a&b=b">http://localhost:3000/MainframeService/getConcat?a=a&b=b</a>
 <br/>
-<a href="http://localhost:3000/mainframeAPI/getConcat?a=a&b=b" referrerpolicy="no-referrer">http://localhost:3000/mainframeAPI/getConcat?a=a&b=b  without referer</a>
+<a href="http://localhost:3000/MainframeService/getConcat?a=a&b=b" referrerpolicy="no-referrer">http://localhost:3000/MainframeService/getConcat?a=a&b=b  without referer</a>
 
 <h2>Embed an image</h2>
-<img src="http://localhost:3000/allowedTestsService/testImage" />
+<img src="http://localhost:3000/AllowedTestsService/testImage" />
 
 <script type="module" src="./client.ts"></script>
 

@@ -1,7 +1,6 @@
-import {ServerSession, ServerSessionOptions} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, remote} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
-import {remote} from "restfuncs-server/ServerSession";
 
 export class TestServiceSessionBase extends ServerSession {
     user?: string;

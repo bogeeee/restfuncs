@@ -6,8 +6,6 @@ import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 
 
 export class ControlService extends ServerSession {
-    static services: { [name: string]: { service: typeof ServerSession;} }
-
     static options: ServerSessionOptions = {allowedOrigins: "all", exposeErrors: true}
 
     @remote()
@@ -24,18 +22,25 @@ export class ControlService extends ServerSession {
     }
 
     @remote()
-    async getCorsReadTokenForService(name: string) {
-
-        const ServiceClass = ControlService.services[name].service
-
+    async getCorsReadTokenForService(id: string) {
         // @ts-ignore
-        return ServiceClass.getOrCreateSecurityToken(this.req!.session, "corsReadToken")
+        return this.getServiceClass(id).getOrCreateSecurityToken(this.req!.session, "corsReadToken")
     }
 
 
     @remote()
-    async getCsrfTokenForService(name: string) {
-        return ControlService.services[name].service.getCsrfToken(this.req!.session)
+    async getCsrfTokenForService(id: string) {
+        const ServiceClass = this.getServiceClass(id);
+        return ServiceClass.getCsrfToken(this.req!.session)
+    }
+
+    private getServiceClass(id: string) {
+        let server = this.clazz.server;
+        const ServiceClass = server.serverSessionClasses.get(id);
+        if (!ServiceClass) {
+            throw new Error(`No class found with id: ${id}`);
+        }
+        return ServiceClass;
     }
 
     /**

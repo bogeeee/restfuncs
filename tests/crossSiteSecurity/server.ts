@@ -26,44 +26,32 @@ import {ControlService} from "./ControlService.js";
         MainframeService.options = commonOptions;
         TestsService.options = commonOptions;
 
-        // Remote service(s): Register them
-        const services: { [name: string]: { service: typeof ServerSession } } = {
-            "mainframeAPI": {service: MainframeService},
-            "testsService": {service: TestsService},
-            "allowedTestsService": {
-                service: class extends TestsService {
-                    static options = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
-                }
-            },
-            "testsService_forceTokenCheck": {
-                service: class extends TestsService {
-                    static options = { ...commonOptions, devForceTokenCheck: true }
-                }
-            },
-            "allowedTestsService_forceTokenCheck": {
-                service: class extends TestsService {
-                    static options = { ...commonOptions, allowedOrigins: ["http://localhost:3666"], devForceTokenCheck: true }
-                }
-            },
-        }
+        app.use("/MainframeService", MainframeService.createExpressHandler());
+        app.use("/TestsService", TestsService.createExpressHandler());
 
-        for(const name in services) {
-            const service = services[name].service;
-            //service.id = name;
-            app.use(`/${name}`,  service.createExpressHandler())
+        class AllowedTestsService extends TestsService {
+            static options = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
         }
+        app.use("/AllowedTestsService", AllowedTestsService.createExpressHandler());
 
-        ControlService.services = services;
+        class ForceTokenCheckService extends TestsService {
+            static options = { ...commonOptions, devForceTokenCheck: true }
+        }
+        app.use("/ForceTokenCheckService", ForceTokenCheckService.createExpressHandler());
+
+        class AllowedForceTokenCheckService extends TestsService {
+            static options = { ...commonOptions, allowedOrigins: ["http://localhost:3666"], devForceTokenCheck: true }
+        }
+        app.use("/AllowedForceTokenCheckService", AllowedForceTokenCheckService.createExpressHandler());
+
+
         app.use("/controlService", ControlService.createExpressHandler())
-
-
 
         // Pretend the browser does not send an origin:
         class AllowedTestsService_eraseOrigin extends TestsService {
             static options: ServerSessionOptions = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
         }
-        app.use("/allowedTestsService_eraseOrigin", eraseOrigin, AllowedTestsService_eraseOrigin.createExpressHandler())
-        services["/allowedTestsService_eraseOrigin"] = {service: AllowedTestsService_eraseOrigin};
+        app.use("/AllowedTestsService_eraseOrigin", eraseOrigin, AllowedTestsService_eraseOrigin.createExpressHandler())
 
         await serveClientWeb(app,4000);
 

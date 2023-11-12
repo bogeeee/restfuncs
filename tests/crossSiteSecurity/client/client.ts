@@ -33,7 +33,7 @@ class RestfuncsClientWithLogin<S> extends RestfuncsClient<S> {
     }
 }
 
-const mainframeService = new RestfuncsClientWithLogin<MainframeService>( `${mainSiteUrl}/mainframeAPI`).proxy // This is the way to use a subclassed RestfuncsClient
+const mainframeService = new RestfuncsClientWithLogin<MainframeService>( `${mainSiteUrl}/MainframeService`).proxy // This is the way to use a subclassed RestfuncsClient
 
 // Click handler for multiply button:
 document.getElementById("multiplyButton")!.onclick = async function() {
