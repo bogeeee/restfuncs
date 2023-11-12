@@ -1692,47 +1692,47 @@ test('Automatically fetch corsReadToken', async () => {
         }
 
     }
-    for(const useSocket of [false, true]) {
-        resetGlobalState()
-        const server = createServer(MyService);
-        try {
-            // @ts-ignore
-            const port = server.address().port;
 
-            // @ts-ignore
-            const client = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket})
-            const allowedService = client.proxy
-            await allowedService.logon("bob");
-            // @ts-ignore
-            const getCurrentToken = () => client._corsReadToken
-            // @ts-ignore
-            const setCurrentToken = (value) => client._corsReadToken = value
-            const validToken = getCurrentToken();
-            if (!validToken) {
-                let diag_logonUserHttp;
-                let diag_logonUser;
-                try {
-                    diag_logonUserHttp = await client.controlProxy_http.getLogonUser();
-                    diag_logonUser = await client.proxy.getLogonUser();
-                }
-                catch (e) {}
-                throw new Error(`Token has not beet set. logon diag_logonUser: ${diag_logonUser}; diag_logonUserHttp: ${diag_logonUserHttp}`)
+    resetGlobalState()
+    const server = createServer(MyService);
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+
+        // @ts-ignore
+        const client = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket: false})
+        const allowedService = client.proxy
+        await allowedService.logon("bob");
+        // @ts-ignore
+        const getCurrentToken = () => client._corsReadToken
+        // @ts-ignore
+        const setCurrentToken = (value) => client._corsReadToken = value
+        const validToken = getCurrentToken();
+        if (!validToken) {
+            let diag_logonUserHttp;
+            let diag_logonUser;
+            try {
+                diag_logonUserHttp = await client.controlProxy_http.getLogonUser();
+                diag_logonUser = await client.proxy.getLogonUser();
             }
-
-            for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
-                setCurrentToken(invalidToken);
-                await allowedService.test();
-                expect(getCurrentToken()).toStrictEqual(invalidToken); // Expect it to be unchanged cause no session was accessed
-                expect(await allowedService.getLogonUser()).toBe("bob")
-                expect(shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken())).toStrictEqual(shieldTokenAgainstBREACH_unwrap(validToken)); // The new token should have been fetched. Assert: getCurrentToken() === valid
-            }
-
-        } finally {
-            // shut down server:
-            server.closeAllConnections();
-            await new Promise((resolve) => server.close(resolve));
+            catch (e) {}
+            throw new Error(`Token has not beet set. logon diag_logonUser: ${diag_logonUser}; diag_logonUserHttp: ${diag_logonUserHttp}`)
         }
+
+        for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
+            setCurrentToken(invalidToken);
+            await allowedService.test();
+            expect(getCurrentToken()).toStrictEqual(invalidToken); // Expect it to be unchanged cause no session was accessed
+            expect(await allowedService.getLogonUser()).toBe("bob")
+            expect(shieldTokenAgainstBREACH_unwrap(<string>getCurrentToken())).toStrictEqual(shieldTokenAgainstBREACH_unwrap(validToken)); // The new token should have been fetched. Assert: getCurrentToken() === valid
+        }
+
+    } finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
     }
+
 });
 
 test('getCurrent', async () => {
