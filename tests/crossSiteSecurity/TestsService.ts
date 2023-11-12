@@ -75,6 +75,9 @@ export class TestsService extends TestServiceSessionBase {
 
     @remote()
     getIsSimpleRequest(body?: string) {
+        if(!this.req) {
+            throw new Error("getIsSimpleRequest not called via http")
+        }
         return isSimpleRequest(this.req)
     }
 
@@ -89,7 +92,7 @@ export class TestsService extends TestServiceSessionBase {
             return super.doCall(funcName, args);
         }
         finally {
-            TestsService.lastCallWasSimpleRequest = isSimpleRequest(this.req);
+            TestsService.lastCallWasSimpleRequest = (this.req != undefined) && isSimpleRequest(this.req);
         }
     }
 }

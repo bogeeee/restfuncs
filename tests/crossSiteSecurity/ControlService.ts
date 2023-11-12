@@ -10,7 +10,11 @@ export class ControlService extends ServerSession {
 
     @remote()
     async resetSession() {
-        if(!this.req?.session) {
+        if(!this.req) {
+            throw new Error("resetSession not called by http")
+        }
+
+        if(!this.req.session) {
             return;
         }
 
@@ -30,8 +34,11 @@ export class ControlService extends ServerSession {
 
     @remote()
     async getCsrfTokenForService(id: string) {
+        if(!this.req) {
+            throw new Error("Not called by http")
+        }
         const ServiceClass = this.getServiceClass(id);
-        return ServiceClass.getCsrfToken(this.req!.session)
+        return ServiceClass.getCsrfToken(this.req.session)
     }
 
     private getServiceClass(id: string) {
