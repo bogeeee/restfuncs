@@ -1709,7 +1709,14 @@ test('Automatically fetch corsReadToken', async () => {
             const setCurrentToken = (value) => client._corsReadToken = value
             const validToken = getCurrentToken();
             if (!validToken) {
-                throw new Error("Token has not beet set")
+                let diag_logonUserHttp;
+                let diag_logonUser;
+                try {
+                    diag_logonUserHttp = await client.controlProxy_http.getLogonUser();
+                    diag_logonUser = await client.proxy.getLogonUser();
+                }
+                catch (e) {}
+                throw new Error(`Token has not beet set. logon diag_logonUser: ${diag_logonUser}; diag_logonUserHttp: ${diag_logonUserHttp}`)
             }
 
             for (const invalidToken of [undefined, `${"AA".repeat(16)}--${"AA".repeat(16)}`]) { // undefined + invalid but well-formed token
