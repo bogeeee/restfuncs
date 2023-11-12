@@ -1965,6 +1965,30 @@ test("Security groups", () => {
         expect(computed.service2SecurityGroupMap.get(SessionA) !== computed.service2SecurityGroupMap.get(SessionB)).toBeTruthy()
     }
 
+    // Different options should place them into different groups - devDisableSecurity
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                devDisableSecurity: true
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        const computed = server.getComputed();
+        expect(computed.securityGroups.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.size).toBe(2);
+        expect(computed.service2SecurityGroupMap.get(SessionA) !== computed.service2SecurityGroupMap.get(SessionB)).toBeTruthy()
+    }
+
 });
 
 test('ClientSocketConnection synchronizations', async () => {

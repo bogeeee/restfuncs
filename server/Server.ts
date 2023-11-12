@@ -211,7 +211,7 @@ export type RestfuncsServer = RestfuncsServerOOP & Express
 
 
 export class SecurityGroup {
-    static relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck"];
+    static relevantProperties: (keyof ServerSessionOptions)[] = ["basicAuth", "allowedOrigins", "csrfProtectionMode", "devForceTokenCheck", "devDisableSecurity"];
     options: ServerSessionOptions
     members: (typeof ServerSession)[]  = []
 
