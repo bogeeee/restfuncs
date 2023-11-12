@@ -1,17 +1,22 @@
 import {RestfuncsClient} from "restfuncs-client"
-import {MainframeService} from "./MainframeService.js"
-import {isMainSite, mainSiteUrl , runAlltests} from "./clientTests"; // Import to have types
+import {MainframeService} from "../MainframeService.js"
+import {isMainSite, mainSiteUrl , runAlltests} from "./clientTests";
+import {IServerSession} from "restfuncs-common"; // Import to have types
+
+interface WithLogin extends IServerSession {
+    login(userName: string): Promise<boolean>;
+}
 
 /**
  * This example subclasses the RestfuncsClient so you have a reusable client class for all your services (if you have multiple).
  * You may write instead then: class RestfuncsClientWithLogin<S extends MyBaseService> ...
  */
-class RestfuncsClientWithLogin<S> extends RestfuncsClient<S> {
+class RestfuncsClientWithLogin<S extends WithLogin> extends RestfuncsClient<S> {
     async doCall(funcName: string, args: any[]) {
         try {
             return await super.doCall(funcName, args);
         }
-        catch (e: any) {
+        catch (e) {
             if(e?.cause?.name === "NotLoggedInError") {
                 await this.doGuidedLogin();
                 return await super.doCall(funcName, args); // We are so kind to finish the original call. Look how the result is immediately displayed after entering the correct username
@@ -28,7 +33,7 @@ class RestfuncsClientWithLogin<S> extends RestfuncsClient<S> {
         let loginSuccessfull
         do {
             const userName = prompt("To access our expensive mainframe computation service, you need to be logged in.\nPlease enter your name")
-            loginSuccessfull = await this.login(userName);
+            loginSuccessfull = await this.proxy.login(userName);
         } while(!loginSuccessfull)
     }
 }

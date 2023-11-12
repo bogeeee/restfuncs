@@ -18,7 +18,6 @@ import {ControlService} from "./ControlService.js";
         const app = restfuncsExpress()
 
         const commonOptions: ServerSessionOptions = {
-            checkArguments: (process.env.NODE_ENV === 'development' ? undefined : true), // Strictly require parameter checking for production
             exposeErrors: true,
             logErrors: false
         }
