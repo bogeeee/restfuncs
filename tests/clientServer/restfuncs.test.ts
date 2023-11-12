@@ -2025,19 +2025,21 @@ test('ClientSocketConnection synchronizations', async () => {
 
             await promise1;
             expect(getCookieSession_fetchCounter).toBe(1);
-            expect(corsReadTokenFetchCounter).toBe(1);
+            //expect(corsReadTokenFetchCounter).toBe(1); <- removed check: no corsReadToken needed
 
             await promise2
             expect(getCookieSession_fetchCounter).toBe(1);
-            expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
+            //expect(corsReadTokenFetchCounter).toBe(1); // Should still be one. <- removed check: no corsReadToken needed
 
             await promise3
             expect(getCookieSession_fetchCounter).toBe(1);
-            expect(corsReadTokenFetchCounter).toBe(1); // Should still be one
+            //expect(corsReadTokenFetchCounter).toBe(1); // Should still be one <- removed check: no corsReadToken needed
             expect(getHttpSecurityProperties_fetchCounter).toBeLessThan(3)
 
             // @ts-ignore
-            expect(client.preparedSocketConnection.conn.methodCallPromises.size).toBe(0) // Expect no open promises
+            let clientSocketConnection = await client.getClientSocketConnection();
+            // @ts-ignore
+            expect(clientSocketConnection.methodCallPromises.size).toBe(0) // Expect no open promises
         }
         finally {
             await client.close();
