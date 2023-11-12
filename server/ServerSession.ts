@@ -836,11 +836,19 @@ export class ServerSession implements IServerSession {
 
         let result: unknown;
         try {
+            // Execute the remote method (wrapped):
             await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
                 // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                 let resultPromise: Promise<unknown>;
                 ServerSession.current.run(enhancedServerSession, () => {
-                    resultPromise = enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
+                    // Execute the remote method:
+                    if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
+                        // @ts-ignore
+                        resultPromise = enhancedServerSession[remoteMethodName](...methodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
+                    }
+                    else {
+                        resultPromise = enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
+                    }
                 })
 
                 result = await resultPromise!;
@@ -1502,9 +1510,10 @@ export class ServerSession implements IServerSession {
 
     /**
      * Allows you to intercept calls, by overriding this method.
-     *
-     *
      * You have access to this.req, this.res as usual.
+     * <p>
+     *     Calls to Restfuncs internal control methods do not go though this method.
+     * </p>
      */
     protected async doCall(methodName: string, args: unknown[]) {
         // @ts-ignore
