@@ -1528,7 +1528,8 @@ export class ServerSession implements IServerSession {
     protected static checkIfRequestIsAllowedToRunCredentialed(remoteMethodName: string, remoteMethodOptions: RemoteMethodOptions, reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on cookieSession value access where enforcedCsrfProtectionMode is set to the mode that's stored in the cookieSession.
 
-        const errorHints: string[] = [];
+        const errorHints: {priority: number, hint: string}[] = [];
+        const addErrorHint = (hint: string, priority?: number) => errorHints.push({hint, priority: priority !== undefined?priority:100})
         /**
          * Indicate this to the client that is should fetch/re-fetch it to solve the problem
          */
@@ -1560,18 +1561,18 @@ export class ServerSession implements IServerSession {
 
                 const reqToken = reqSecurityProps[tokenType];
                 if (!reqToken) {
-                    errorHints.push(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
+                    addErrorHint(`Please provide a ${tokenType} in the header / query- / body parameters. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 const sessionTokens = tokenType == "corsReadToken" ? cookieSession.corsReadTokens : cookieSession.csrfTokens;
                 if (sessionTokens === undefined) {
-                    errorHints.push(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
+                    addErrorHint(`Session.${tokenType}s not yet initialized. Maybe the server restarted. Please properly fetch the token. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
                 if (!sessionTokens[this.securityGroup.id]) {
-                    errorHints.push(`You provided a ${tokenType}, but no ${tokenType} was stored in the session for the ServerSession class (or same security group), you are using. Maybe the server restarted or, the token, you presented, is for another ServerSession class. Please fetch the token again. ${diagnosis_seeDocs}`);
+                    addErrorHint(`You provided a ${tokenType}, but no ${tokenType} was stored in the session for the ServerSession class (or same security group), you are using. Maybe the server restarted or, the token, you presented, is for another ServerSession class. Please fetch the token again. ${diagnosis_seeDocs}`);
                     return false;
                 }
 
@@ -1579,7 +1580,7 @@ export class ServerSession implements IServerSession {
                     if (crypto.timingSafeEqual(Buffer.from(sessionTokens[this.securityGroup.id], "hex"), shieldTokenAgainstBREACH_unwrap(reqToken))) { // sessionTokens[service.id] === reqToken ?
                         return true;
                     } else {
-                        errorHints.push(`${tokenType} incorrect`);
+                        addErrorHint(`${tokenType} incorrect`);
                     }
                 }
                 catch (e) {
@@ -1592,7 +1593,7 @@ export class ServerSession implements IServerSession {
             // Check protection mode compatibility:
             if (enforcedCsrfProtectionMode !== undefined) {
                 if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/cookieSession) want different protection modes  ?
-                    errorHints.push(
+                    addErrorHint(
                         (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
                         (reqSecurityProps.csrfProtectionMode ? `, but your request wants '${reqSecurityProps.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
                         `${diagnosis_seeDocs}`
@@ -1604,15 +1605,17 @@ export class ServerSession implements IServerSession {
             if (enforcedCsrfProtectionMode === "csrfToken") {
                 if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
                     // With a non secure browser, we can't trust a valid csrfToken token. Cause these could i.e. read out the contents of the main / index.html page cross-origin by script and extract the token.
-                    errorHints.push(`You can't prove a valid csrfToken because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
+                    addErrorHint(`You can't prove a valid csrfToken because your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.`)
                     return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
                 }
                 return tokenValid("csrfToken"); // Strict check already here.
             }
             //Diagnosis:
-            if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {errorHints.push(`You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`)}
+            if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {addErrorHint(`Lastly, but harder to implement: You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`, 10)}
 
-            if (originIsAllowed({...reqSecurityProps, allowedOrigins}, errorHints)) {
+            const diagnosis_oHints: string[] = []
+            if (originIsAllowed({...reqSecurityProps, allowedOrigins}, diagnosis_oHints)) {
+                diagnosis_oHints.forEach(h => addErrorHint(h));
                 return true
             }
 
@@ -1622,7 +1625,7 @@ export class ServerSession implements IServerSession {
             // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
 
             if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
-                errorHints.push("Your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.")
+                addErrorHint("Your browser does not support CORS or might have security issues with cross-origin requests. Please use a more secure browser. Any modern Browser will do.")
                 return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
             }
 
@@ -1633,7 +1636,7 @@ export class ServerSession implements IServerSession {
                 aValidCorsReadTokenWouldBeHelpful = true;
             }
             else {
-                errorHints.push(`You could allow the request by showing a corsReadToken. ${diagnosis_seeDocs}`)
+                addErrorHint(`You could allow the request by showing a corsReadToken. ${diagnosis_seeDocs}`)
             }
 
             if (reqSecurityProps.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
@@ -1646,17 +1649,17 @@ export class ServerSession implements IServerSession {
                     // Add error hints:
                     if (diagnosis.http?.contentType == "application/x-www-form-urlencoded" || diagnosis.http?.contentType == "multipart/form-data") { // SURELY came from html form ?
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && diagnosis.http && _(diagnosis.http.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
-                        errorHints.push(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`);
-                        errorHints.push(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`)
+                        addErrorHint(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`);
+                        addErrorHint(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`)
                         if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, remoteMethodName)) {
-                            errorHints.push(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`)
+                            addErrorHint(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`)
                         }
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
-                        errorHints.push(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        addErrorHint(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
                     } else if (diagnosis.http?.contentType == "text/plain") { // MAYBE from html form
-                        errorHints.push(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        addErrorHint(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
                     } else if (reqSecurityProps.httpMethod !== "GET" && reqSecurityProps.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
-                        errorHints.push(`You have to specify a Content-Type header.`);
+                        addErrorHint(`You have to specify a Content-Type header.`);
                     }
 
                     return false; // Deny
@@ -1677,7 +1680,8 @@ export class ServerSession implements IServerSession {
         }
 
         if(!isAllowedInner()) {
-            throw new CommunicationError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(hint => `\n- ${hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
+            errorHints.sort((a, b) => b.priority - a.priority)
+            throw new CommunicationError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(entry => `\n- ${entry.hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
         }
     }
 
