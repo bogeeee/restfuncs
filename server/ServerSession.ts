@@ -1611,7 +1611,10 @@ export class ServerSession implements IServerSession {
                 return tokenValid("csrfToken"); // Strict check already here.
             }
             //Diagnosis:
-            if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {addErrorHint(`Lastly, but harder to implement: You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`, 10)}
+            if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+                addErrorHint(`Lastly, you could switch to a different csrfProtectionMode. ${diagnosis_seeDocs}`, 10)
+                addErrorHint(`And for development, you could enable ServerSessionOptions#devDisableSecurity`, 8)
+            }
 
             const diagnosis_oHints: string[] = []
             if (originIsAllowed({...reqSecurityProps, allowedOrigins}, diagnosis_oHints)) {
@@ -1651,7 +1654,7 @@ export class ServerSession implements IServerSession {
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && diagnosis.http && _(diagnosis.http.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
                         addErrorHint(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`);
                         addErrorHint(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`)
-                        if (diagnosis_methodWasDeclaredSafeAtAnyLevel(this.constructor, remoteMethodName)) {
+                        if (this.diagnosis_methodWasDeclaredSafeAtAnyLevel(remoteMethodName)) {
                             addErrorHint(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`)
                         }
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
@@ -2279,6 +2282,13 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError("Can't access to the (cookie-) session. No session handler was installed. Please use `const app = restfuncsExpress();` as a drop-in replacement for express. Or install your own (advanced).")
         }
     }
+
+    protected static diagnosis_methodWasDeclaredSafeAtAnyLevel(methodName: string): boolean {
+        if(this.getRemoteMethodOptions_inner(methodName)?.isSafe) {
+            return true
+        }
+        return (this.superClass as typeof ServerSession).diagnosis_methodWasDeclaredSafeAtAnyLevel?.(methodName) || false;
+    }
 }
 
 
@@ -2368,31 +2378,7 @@ export function remote(options?: RemoteMethodOptions) {
 
 
 
-/**
- * To hin with error messages
- * @param constructor
- * @param methodName
- */
-export function diagnosis_methodWasDeclaredSafeAtAnyLevel(constructor: Function | undefined, methodName: string): boolean {
-    if(!constructor) {
-        return false;
-    }
 
-    // @ts-ignore
-    const safeMethods = <Set<string>> constructor?.safeMethods;
-
-    if(safeMethods !== undefined && safeMethods.has(methodName)) {
-        return true;
-    }
-
-    // Check at parent level
-    const baseConstructor = Object.getPrototypeOf(constructor);
-    if(baseConstructor) {
-        return diagnosis_methodWasDeclaredSafeAtAnyLevel(baseConstructor, methodName);
-    }
-
-    return false;
-}
 
 // *** Tokens that are transfered between the websocket connection and the http service *** See Security concept.md
 
