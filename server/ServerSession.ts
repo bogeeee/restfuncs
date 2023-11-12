@@ -1684,7 +1684,7 @@ export class ServerSession implements IServerSession {
 
         if(!isAllowedInner()) {
             errorHints.sort((a, b) => b.priority - a.priority)
-            throw new CommunicationError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(entry => `\n- ${entry.hint}`)}`:`${errorHints[0] || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
+            throw new CommunicationError(`${diagnosis.isSessionAccess?`Session access is not allowed`:`Not allowed`}: ` + (errorHints.length > 1?`Please fix one of the following issues: ${errorHints.map(entry => `\n- ${entry.hint}`)}`:`${errorHints[0].hint || ""}`), {httpStatusCode: aValidCorsReadTokenWouldBeHelpful?480:403})
         }
     }
 
