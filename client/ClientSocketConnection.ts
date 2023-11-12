@@ -378,5 +378,6 @@ export class ClientSocketConnection {
             throw new Error( `MethodCallPromise for callId: ${resultFromServer.callId} does not exist.`);
         }
         methodCallpromise.resolve(resultFromServer);
+        this.methodCallPromises.delete(resultFromServer.callId);
     }
 }
