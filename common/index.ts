@@ -55,6 +55,7 @@ export interface IServerSession {
 
     getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer>;
     getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer>;
+    getCorsReadToken(): string
     updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>>;
 }
 

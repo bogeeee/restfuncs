@@ -321,7 +321,7 @@ export class RestfuncsClient<S extends IServerSession> {
     }
 
     async fetchCorsReadToken() {
-        this._corsReadToken = await (this.proxy as any).getCorsReadToken();
+        this._corsReadToken = await this.controlProxy_http.getCorsReadToken();
     }
 
     /**
