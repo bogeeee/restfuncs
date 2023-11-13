@@ -111,7 +111,7 @@ export class RestfuncsClient<S extends IServerSession> {
      * The node fetch implementation lacks of cookie support, so we implement this ourself
      * @protected
      */
-    protected _nodeCookie?: string;
+    protected _nodeCookie: Record<string,string> = {}
 
     get absoluteUrl() {
         // Validity check
@@ -292,22 +292,27 @@ export class RestfuncsClient<S extends IServerSession> {
     }
 
     /**
-     * Like fetch (from the browser api) but with a better errormessage and poly filled session handling for  node
+     * Like fetch (from the browser api) but with a better errormessage and poly filled cookie handling for  node
      * @param request
      */
     async httpFetch(url: string, request: RequestInit) {
         if(isNode && this._nodeCookie) {
-            request.headers = {...(request.headers || {}), "Cookie": this._nodeCookie}
+            const cookie = Object.keys(this._nodeCookie).map(name => `${name}=${this._nodeCookie[name]}`).join("; ") // Compose "name=value; name2=value2; ..." cookie string
+            request.headers = {...(request.headers || {}), cookie}
         }
 
         try {
             const result = await fetch(url, request);
 
             if(isNode) {
-                const setCookie = result.headers.get("Set-Cookie");
-                if (setCookie) {
-                    this._nodeCookie = setCookie;
-                }
+                // Safe cookie from headers
+                result.headers.forEach((headerValue, headerName) => {
+                    if(headerName.toLowerCase() === "set-cookie") {
+                        const firstPart = headerValue.split(';')[0];
+                        const [name, value] = firstPart.split('=');
+                        this._nodeCookie[name] = value;
+                    }
+                })
             }
 
             return result;
