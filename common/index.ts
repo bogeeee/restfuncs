@@ -60,6 +60,9 @@ export interface IServerSession {
 }
 
 export interface CookieSession extends Record<string, unknown> {
+    /**
+     * Security: This may be readable from inside the browser.
+     */
     id: string
     version: number
 
@@ -80,6 +83,11 @@ export interface CookieSession extends Record<string, unknown> {
 
     commandDestruction?:boolean
 }
+
+/**
+ * Sent as a public cookie and header for change-indication / detection by the socket clients
+ */
+export type CookieSessionState = Pick<CookieSession, "id" | "version">; // do we need the bpSalt ? or is that too much bloat ?
 
 export type Socket_Client2ServerMessage = {
     type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession"

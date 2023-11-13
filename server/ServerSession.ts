@@ -36,7 +36,7 @@ import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
-    CookieSession,
+    CookieSession, CookieSessionState,
     CookieSessionUpdate,
     CSRFProtectionMode,
     GetCookieSession_answer,
@@ -336,7 +336,7 @@ export class ServerSession implements IServerSession {
     protected static remoteMethod2Options?: Map<string, RemoteMethodOptions>
 
     /**
-     * The id of the cookie or null if no cookie is used yet (nothing written to this session yet)
+     * The id of the cookie or null if no cookie is used yet (nothing written to this session yet). Security: It is readable from inside the browser.
      */
     id?: CookieSession["id"]
 
@@ -693,11 +693,10 @@ export class ServerSession implements IServerSession {
 
                 if(modifiedSession) {
                     if(modifiedSession.commandDestruction) {
-                        await this.destroyExpressSession(req);
+                        await this.destroyExpressSession(req, res);
                     }
                     else {
-                        this.ensureSessionHandlerInstalled(req);
-                        _(req.session).extend(modifiedSession);
+                        this.extendExpressSession(modifiedSession, req, res);
                     }
                     // Don't safe in session validator yet. Sending the response to the client can still fail. It's updated there before the next call.
                 }
@@ -749,8 +748,9 @@ export class ServerSession implements IServerSession {
      * Internal. Do not override
      * </p>
      * @param req
+     * @param res headers will be added here to indicate, see {@link CookieSessionState}
      */
-    static async destroyExpressSession(req: Request) {
+    private static async destroyExpressSession(req: Request, res: Response) {
         if(req.session === undefined) { // Either destroyed or no session handler installed
             return;
         }
@@ -768,6 +768,50 @@ export class ServerSession implements IServerSession {
 
         if(req.session) {
             throw new Error("Illegal state. Session should be unset");
+        }
+
+        this.sendCookieSessionState(req, res, true);
+    }
+
+    /**
+     *
+     * @param modifiedSession
+     * @param req
+     * @param res headers will be added here to indicate, see {@link CookieSessionState}
+     * @private
+     */
+    private static extendExpressSession(modifiedSession: Omit<CookieSession, "id">, req: Request, res: Response) {
+        modifiedSession = {...modifiedSession} // Copy, so the method does not have side effects
+        delete modifiedSession.id // Make sure the id is really removed.
+
+        this.ensureSessionHandlerInstalled(req);
+        _(req.session).extend(modifiedSession);
+
+        if(!req.session.id) {
+            throw new Error("Session should have an id by now");
+        }
+
+        this.sendCookieSessionState(req, res)
+    }
+
+    /**
+     * See {@link CookieSessionState}
+     * @param isDestroyed Set this, if you know that you just destroyed it. Cause we might not be able to detect it otherwise
+     */
+    private static sendCookieSessionState(req: Request, res: Response, isDestroyed?: boolean) {
+        const cookieSession = isDestroyed?undefined:this.getFixedCookieSessionFromRequest(req)
+        if(cookieSession) {
+            const state: CookieSessionState = {
+                id: cookieSession.id,
+                version: cookieSession.version
+            }
+            const stateJson = JSON.stringify(state);
+            res.header("Set-Cookie", `rfSessState=${stateJson}; Path=/`)
+            res.header("rfSessState", stateJson);
+        }
+        else {
+            res.header("Set-Cookie", `rfSessState=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`) // clears the cookie
+            res.header("rfSessState", "null");
         }
     }
 
@@ -1134,7 +1178,7 @@ export class ServerSession implements IServerSession {
 
         // Update the session:
         if(newCookieSession.commandDestruction) {
-            await this.clazz.destroyExpressSession(this.req!);
+            await this.clazz.destroyExpressSession(this.req!, this.res!);
 
             // Do  "return this.getCookieSession(alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
             const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
@@ -1144,8 +1188,7 @@ export class ServerSession implements IServerSession {
             }, "GetCookieSession_answer");
         }
         else {
-            this.clazz.ensureSessionHandlerInstalled(this.req!);
-            _(this.req!.session).extend(newCookieSession);
+            this.clazz.extendExpressSession(newCookieSession, this.req!, this.res!);
         }
 
         return this.getCookieSession(alsoReturnNewSession);
