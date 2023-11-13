@@ -98,7 +98,7 @@ export class RestfuncsClient<S extends IServerSession> {
     public proxy: ClientProxy<S>
 
     /**
-     * Like proxy but for internal use. Goes straight to doCall_http
+     * Like proxy but for internal use. Goes straight to doCall_http (with skipSocketConnectionCookieSessionUpdate=true, cause this should be addressed by the caller on a lower level)
      * @protected
      */
     controlProxy_http: ClientProxy<S>
@@ -205,7 +205,14 @@ export class RestfuncsClient<S extends IServerSession> {
         return await conn.doCall(this, (await this.getWelcomeInfo()).classId, remoteMethodName, args);
     }
 
-    protected async doCall_http(remoteMethodName: string, args: any[]) {
+    /**
+     *
+     * @param remoteMethodName
+     * @param args
+     * @param skipSocketConnectionCookieSessionUpdate parameter for {@link doFetch}
+     * @protected
+     */
+    protected async doCall_http(remoteMethodName: string, args: any[], skipSocketConnectionCookieSessionUpdate = false) {
         const exec = async () => {
             let requestUrl: string;
             if(this.url) {
@@ -231,7 +238,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 credentials: "include"
             }
 
-            const r = await this.doFetch(remoteMethodName, args, requestUrl, req);
+            const r = await this.doFetch(remoteMethodName, args, requestUrl, req, skipSocketConnectionCookieSessionUpdate);
             return r.result;
         }
 
@@ -252,15 +259,19 @@ export class RestfuncsClient<S extends IServerSession> {
 
 
     /**
-     * Override this to intercept calls and have access to or modify http specific info.
+     * ...
+     * + parses the result into a proper value or error.
+     * + Makes sure (and awaits) that, after the http request, all ClientSocketConnections have the up2date cookie (sync).
      *
+     * Override this, to intercept calls and have access to-, or modify http specific info.
      *
      * @param funcName
      * @param args Args of the function. They get serialized to json in the request body
      * @param url
      * @param req The request, already prepared to be sent (without the body yet). You can still modify it. See https://developer.mozilla.org/en-US/docs/Web/API/Request
+     * @param skipSocketConnectionCookieSessionUpdate skip, see description
      */
-    protected async doFetch(funcName: string, args: any[], url: string, req: RequestInit): Promise<{ result: any, resp: Response }> {
+    protected async doFetch(funcName: string, args: any[], url: string, req: RequestInit, skipSocketConnectionCookieSessionUpdate = false): Promise<{ result: any, resp: Response }> {
         req.body = brilloutJsonStringify(args);
 
         // Exec fetch:
@@ -281,7 +292,7 @@ export class RestfuncsClient<S extends IServerSession> {
             throw new Error(`Invalid response. Seems like '${this.url}' is not served by restfuncs cause there's no 'restfuncs-protocol' header field. Response body:\n${responseText}`);
         }
 
-        if(!isNode) {
+        if(!isNode && !skipSocketConnectionCookieSessionUpdate) {
             // check, if the cookieSession has changed and inform all ClientSocketConnections:
             let rfSessStateHeader = response.headers.get("rfSessState");
             if (rfSessStateHeader) {
@@ -386,7 +397,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 }
 
                 // Handle the rest: p is the name of the remote method
-                return function(...args: any) { return client.doCall_http(p, args)}
+                return function(...args: any) { return client.doCall_http(p, args, true)} // from the control proxy
             }
         }) as ClientProxy<S>;
     }
