@@ -127,10 +127,21 @@ export class RestfuncsClient<S extends IServerSession> {
         }
     }
 
-    protected _getWelcomeInfoOp = new SingleRetryableOperation<WelcomeInfo>()
+    protected _getWelcomeInfoPromise?: Promise<WelcomeInfo>
 
-    async getWelcomeInfo(): Promise<WelcomeInfo> {
-        return await this._getWelcomeInfoOp.exec(async () => await this.controlProxy_http.getWelcomeInfo());
+    protected async getWelcomeInfo(): Promise<WelcomeInfo> {
+        if(this._getWelcomeInfoPromise === undefined) {
+            this._getWelcomeInfoPromise = (async () => {
+                try {
+                    return (await this.controlProxy_http.getWelcomeInfo())
+                }
+                catch (e) {
+                    this._getWelcomeInfoPromise = undefined; // Let the next one try again
+                    throw e;
+                }
+            })()
+        }
+        return await this._getWelcomeInfoPromise;
     }
 
     protected _getClientSocketConnectionOp = new SingleRetryableOperation<ClientSocketConnection | undefined>()
