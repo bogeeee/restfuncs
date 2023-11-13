@@ -2,7 +2,8 @@ import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, ExternalPromise, SingleRetryableOperationMap, SingleRetryableOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
-    GetCookieSession_answer,
+    CookieSessionState,
+    GetCookieSessionAnswerToken,
     IServerSession, ServerPrivateBox,
     Socket_Client2ServerMessage,
     Socket_MethodCallResult, Socket_Server2ClientInit,
@@ -50,6 +51,8 @@ export class ClientSocketConnection {
      * @protected
      */
     protected fetchHttpSecurityPropertiesOp  = new SingleRetryableOperationMap<string, void>()
+
+    protected lastSetCookieSessionOnServer: CookieSessionState
 
     /**
      * If the cookieSession is currently "outdated" on the server, someone has to fix it by re-fetching it from the http side.
@@ -237,8 +240,9 @@ export class ClientSocketConnection {
      * Calls {@link ServerSocketConnection#setCookieSession} on the server
      * Immediately returns without waiting for an ack.
      */
-    setCookieSessionOnServer(encryptedGetCookieSession_answer: ServerPrivateBox<GetCookieSession_answer>) {
-        this.sendMessage({type: "setCookieSession", payload: encryptedGetCookieSession_answer})
+    setCookieSessionOnServer(getCookieSessionResult: ReturnType<IServerSession["getCookieSession"]>) {
+        this.sendMessage({type: "setCookieSession", payload: getCookieSessionResult.token})
+        this.lastSetCookieSessionOnServer = getCookieSessionResult.state;
     }
 
     async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
@@ -334,6 +338,7 @@ export class ClientSocketConnection {
 
 
     protected sendMessage(message: Socket_Client2ServerMessage) {
+        this.checkFatal()
         this.socket.send(this.serializeMessage(message))
     }
 

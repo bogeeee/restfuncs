@@ -53,10 +53,10 @@ export interface IServerSession {
      */
     getWelcomeInfo(): WelcomeInfo;
 
-    getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer>;
+    getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): {state: CookieSessionState, token: ServerPrivateBox<GetCookieSessionAnswerToken>};
     getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer>;
     getCorsReadToken(): string
-    updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>>;
+    updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<{state: CookieSessionState, token: ServerPrivateBox<GetCookieSessionAnswerToken>}>;
 }
 
 export interface CookieSession extends Record<string, unknown> {
@@ -88,7 +88,7 @@ export interface CookieSession extends Record<string, unknown> {
  * Sent as a public cookie and header for change-indication / detection by the socket clients.
  * See tests/session-playground
  */
-export type CookieSessionState = Pick<CookieSession, "id" | "version">; // do we need the bpSalt ? or is that too much bloat ?
+export type CookieSessionState = Pick<CookieSession, "id" | "version"> | undefined; // undefined means as always: no cookie set / session not created; Do we need the bpSalt ? or is that too much bloat ?
 
 export type Socket_Client2ServerMessage = {
     type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession"
@@ -185,7 +185,7 @@ export type GetCookieSession_question = {
     forceInitialize: boolean;
 }
 
-export type GetCookieSession_answer = {
+export type GetCookieSessionAnswerToken = {
     question: GetCookieSession_question,
     /**
      * Can be undefined, if no session was started yet

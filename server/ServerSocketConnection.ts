@@ -3,7 +3,7 @@ import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
     CookieSession,
-    CookieSessionUpdate, GetCookieSession_answer,
+    CookieSessionUpdate, GetCookieSessionAnswerToken,
     GetCookieSession_question,
     GetHttpSecurityProperties_answer,
     GetHttpSecurityProperties_question,
@@ -343,7 +343,7 @@ export class ServerSocketConnection {
      * @protected
      */
     protected setCookieSession(encryptedGetCookieSession_answer: unknown) {
-        const answer: GetCookieSession_answer = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSession_answer")
+        const answer: GetCookieSessionAnswerToken = this.server.server2serverDecryptToken(encryptedGetCookieSession_answer as any, "GetCookieSessionAnswerToken")
         // Validate:
         if(answer.question.serverSocketConnectionId !== this.id) {
             throw new Error("Question was not for this connection");

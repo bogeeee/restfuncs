@@ -39,7 +39,7 @@ import {
     CookieSession, CookieSessionState,
     CookieSessionUpdate,
     CSRFProtectionMode,
-    GetCookieSession_answer,
+    GetCookieSessionAnswerToken,
     GetCookieSession_question,
     GetHttpSecurityProperties_answer,
     GetHttpSecurityProperties_question,
@@ -696,7 +696,7 @@ export class ServerSession implements IServerSession {
                         await this.destroyExpressSession(req, res);
                     }
                     else {
-                        this.extendExpressSession(modifiedSession, req, res);
+                        this.updateAndSendReqSession(modifiedSession, req, res);
                     }
                     // Don't safe in session validator yet. Sending the response to the client can still fail. It's updated there before the next call.
                 }
@@ -780,7 +780,7 @@ export class ServerSession implements IServerSession {
      * @param res headers will be added here to indicate, see {@link CookieSessionState}
      * @private
      */
-    private static extendExpressSession(modifiedSession: Omit<CookieSession, "id">, req: Request, res: Response) {
+    private static updateAndSendReqSession(modifiedSession: Omit<CookieSession, "id">, req: Request, res: Response) {
         modifiedSession = {...modifiedSession} // Copy, so the method does not have side effects
         delete modifiedSession.id // Make sure the id is really removed.
 
@@ -1031,7 +1031,7 @@ export class ServerSession implements IServerSession {
     }
 
     @remote()
-    public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>): ServerPrivateBox<GetCookieSession_answer> {
+    public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this._httpCall) {
             throw new CommunicationError("getCookieSession was not called via http.");
@@ -1047,7 +1047,7 @@ export class ServerSession implements IServerSession {
             }
 
             reqSession.version = (typeof reqSession.version === "number")?reqSession.version:0, // Like in getFixedCookieSessionFromRequest. Initialize one field, so getFixedCookieSessionFromRequest will detect it as initialized
-            _(this.req!.session).extend(this.clazz.getFixedCookieSessionFromRequest(this.req!)) // store the rest of needed fields
+            this.clazz.updateAndSendReqSession(this.clazz.getFixedCookieSessionFromRequest(this.req!)!, this.req!, this.res!);
 
             //TODO: we would add it to the validator here
         }
@@ -1065,14 +1065,13 @@ export class ServerSession implements IServerSession {
             _(this.req!.session).extend(cookieSession)
         }
 
-
-        const answer: GetCookieSession_answer = {
-            question: question,
-            cookieSession: cookieSession
+        return {
+            token: this.clazz.server.server2serverEncryptToken({
+                question: question,
+                cookieSession: cookieSession
+            }, "GetCookieSessionAnswerToken")  ,
+            state: this.clazz.getStateOfCookieSession(cookieSession)
         }
-
-
-        return this.clazz.server.server2serverEncryptToken(answer, "GetCookieSession_answer")
     }
 
     /**
@@ -1111,6 +1110,10 @@ export class ServerSession implements IServerSession {
         return result
     }
 
+    protected static getStateOfCookieSession(cookieSession: CookieSession | undefined): CookieSessionState {
+        return cookieSession?{id: cookieSession.id, version: cookieSession.version}:undefined
+    }
+
     private static createBpSalt() {
         return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
@@ -1141,7 +1144,7 @@ export class ServerSession implements IServerSession {
      * @param alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
     @remote()
-    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) : Promise<ServerPrivateBox<GetCookieSession_answer>> {
+    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this._httpCall) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
@@ -1182,13 +1185,16 @@ export class ServerSession implements IServerSession {
 
             // Do  "return this.getCookieSession(alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
             const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
-            return this.clazz.server.server2serverEncryptToken( {
-                question: question,
-                cookieSession: undefined
-            }, "GetCookieSession_answer");
+            return {
+                token: this.clazz.server.server2serverEncryptToken({
+                    question: question,
+                    cookieSession: undefined
+                }, "GetCookieSessionAnswerToken"),
+                state: undefined
+            }
         }
         else {
-            this.clazz.extendExpressSession(newCookieSession, this.req!, this.res!);
+            this.clazz.updateAndSendReqSession(newCookieSession, this.req!, this.res!);
         }
 
         return this.getCookieSession(alsoReturnNewSession);
