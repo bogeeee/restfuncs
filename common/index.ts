@@ -85,7 +85,8 @@ export interface CookieSession extends Record<string, unknown> {
 }
 
 /**
- * Sent as a public cookie and header for change-indication / detection by the socket clients
+ * Sent as a public cookie and header for change-indication / detection by the socket clients.
+ * See tests/session-playground
  */
 export type CookieSessionState = Pick<CookieSession, "id" | "version">; // do we need the bpSalt ? or is that too much bloat ?
 
