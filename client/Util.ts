@@ -132,6 +132,22 @@ export class SingleRetryableOperationMap<K, T> {
     fail(key: K) {
         this.resultPromises.delete(key);
     }
+
+    /**
+     * Waits for aöö outstanding results. Ignores failed
+     */
+    async getAllSucceeded(): Promise<T[]> {
+        const result = []
+        for(const promise of this.resultPromises.values()) {
+            try {
+                result.push(await promise);
+            }
+            catch (e) {
+                // No throw. Not our concern if connection failed to initialize
+            }
+        }
+        return result;
+    }
 }
 
 /**

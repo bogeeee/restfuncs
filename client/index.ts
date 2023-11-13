@@ -1,7 +1,7 @@
 import _ from "underscore"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
+import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
 import {isNode, SingleRetryableOperation} from "./Util";
 
@@ -279,6 +279,17 @@ export class RestfuncsClient<S extends IServerSession> {
         } else {
             const responseText = await response.text();
             throw new Error(`Invalid response. Seems like '${this.url}' is not served by restfuncs cause there's no 'restfuncs-protocol' header field. Response body:\n${responseText}`);
+        }
+
+        if(!isNode) {
+            // check, if the cookieSession has changed and inform all ClientSocketConnections:
+            let rfSessStateHeader = response.headers.get("rfSessState");
+            if (rfSessStateHeader) {
+                const cookieSessionState = JSON.parse(rfSessStateHeader) as CookieSessionState
+                for (const conn of (await ClientSocketConnection.getAllOpenConnections())) {
+                    await conn.ensureCookieSessionUpto(cookieSessionState)
+                }
+            }
         }
 
         if (response.status >= 200 && response.status < 300) { // 2xx ?

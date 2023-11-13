@@ -35,6 +35,7 @@ export class ClientSocketConnection {
 
     public url!: string;
     public socket!: Socket
+    protected firstClient!: RestfuncsClient<any>
 
     /**
      * Send from the server after connection
@@ -97,6 +98,7 @@ export class ClientSocketConnection {
     protected async asyncConstructor(url: string, initClient: RestfuncsClient<IServerSession>) {
         this.url = url;
         this.socket = new Socket(url, this.clazz.engineIoOptions);
+        this.firstClient = initClient;
 
         // Wait until connected and throw an Error on connection errors:
         await new Promise<void>((resolve, reject) => {
@@ -384,5 +386,36 @@ export class ClientSocketConnection {
         }
         methodCallpromise.resolve(resultFromServer);
         this.methodCallPromises.delete(resultFromServer.callId);
+    }
+
+    async ensureCookieSessionUpto(targetSessionState: CookieSessionState) {
+        await this.fixOutdatedCookieSessionOp.waitTilIdle();
+
+        const needsUpdate = () => {
+            if (this.lastSetCookieSessionOnServer === undefined && targetSessionState === undefined) { // No cookie set - up2date ?
+                return false;
+            } else if (this.lastSetCookieSessionOnServer === undefined) {
+                return true;
+            }
+            else { // Bot are set ?
+                return this.lastSetCookieSessionOnServer.id !== targetSessionState!.id || this.lastSetCookieSessionOnServer.version < targetSessionState!.version
+            }
+        }
+
+        if(needsUpdate()) {
+            await this.fixOutdatedCookieSessionOp.exec(async () => {
+                console.log("updating session to " + targetSessionState?.version)
+                // Do a sync:
+                const answer = await this.firstClient.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
+                this.setCookieSessionOnServer(answer);
+            });
+        }
+    }
+
+    /**
+     * @returns ... All valid (=not failed) open connections. Such that are currently initializing, are awaited.
+     */
+    static async getAllOpenConnections() {
+        return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
     }
 }
