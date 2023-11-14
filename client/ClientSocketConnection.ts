@@ -28,7 +28,7 @@ export class ClientSocketConnection {
     /**
      * How often is the document.cookie polled for changes (so that changes to the session from other browser windows or manual fetch requests get recognized)
      */
-    static COOKIESESSION_CHANGE_POLLINTERVAL = 20;
+    static RF_SESS_STATE_COOKIE_POLLINTERVAL = 20;
     /**
      * Url -> ClientSocketConnection
      */
@@ -147,12 +147,9 @@ export class ClientSocketConnection {
             });
         });
 
-        // Initialize the cookieSession
-        const initMessage = await this.initMessage; // Wait till the server has sent us that message
-        const getCookieSession_answer = await initClient.controlProxy_http.getCookieSession(initMessage.cookieSessionRequest);
-        this.setCookieSessionOnServer(getCookieSession_answer);
+        await this.fetchAndSetCookieSession();
         if(!isNode) {
-            await this.pollForCookieSessionChange() // Start polling
+            await this.pollRfSessStateCookie_regularly() // Start polling
         }
     }
 
@@ -186,8 +183,8 @@ export class ClientSocketConnection {
         this.methodCallPromises.clear();
         // TODO: dereference callbacks
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
-        if(this.pollForCookieSessionChange_timer) {
-            clearTimeout(this.pollForCookieSessionChange_timer);
+        if(this.pollRfSessStateCookie_timer) {
+            clearTimeout(this.pollRfSessStateCookie_timer);
         }
     }
 
@@ -284,8 +281,7 @@ export class ClientSocketConnection {
         while ( (callResult = await exec()).status === "dropped_CookieSessionIsOutdated") {
             // (Somebody-) fetch the cookieSession:
             await this.fixOutdatedCookieSessionOp.exec(async () => {
-                const answer = await client.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
-                this.setCookieSessionOnServer(answer);
+                await this.fetchAndSetCookieSession();
             })
         }
 
@@ -399,6 +395,35 @@ export class ClientSocketConnection {
         this.methodCallPromises.delete(resultFromServer.callId);
     }
 
+
+    /**
+     * @private
+     */
+    private async fetchAndSetCookieSession() {
+        const answer = await this.firstClient.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
+        this.setCookieSessionOnServer(answer);
+    }
+
+    public async syncCookieSession(force = false) {
+        if (force) {
+            await this.fixOutdatedCookieSessionOp.waitTilIdle();
+            await this.fetchAndSetCookieSession();
+        } else {
+            await this.pollRfSessStateCookie_once();
+        }
+
+    }
+
+    /**
+     * @returns ... All valid (=not failed) open connections. Such that are currently initializing, are awaited.
+     */
+    static async getAllOpenConnections() {
+        return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
+    }
+
+    private pollRfSessStateCookie_timer?: ReturnType<typeof setTimeout>;
+    private static RF_SESS_STATE_COOKIE_PATTERN = /^\s*rfSessState\s*=\s*(.*)\s*$/;
+
     /**
      * In the rare case that something got wrong with the rfSessState cookie transmission (i.e. request failed and the rfSessState cookie will not be repeated in following requests), we still got an old value in document.cookie. this would cause an endless hammering.
      * Here we prevent this, when we know it was wrong the last time.
@@ -423,9 +448,7 @@ export class ClientSocketConnection {
 
         if(needsUpdate()) {
             await this.fixOutdatedCookieSessionOp.exec(async () => {
-                // Do a sync:
-                const answer = await this.firstClient.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
-                this.setCookieSessionOnServer(answer);
+                await this.fetchAndSetCookieSession();
 
                 // Safety: Help prevent hammering:
                 if(needsUpdate()) { //targetSessionState was wrong and would cause an update again ?
@@ -438,36 +461,40 @@ export class ClientSocketConnection {
         }
     }
 
-    /**
-     * @returns ... All valid (=not failed) open connections. Such that are currently initializing, are awaited.
-     */
-    static async getAllOpenConnections() {
-        return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
-    }
-
-    private pollForCookieSessionChange_timer?: ReturnType<typeof setTimeout>;
-    private static SESS_STATE_COOKIE_PATTERN = /^\s*rfSessState\s*=\s*(.*)\s*$/;
 
     /**
-     * Polls the document.cookie for changes, and recognizes und updates changes to the session that were made by other browser windows or manual fetch requests.
+     * Starts the polling of {@see pollRfSessStateCookie_once}
      * @private
      */
-    private async pollForCookieSessionChange() {
+    private async pollRfSessStateCookie_regularly() {
         if(typeof window === "undefined") { // Not in a browser ?
             return;
         }
         try {
-            window.document.cookie.split(";").forEach(cookieToken => {
-                let match = cookieToken.match(ClientSocketConnection.SESS_STATE_COOKIE_PATTERN);
-                if(match) {
-                    const value = match[1];
-                    const cookieSessionState = JSON.parse(value) as CookieSessionState;
-                    this.ensureCookieSessionUpto(cookieSessionState);
-                }
-            })
+            await this.pollRfSessStateCookie_once();
         }
         finally {
-            this.pollForCookieSessionChange_timer = setTimeout(() => {this.pollForCookieSessionChange()}, ClientSocketConnection.COOKIESESSION_CHANGE_POLLINTERVAL)
+            this.pollRfSessStateCookie_timer = setTimeout(() => {this.pollRfSessStateCookie_regularly()}, ClientSocketConnection.RF_SESS_STATE_COOKIE_POLLINTERVAL)
         }
+    }
+
+
+    /**
+     * Polls the document.cookie -> "rfSessState" for changes, and recognizes und updates changes to the session that were made by other browser windows or manual fetch requests.
+     * @private
+     */
+    private async pollRfSessStateCookie_once() {
+        function getRfSessStateCookie() {
+            for (const cookieToken of window.document.cookie.split(";")) {
+                let match = cookieToken.match(ClientSocketConnection.RF_SESS_STATE_COOKIE_PATTERN);
+                if (match) {
+                    const value = match[1];
+                    return JSON.parse(value) as CookieSessionState;
+                }
+            }
+            return undefined
+        }
+
+        await this.ensureCookieSessionUpto(getRfSessStateCookie());
     }
 }

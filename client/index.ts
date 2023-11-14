@@ -402,6 +402,15 @@ export class RestfuncsClient<S extends IServerSession> {
         }) as ClientProxy<S>;
     }
 
+    public async syncCookieSession() {
+        if(!this._getClientSocketConnectionOp.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
+            return;
+        }
+        const conn = await this.getClientSocketConnection();
+
+        conn?.syncCookieSession()
+    }
+
     /**
      * Closes all associated connections (if not shared and used by other clients)
      */
