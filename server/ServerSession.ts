@@ -1652,8 +1652,8 @@ export class ServerSession implements IServerSession {
             if (enforcedCsrfProtectionMode !== undefined) {
                 if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/cookieSession) want different protection modes  ?
                     addErrorHint(
-                        (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires RestfunscOptions.csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
-                        (reqSecurityProps.csrfProtectionMode ? `, but your request wants '${reqSecurityProps.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
+                        (diagnosis.isSessionAccess ? `The session was created with / is protected with csrfProtectionMode='${enforcedCsrfProtectionMode}'` : `The server requires ServerSessionOptions#csrfProtectionMode = '${enforcedCsrfProtectionMode}'`) +
+                        (reqSecurityProps.csrfProtectionMode ? `, but your request wants csrfProtectionMode='${reqSecurityProps.csrfProtectionMode}'. ` : (enforcedCsrfProtectionMode === "csrfToken" ? `. Please provide a csrfToken in the header / query- / body parameters. ` : `, but your request did not specify/want a csrfProtectionMode. `)) +
                         `${diagnosis_seeDocs}`
                     );
                     return false;
