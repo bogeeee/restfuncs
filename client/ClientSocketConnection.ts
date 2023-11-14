@@ -148,9 +148,6 @@ export class ClientSocketConnection {
         });
 
         await this.fetchAndSetCookieSession();
-        if(!isNode) {
-            await this.pollRfSessStateCookie_regularly() // Start polling
-        }
     }
 
     protected failFatal(err: Error ) {
@@ -183,9 +180,6 @@ export class ClientSocketConnection {
         this.methodCallPromises.clear();
         // TODO: dereference callbacks
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
-        if(this.pollRfSessStateCookie_timer) {
-            clearTimeout(this.pollRfSessStateCookie_timer);
-        }
     }
 
     protected onClose() {
@@ -259,7 +253,8 @@ export class ClientSocketConnection {
         this.checkFatal();
 
         const exec = async () => {
-            await this.fixOutdatedCookieSessionOp.waitTilIdle(); // Wait til we have a valid cookie
+            await this.fixOutdatedCookieSessionOp.waitTilIdle(); // Wait til this one is fixed and we have a valid cookie again
+            await this.pollRfSessStateCookie_once(); //
 
             // Create and register a MethodCallPromise:
             const callId = ++this.callIdGenerator;
@@ -397,6 +392,7 @@ export class ClientSocketConnection {
 
 
     /**
+     * Does a sync of the cookie session from the http side to the socket
      * @private
      */
     private async fetchAndSetCookieSession() {
@@ -404,14 +400,9 @@ export class ClientSocketConnection {
         this.setCookieSessionOnServer(answer);
     }
 
-    public async syncCookieSession(force = false) {
-        if (force) {
-            await this.fixOutdatedCookieSessionOp.waitTilIdle();
-            await this.fetchAndSetCookieSession();
-        } else {
-            await this.pollRfSessStateCookie_once();
-        }
-
+    public async forceSyncCookieSession() {
+        await this.fixOutdatedCookieSessionOp.waitTilIdle();
+        await this.fetchAndSetCookieSession();
     }
 
     /**
@@ -421,7 +412,6 @@ export class ClientSocketConnection {
         return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
     }
 
-    private pollRfSessStateCookie_timer?: ReturnType<typeof setTimeout>;
     private static RF_SESS_STATE_COOKIE_PATTERN = /^\s*rfSessState\s*=\s*(.*)\s*$/;
 
     /**
@@ -461,29 +451,14 @@ export class ClientSocketConnection {
         }
     }
 
-
     /**
-     * Starts the polling of {@see pollRfSessStateCookie_once}
-     * @private
-     */
-    private async pollRfSessStateCookie_regularly() {
-        if(typeof window === "undefined") { // Not in a browser ?
-            return;
-        }
-        try {
-            await this.pollRfSessStateCookie_once();
-        }
-        finally {
-            this.pollRfSessStateCookie_timer = setTimeout(() => {this.pollRfSessStateCookie_regularly()}, ClientSocketConnection.RF_SESS_STATE_COOKIE_POLLINTERVAL)
-        }
-    }
-
-
-    /**
-     * Polls the document.cookie -> "rfSessState" for changes, and recognizes und updates changes to the session that were made by other browser windows or manual fetch requests.
+     * Looks at the document.cookie -> "rfSessState" to recognize changes that were made by other browser windows or manual fetch requests and calls fetchAndSetCookieSession() (to do a resync) then.
      * @private
      */
     private async pollRfSessStateCookie_once() {
+        if(isNode || typeof window === "undefined") { // not in a browser ?
+            return;
+        }
         function getRfSessStateCookie() {
             for (const cookieToken of window.document.cookie.split(";")) {
                 let match = cookieToken.match(ClientSocketConnection.RF_SESS_STATE_COOKIE_PATTERN);

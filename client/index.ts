@@ -402,13 +402,18 @@ export class RestfuncsClient<S extends IServerSession> {
         }) as ClientProxy<S>;
     }
 
-    public async syncCookieSession() {
+    /**
+     * Re fetches the cookie session from the server and updates it to the socket connection.
+     * You would use this very rarely, only if you use your own session handler in express and made writes to it outside of restfuncs, so the rfSessState cookie won't be up2date. Or other rare reasons, why it's not up2date
+     *
+     */
+    public async forceSyncCookieSession() {
         if(!this._getClientSocketConnectionOp.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
             return;
         }
         const conn = await this.getClientSocketConnection();
 
-        conn?.syncCookieSession()
+        conn?.forceSyncCookieSession()
     }
 
     /**
