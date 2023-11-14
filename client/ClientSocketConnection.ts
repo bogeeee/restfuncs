@@ -11,6 +11,7 @@ import {
 } from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
+import _ from "underscore";
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodCallResult> {
 
@@ -24,6 +25,10 @@ class MethodCallPromise extends ExternalPromise<Socket_MethodCallResult> {
  *
  */
 export class ClientSocketConnection {
+    /**
+     * How often is the document.cookie polled for changes (so that changes to the session from other browser windows or manual fetch requests get recognized)
+     */
+    static COOKIESESSION_CHANGE_POLLINTERVAL = 20;
     /**
      * Url -> ClientSocketConnection
      */
@@ -146,6 +151,9 @@ export class ClientSocketConnection {
         const initMessage = await this.initMessage; // Wait till the server has sent us that message
         const getCookieSession_answer = await initClient.controlProxy_http.getCookieSession(initMessage.cookieSessionRequest);
         this.setCookieSessionOnServer(getCookieSession_answer);
+        if(!isNode) {
+            await this.pollForCookieSessionChange() // Start polling
+        }
     }
 
     protected failFatal(err: Error ) {
@@ -178,6 +186,9 @@ export class ClientSocketConnection {
         this.methodCallPromises.clear();
         // TODO: dereference callbacks
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
+        if(this.pollForCookieSessionChange_timer) {
+            clearTimeout(this.pollForCookieSessionChange_timer);
+        }
     }
 
     protected onClose() {
@@ -388,7 +399,15 @@ export class ClientSocketConnection {
         this.methodCallPromises.delete(resultFromServer.callId);
     }
 
+    /**
+     * In the rare case that something got wrong with the rfSessState cookie transmission (i.e. request failed and the rfSessState cookie will not be repeated in following requests), we still got an old value in document.cookie. this would cause an endless hammering.
+     * Here we prevent this, when we know it was wrong the last time.
+     */
+    ensureCookieSessionUpto_wrongTargetState: CookieSessionState | "none" = "none";
     async ensureCookieSessionUpto(targetSessionState: CookieSessionState) {
+        if(_.isEqual(this.ensureCookieSessionUpto_wrongTargetState, targetSessionState)) {
+            return; // Prevent hammering
+        }
         await this.fixOutdatedCookieSessionOp.waitTilIdle();
 
         const needsUpdate = () => {
@@ -404,10 +423,17 @@ export class ClientSocketConnection {
 
         if(needsUpdate()) {
             await this.fixOutdatedCookieSessionOp.exec(async () => {
-                console.log("updating session to " + targetSessionState?.version)
                 // Do a sync:
                 const answer = await this.firstClient.controlProxy_http.getCookieSession((await this.initMessage).cookieSessionRequest);
                 this.setCookieSessionOnServer(answer);
+
+                // Safety: Help prevent hammering:
+                if(needsUpdate()) { //targetSessionState was wrong and would cause an update again ?
+                    this.ensureCookieSessionUpto_wrongTargetState = targetSessionState
+                }
+                else {
+                    this.ensureCookieSessionUpto_wrongTargetState = "none"
+                }
             });
         }
     }
@@ -417,5 +443,31 @@ export class ClientSocketConnection {
      */
     static async getAllOpenConnections() {
         return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
+    }
+
+    private pollForCookieSessionChange_timer?: ReturnType<typeof setTimeout>;
+    private static SESS_STATE_COOKIE_PATTERN = /^\s*rfSessState\s*=\s*(.*)\s*$/;
+
+    /**
+     * Polls the document.cookie for changes, and recognizes und updates changes to the session that were made by other browser windows or manual fetch requests.
+     * @private
+     */
+    private async pollForCookieSessionChange() {
+        if(typeof window === "undefined") { // Not in a browser ?
+            return;
+        }
+        try {
+            window.document.cookie.split(";").forEach(cookieToken => {
+                let match = cookieToken.match(ClientSocketConnection.SESS_STATE_COOKIE_PATTERN);
+                if(match) {
+                    const value = match[1];
+                    const cookieSessionState = JSON.parse(value) as CookieSessionState;
+                    this.ensureCookieSessionUpto(cookieSessionState);
+                }
+            })
+        }
+        finally {
+            this.pollForCookieSessionChange_timer = setTimeout(() => {this.pollForCookieSessionChange()}, ClientSocketConnection.COOKIESESSION_CHANGE_POLLINTERVAL)
+        }
     }
 }
