@@ -209,3 +209,39 @@ class LatestGreatestOperation<T> {
         return result;
     }
 }
+
+
+
+/**
+* Resolves to a value lazily with async funcc. An another call is already resolve
+*/
+export class LazyRetryableResolver<T> {
+    resultPromise?: Promise<T>
+
+    /**
+     *  See class description
+     */
+    exec(resolver: (() => Promise<T>)): Promise<T> {
+        if(this.resultPromise) {
+            return this.resultPromise
+        }
+
+        this.resultPromise = (async () => {
+            try {
+                return await resolver();
+            }
+            catch (e) {
+                this.resultPromise = undefined;
+                throw e;
+            }
+        })();
+
+        return this.resultPromise;
+    }
+
+    expectIdle() {
+        if(this.resultPromise !== undefined) {
+            throw new Error("Operation is not idle");
+        }
+    }
+}
