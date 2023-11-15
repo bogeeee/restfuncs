@@ -1531,7 +1531,7 @@ export class ServerSession implements IServerSession {
         const reflectedMethod = reflectedClass.getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
         // Check if full type info is available:
         if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
-            throw new Error(`No runtime type information available for the super class '${reflectedMethod.class?.class?.name}' which declared the actual method. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${methodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
         }
 
         if (reflectedMethod.isProtected) {
@@ -1667,9 +1667,9 @@ export class ServerSession implements IServerSession {
 
             const diagnosis_oHints: string[] = []
             if (originIsAllowed({...reqSecurityProps, allowedOrigins}, diagnosis_oHints)) {
-                diagnosis_oHints.forEach(h => addErrorHint(h));
                 return true
             }
+            diagnosis_oHints.forEach(h => addErrorHint(h));
 
             // The server side origin check failed but the request could still be legal:
             // In case of same-origin requests: Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
