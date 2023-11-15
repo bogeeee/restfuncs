@@ -1,13 +1,13 @@
-import {SingleRetryableOperation} from "./Util";
+import {DropConcurrentOperation} from "./Util";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
 
-describe('SingleRetryableOperation', () => {
-    let singleRetryableOperation: SingleRetryableOperation<unknown>;
+describe('DropConcurrentOperation', () => {
+    let singleRetryableOperation: DropConcurrentOperation<unknown>;
 
     beforeEach(() => {
-        singleRetryableOperation = new SingleRetryableOperation();
+        singleRetryableOperation = new DropConcurrentOperation();
     });
 
     it('should execute the operation and return the result', async () => {

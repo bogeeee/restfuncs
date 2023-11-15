@@ -3,7 +3,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
-import {isNode, SingleRetryableOperation} from "./Util";
+import {isNode, DropConcurrentOperation} from "./Util";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -144,7 +144,7 @@ export class RestfuncsClient<S extends IServerSession> {
         return await this._getWelcomeInfoPromise;
     }
 
-    protected _getClientSocketConnectionOp = new SingleRetryableOperation<ClientSocketConnection | undefined>()
+    protected _getClientSocketConnectionOp = new DropConcurrentOperation<ClientSocketConnection | undefined>()
     /**
      * Creates the ClientSocketConnection, synchronized for multiple simultaneous calls.     *
      * @protected

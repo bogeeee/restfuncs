@@ -1,5 +1,5 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, ExternalPromise, SingleRetryableOperationMap, SingleRetryableOperation} from "./Util";
+import {isNode, ExternalPromise, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
     CookieSessionState,
@@ -32,7 +32,7 @@ export class ClientSocketConnection {
     /**
      * Url -> ClientSocketConnection
      */
-    static instances = new SingleRetryableOperationMap<string, ClientSocketConnection>()
+    static instances = new DropConcurrentOperationMap<string, ClientSocketConnection>()
 
     static engineIoOptions: Partial<SocketOptions> = {
         transports: isNode?['websocket', 'webtransport']:undefined // Don't use "polling" in node. It does currently does not work in node 21.0.0
@@ -56,7 +56,7 @@ export class ClientSocketConnection {
      * The key is either the security group id or ServerSession id, depending on what's the server's preference. See Socket_MethodCallResult#needsHttpSecurityProperties#syncKey
      * @protected
      */
-    protected fetchHttpSecurityPropertiesOp  = new SingleRetryableOperationMap<string, void>()
+    protected fetchHttpSecurityPropertiesOp  = new DropConcurrentOperationMap<string, void>()
 
     protected lastSetCookieSessionOnServer: CookieSessionState
 
@@ -65,7 +65,7 @@ export class ClientSocketConnection {
      * See {@link ServerSocketConnection#setCookieSession} scenarios: B, C, D
      * @protected
      */
-    protected fixOutdatedCookieSessionOp = new SingleRetryableOperation<void>()
+    protected fixOutdatedCookieSessionOp = new DropConcurrentOperation<void>()
 
     /**
      * Whether this connection failed. When set, you must create a new ClientSocketConnection.

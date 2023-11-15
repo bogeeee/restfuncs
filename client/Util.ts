@@ -48,7 +48,7 @@ export class ExternalPromise<T> implements Promise<T>{
  * If the operation is already running, then succeeding calls will wait for that single result promise. On fail, all will fail.
  * But after such a fail, next exec will do a retry.
  */
-export class SingleRetryableOperation<T> {
+export class DropConcurrentOperation<T> {
     resultPromise?: Promise<T>
 
     /**
@@ -98,9 +98,9 @@ export class SingleRetryableOperation<T> {
 }
 
 /**
- * like {@see SingleRetryableOperation} but it stores a map of multiple operations
+ * like {@see DropConcurrentOperation} but it stores a map of multiple operations
  */
-export class SingleRetryableOperationMap<K, T> {
+export class DropConcurrentOperationMap<K, T> {
     resultPromises = new Map<K, Promise<T>>()
 
     /**
