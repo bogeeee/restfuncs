@@ -2127,7 +2127,7 @@ export class ServerSession implements IServerSession {
     static mayNeedFileUploadSupport() {
         // Check if this service has methods that accept buffer
 
-        const someBuffer = new Buffer(0);
+        const someBuffer = Buffer.alloc(0);
         return _.find(this.listCallableMethods(), reflectMethod => {
             return _.find(reflectMethod.parameters, param => {
                 if(param.type.isAny()) {

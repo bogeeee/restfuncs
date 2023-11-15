@@ -7,7 +7,7 @@
     "dev:fastbuild": "ttsc --build",
     "test:watch-and-run-tests": "nodemon -e ts --exec npm run dev:compile_and_run_tests",
     "test:compile_and_run_tests": "clear && ttsc --build && jest --runInBand",
-    "test:runSpecificTest": "clear && ttsc --build && jest --runInBand restfuncs --testNamePattern=parseQuery",
+    "test:runSpecificTest": "clear && ttsc --build && jest --runInBand restfuncs --testNamePattern=^Test.error$",
     "dev:playground": "tsx devPlayground.ts",
     "clean": "npm run --prefix transformer-tsc clean && npm run --prefix common clean && ttsc --build --clean && npm run --prefix client clean && npm run --prefix server clean",
     "build": "npm run --prefix transformer-tsc build && npm run --prefix common build && ttsc --build --force && npm run --prefix client build && npm run --prefix server build",
