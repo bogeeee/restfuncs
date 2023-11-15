@@ -235,7 +235,7 @@ export type ServerSessionOptions = {
     devForceTokenCheck?: boolean
 
     /**
-     * Disables all argument- and output validation and shaping and all allowed origin and CSRF protection checks.
+     * Disables all argument- and output validation and shaping and all allowed origin and CSRF protection checks and allows calls from all origins.
      * Default: false
      */
     devDisableSecurity?: boolean
@@ -585,7 +585,7 @@ export class ServerSession implements IServerSession {
 
                 const origin = getOrigin(req);
                 const diagnosis_originNotAllowedErrors: string[] = []
-                const originAllowed = originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors);
+                const originAllowed =  originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors) || this.options.devDisableSecurity
                 // Answer preflights:
                 if(req.method === "OPTIONS") {
                     if(originAllowed) {
@@ -1585,8 +1585,11 @@ export class ServerSession implements IServerSession {
          * returns the result as boolean. Collects the above variables.
          */
         const isAllowedInner = () => {
-
             const diagnosis_seeDocs = "See https://github.com/bogeeee/restfuncs/#csrf-protection."
+
+            if(this.options.devDisableSecurity) {
+                return true;
+            }
 
             // Fix / default some reqSecurityProps for convenience:
             if (reqSecurityProps.csrfToken && reqSecurityProps.csrfProtectionMode && reqSecurityProps.csrfProtectionMode !== "csrfToken") {
