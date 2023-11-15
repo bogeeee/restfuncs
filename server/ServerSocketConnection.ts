@@ -230,9 +230,7 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    // @ts-ignore No Idea why we get a typescript error here
-                    const enhancementProps: Partial<ServerSession> = {socketConnection: this};
-                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, enhancementProps, {})
+                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, {})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {

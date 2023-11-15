@@ -75,15 +75,15 @@ export class TestsService extends TestServiceSessionBase {
 
     @remote()
     getIsSimpleRequest(body?: string) {
-        if(!this.req) {
+        if(!this.call.req) {
             throw new Error("getIsSimpleRequest not called via http")
         }
-        return isSimpleRequest(this.req)
+        return isSimpleRequest(this.call.req)
     }
 
     @remote()
     getTestImage() {
-        this.res?.contentType("image/x-png")
+        this.call.res?.contentType("image/x-png")
         return fs.createReadStream("teeest.png")
     }
 
@@ -92,7 +92,7 @@ export class TestsService extends TestServiceSessionBase {
             return super.doCall(funcName, args);
         }
         finally {
-            TestsService.lastCallWasSimpleRequest = (this.req != undefined) && isSimpleRequest(this.req);
+            TestsService.lastCallWasSimpleRequest = (this.call.req != undefined) && isSimpleRequest(this.call.req);
         }
     }
 }

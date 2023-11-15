@@ -63,8 +63,7 @@ export class MyServerSession extends ServerSession {
   @remote({/* RemoteMethodOptions */})
   myRemoteMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
     // ADVANCED:
-    // this.req.... // Access the raw (express) request.  Field is simulated at call time.
-    // this.res.... // Access the raw (express) response. Field is simulated at call time.
+    // this.call.... // Access or modify the current call's context specific properties. I.e. this.call.res!.header("myHeader","...")
     // (myCallback as Callback).... // Access some options under the hood
 
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myRemoteMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
@@ -166,7 +165,7 @@ To serve a non API result, the remote method must explicitly **set the content t
     @remote({isSafe: true /* Lessen restrictions and allow this method to be called by GET ... */}) 
     getAvatarImage(name: string) {
         // ... therefore (SECURITY) code in `isSafe` methods must perform read operations only !
-        this.res?.contentType("image/x-png")
+        this.call.res!.contentType("image/x-png")
         return fs.createReadStream("/someImage.png") // Returns a Readable which is streamed to client. You can also return Buffer, String, File(TODO)
     }
 ```

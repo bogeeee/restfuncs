@@ -726,7 +726,7 @@ test('Result Content-Type', async () => {
         }
 
         async getHtml() {
-            this.res.contentType("text/html; charset=utf-8");
+            this.call.res.contentType("text/html; charset=utf-8");
             return "<html/>";
         }
 
@@ -736,12 +736,12 @@ test('Result Content-Type', async () => {
 
 
         async getTextPlain() {
-            this.res.contentType("text/plain; charset=utf-8");
+            this.call.res.contentType("text/plain; charset=utf-8");
             return "plain text";
         }
 
         async returnNonStringAsHtml() {
-            this.res.contentType("text/html; charset=utf-8");
+            this.call.res.contentType("text/html; charset=utf-8");
             return {};
         }
     }(), async (baseUrl) => {
@@ -780,7 +780,7 @@ test('Http stream and buffer results', async () => {
     await runRawFetchTests(new class extends Service{
         static options: ServerSessionOptions = {allowedOrigins: "all"}
         async readableResult() {
-            this.res.contentType("text/plain; charset=utf-8");
+            this.call.res.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -793,7 +793,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithError() {
-            this.res.contentType("text/html; charset=utf-8");
+            this.call.res.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -807,7 +807,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithEarlyError() {
-            this.res.contentType("text/html; charset=utf-8");
+            this.call.res.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -819,7 +819,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async bufferResult() {
-            this.res.contentType("text/plain; charset=utf-8");
+            this.call.res.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
     }(), async (baseUrl) => {
@@ -953,20 +953,20 @@ test('Parameter types', async () => {
     }
 });
 
-test('.req, .res and Resources leaks', async () => {
+test('this.call', async () => {
         await new Promise<void>(async (resolve, reject) => {
             try {
                 const serverAPI = new class extends Service {
                     async myMethod() {
-                        // test ac
-                        expect(this.req.path).toContain("/myMethod");
-                        this.res.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+                        // test access
+                        expect(this.call.req.path).toContain("/myMethod");
+                        this.call.res.setHeader("myHeader", "123"); // test setting headers before the content is sent.
                     }
 
                     async leakerMethod() {
-                        // leak access to this.req:
+                        // leak access to this.call.req:
                         setTimeout(() => {
-                            expect(() => console.log(this.req)).toThrow("Cannot access .req");
+                            expect(() => console.log(this.call.req)).toThrow("Cannot access .call");
                             resolve();
                         });
                     }

@@ -343,50 +343,41 @@ export class ServerSession implements IServerSession {
     version?: number
 
     /**
-     * The current running (express) request. See {@link https://expressjs.com/en/4x/api.html#req}
-     * <p>
-     * <i>It is made available through a proxied 'this' at runtime during a client call.</i>
-     * </p>
+     * Context information about the current remote method call.
+     *
+     * It is made available through a proxied 'this' during call time.
+     *
      * @protected
      */
-    protected req?: Omit<Request, "session"> & {
+    protected call!: {
+
         /**
-         * @deprecated <strong>Caution:</strong> Accessing the *raw* session is not CSRF protected. Use the ServerSessions's fields instead.
+         * Express's req object, when called directly via http (not via socket). See {@link https://expressjs.com/en/4x/api.html#req}
          */
-        session: Request["session"];
-    };
+        req?: Omit<Request, "session"> & {
+            /**
+             * @deprecated <strong>Caution:</strong> Accessing the *raw* session is not CSRF protected. Use the ServerSession's fields instead.
+             */
+            session: Request["session"];
+        },
 
-    /**
-     * The current connection to the client, that made the call via engine.io / websockets.
-     * <p>
-     * <i>It is made available through a proxied 'this' at runtime during such a call.</i>
-     * </p>
-     * @protected
-     */
-    protected socketConnection?: ServerSocketConnection
+        /**
+         * Express's res object, when called directly via http (not via socket). You can modify any header fields as you like. See {@link https://expressjs.com/en/4x/api.html#res}
+         */
+        res?: Response;
 
-    /**
-     * Response for the current running (express) request. You can modify any header fields as you like. See {@link }https://expressjs.com/en/4x/api.html#res}
-     *
-     * <p>
-     * <i>It is made available through a proxied 'this' at runtime during a client call.</i>
-     * </p>
-     * @protected
-     */
-     // @ts-ignore
-    protected res?: Response;
 
-    /**
-     * Internal / only for passing this info to getHttpContext.
-     * <p>
-     * It is made available through a proxied 'this' at runtime during a client call (like res). Only in http call.
-     * </p>
-     *
-     * @protected
-     */
-    private _httpCall?: {
-        securityProperties: SecurityPropertiesOfHttpRequest
+        /**
+         * The connection to the client, that made the call via engine.io / websockets.
+         */
+        socketConnection?: ServerSocketConnection
+
+        /**
+         * These are also available from calls through the socket connection
+         */
+        securityProps: Readonly<SecurityPropertiesOfHttpRequest>
     }
+
 
     private static current = new AsyncLocalStorage<ServerSession>();
 
@@ -550,7 +541,7 @@ export class ServerSession implements IServerSession {
                 }
                 else { // Content type was not explicitly set in the call ?
                     if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
-                        throw new CommunicationError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.res?.contentType(...); `);
+                        throw new CommunicationError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.call.res?.contentType(...); `);
                     }
 
                     // Send what best matches the Accept header (defaults to json):
@@ -565,7 +556,7 @@ export class ServerSession implements IServerSession {
                         }
                         else if(accept == "text/html") {
                             if(diagnosis_looksLikeHTML(result)) {
-                                throw new CommunicationError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.res?.contentType(\"text/html; charset=utf-8\"); `);
+                                throw new CommunicationError(`${contextPrefix}If you return html, you must explicitly set the content type. I.e. via: this.call.res?.contentType(\"text/html; charset=utf-8\"); `);
                             }
                             return false;
                         }
@@ -678,13 +669,8 @@ export class ServerSession implements IServerSession {
                     }
                 }
 
-                // Compose enhancementProps:
-                const _httpCall: ServerSession["_httpCall"] = {securityProperties: securityPropertiesOfRequest};
-                // @ts-ignore No Idea why we get a typescript error here
-                const enhancementProps: Partial<ServerSession> = {req, res, _httpCall};
-
                 // Do the call:
-                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, enhancementProps, {
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, {req, res, securityProps: securityPropertiesOfRequest}, {
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -843,12 +829,12 @@ export class ServerSession implements IServerSession {
      * @param securityPropertiesOfHttpRequest
      * @param remoteMethodName
      * @param methodArguments
-     * @param enhancementProps the properties that should be made available for the user during call time. like req, res, ...
+     * @param call the properties that should be made available for the user during call time. like req, res, ...
      * @param diagnosis
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], enhancementProps: Partial<ServerSession>, diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
         const remoteMethodOptions = this.getRemoteMethodOptions(remoteMethodName);
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
@@ -881,7 +867,9 @@ export class ServerSession implements IServerSession {
         let result: unknown;
         try {
             // Execute the remote method (wrapped):
-            await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make enhancementProps (.req, .res, ...) safely available during call
+            // @ts-ignore cannot use 'protected' field call otherwise
+            const enhancementProps: Partial<ServerSession> = {call};
+            await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make call (.req, .res, ...) safely available during call
                 // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
                 let resultPromise: Promise<unknown>;
                 ServerSession.current.run(enhancedServerSession, () => {
@@ -954,13 +942,13 @@ export class ServerSession implements IServerSession {
             '    @remote({isSafe: true})\n' +
             '    getIndex() {\n\n' +
             '        //... you sayed, `isSafe`, so you must perform non-state-changing operations only !\n\n' +
-            '        this.res?.contentType("text/html; charset=utf-8");\n' +
+            '        this.call.res?.contentType("text/html; charset=utf-8");\n' +
             '        return "<!DOCTYPE html><html><body>I\'m aliiife !</body></html>"\n' +
             '    }\n\n' +
             '    // ...'
 
 
-        this.res?.contentType("text/html; charset=utf-8");
+        this.call.res?.contentType("text/html; charset=utf-8");
         return "<!DOCTYPE html>" +
             "<html>" +
             `    <head><title>${escapeHtml(title)}</title></head>` +
@@ -996,18 +984,18 @@ export class ServerSession implements IServerSession {
     })
     public getCorsReadToken(): string {
         // Security check that is's called via http:
-        if(!this._httpCall) {
+        if(!this.call.req || this.call.socketConnection) {
             throw new Error("getCorsReadToken was not called via http."); // TODO: test
         }
 
-        ServerSession.ensureSessionHandlerInstalled(this.req!)
+        ServerSession.ensureSessionHandlerInstalled(this.call.req!)
 
-        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.req!.session, "corsReadToken");
+        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.call.req!.session, "corsReadToken");
     }
 
     /**
      * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
-     * @param session req.session (from inside express handler) or this.req.session (from inside a ServerSession call).
+     * @param session req.session (from inside express handler) or this.call.req.session (from inside a ServerSession call).
      * It must be the RAW session object (and not the proxy that protects it from csrf)
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
@@ -1024,7 +1012,7 @@ export class ServerSession implements IServerSession {
         // Better error message:
         // @ts-ignore
         if(session["__isCsrfProtectedSessionProxy"]) {
-            throw new Error("Invalid session argument. Please supply the the raw session object to getCsrfToken(). I.e. use 'this.req.session' instead of 'this.session'")
+            throw new Error("Invalid session argument. Please supply the the raw session object to getCsrfToken() instead of the ServerSession object")
         }
 
         return this.getOrCreateSecurityToken(session, "csrfToken");
@@ -1033,26 +1021,26 @@ export class ServerSession implements IServerSession {
     @remote()
     public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
-        if(!this._httpCall) {
+        if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getCookieSession was not called via http.");
         }
         const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetCookieSession_question")
 
-        const reqSession = this.req!.session as any as Record<string, unknown>;
+        const reqSession = this.call.req!.session as any as Record<string, unknown>;
 
         if(question.forceInitialize) {
-            this.req!.session.touch();
-            if(!this.req!.session.id) {
+            this.call.req!.session.touch();
+            if(!this.call.req!.session.id) {
                 throw new Error("Session should have an id by now.")
             }
 
             reqSession.version = (typeof reqSession.version === "number")?reqSession.version:0, // Like in getFixedCookieSessionFromRequest. Initialize one field, so getFixedCookieSessionFromRequest will detect it as initialized
-            this.clazz.updateAndSendReqSession(this.clazz.getFixedCookieSessionFromRequest(this.req!)!, this.req!, this.res!);
+            this.clazz.updateAndSendReqSession(this.clazz.getFixedCookieSessionFromRequest(this.call.req!)!, this.call.req!, this.call.res!);
 
             //TODO: we would add it to the validator here
         }
 
-        const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.req!);
+        const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.call.req!);
         // Safety check
         if(question.forceInitialize && !cookieSession) {
             throw new Error("cookieSession not detected as initialized");
@@ -1061,8 +1049,8 @@ export class ServerSession implements IServerSession {
         if(cookieSession && this.clazz.server.serverOptions.installSessionHandler === false) { // Some 3rd party cookiehandler ?
             // getFixedCookieSessionFromRequest may have falsely detected the cookieSession as initialized because it has an id, but the cookie handler could still feature lazy cookies and not send it to the browser (= we would call that not initialized).
             // A false assumption leads to bugs, so we have to make some write to the session, so it will be definitely sent:
-            this.req!.session.touch();
-            _(this.req!.session).extend(cookieSession)
+            this.call.req!.session.touch();
+            _(this.call.req!.session).extend(cookieSession)
         }
 
         return {
@@ -1121,7 +1109,7 @@ export class ServerSession implements IServerSession {
     @remote()
     public getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
-        if(!this._httpCall) {
+        if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
         }
         const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetHttpSecurityProperties_question")
@@ -1132,7 +1120,7 @@ export class ServerSession implements IServerSession {
 
         const answer: GetHttpSecurityProperties_answer = {
             question: question,
-            result: this._httpCall.securityProperties // TODO: we could remove the methodName field
+            result: this.call.securityProps
         }
 
         return this.clazz.server.server2serverEncryptToken(answer, "GetHttpSecurityProperties_answer")
@@ -1146,7 +1134,7 @@ export class ServerSession implements IServerSession {
     @remote()
     public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
-        if(!this._httpCall) {
+        if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
         }
 
@@ -1155,7 +1143,7 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError(`cookieSessionUpdate came from another service`)
         }
 
-        const oldCookieSession = this.clazz.getFixedCookieSessionFromRequest(this.req!);
+        const oldCookieSession = this.clazz.getFixedCookieSessionFromRequest(this.call.req!);
         if(!oldCookieSession) {
             throw new CommunicationError("Session not yet initialized (or timed out). Can only update an existing session."); // You must got he 'New session' -> needsCookieSession way again // We can only accept updates to existing ones, to prevent an attacker to install his stock session.
         }
@@ -1181,7 +1169,7 @@ export class ServerSession implements IServerSession {
 
         // Update the session:
         if(newCookieSession.commandDestruction) {
-            await this.clazz.destroyExpressSession(this.req!, this.res!);
+            await this.clazz.destroyExpressSession(this.call.req!, this.call.res!);
 
             // Do  "return this.getCookieSession(alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
             const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
@@ -1194,7 +1182,7 @@ export class ServerSession implements IServerSession {
             }
         }
         else {
-            this.clazz.updateAndSendReqSession(newCookieSession, this.req!, this.res!);
+            this.clazz.updateAndSendReqSession(newCookieSession, this.call.req!, this.call.res!);
         }
 
         return this.getCookieSession(alsoReturnNewSession);
@@ -1559,7 +1547,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Allows you to intercept calls, by overriding this method.
-     * You have access to this.req, this.res as usual.
+     * You have access to this.call.req, this.call.res as usual.
      * <p>
      *     Calls to Restfuncs internal control methods do not go though this method.
      * </p>
@@ -2326,7 +2314,7 @@ export class ServerSession implements IServerSession {
     }
 
     private validateFreshInstance() {
-        if(this.req || this.res) {throw new CommunicationError("Invalid state: req or res must not be set.")}
+        if(this.call) {throw new CommunicationError("Invalid state: call must not be set.")}
     }
 
     /**

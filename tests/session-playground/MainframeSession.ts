@@ -14,7 +14,7 @@ export class MainframeSession extends ServerSession {
 
     @remote()
     getValue(): string {
-        let raw = this.req?ServerSession.getFixedCookieSessionFromRequest(this.req):this.socketConnection.cookieSession;
+        let raw = this.call.req?ServerSession.getFixedCookieSessionFromRequest(this.call.req):this.call.socketConnection.cookieSession;
         return `${this.value}\nraw: ${JSON.stringify(raw)}`;
     }
 

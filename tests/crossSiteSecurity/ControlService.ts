@@ -10,15 +10,15 @@ export class ControlService extends ServerSession {
 
     @remote()
     async resetSession() {
-        if(!this.req) {
+        if(!this.call.req) {
             throw new Error("resetSession not called by http")
         }
 
-        if(!this.req.session) {
+        if(!this.call.req.session) {
             return;
         }
 
-        const session = this.req.session as any;
+        const session = this.call.req.session as any;
 
         await new Promise<void>(function executor(resolve, reject) { // with an arrow function, it gives some super strange compile error
             session.destroy((err: any) => {if(!err) resolve(); else reject(err)})
@@ -28,17 +28,17 @@ export class ControlService extends ServerSession {
     @remote()
     async getCorsReadTokenForService(id: string) {
         // @ts-ignore
-        return this.getServiceClass(id).getOrCreateSecurityToken(this.req!.session, "corsReadToken")
+        return this.getServiceClass(id).getOrCreateSecurityToken(this.call.req!.session, "corsReadToken")
     }
 
 
     @remote()
     async getCsrfTokenForService(id: string) {
-        if(!this.req) {
+        if(!this.call.req) {
             throw new Error("Not called by http")
         }
         const ServiceClass = this.getServiceClass(id);
-        return ServiceClass.getCsrfToken(this.req.session)
+        return ServiceClass.getCsrfToken(this.call.req.session)
     }
 
     private getServiceClass(id: string) {
