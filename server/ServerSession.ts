@@ -1197,9 +1197,7 @@ export class ServerSession implements IServerSession {
      */
     protected destroy() {
         (this as any as CookieSession).commandDestruction = true;
-        // Just for safety:
-        this.id = undefined
-        this.version = undefined
+        //this.id = undefined // Don't unset. In a socket call, this session is first regularly committed to the http side, and then the the commandDestruction flag is evaluated and it's really destroyed.
     }
 
 
