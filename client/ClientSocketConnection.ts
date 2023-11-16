@@ -426,13 +426,16 @@ export class ClientSocketConnection {
         await this.fixOutdatedCookieSessionOp.waitTilIdle();
 
         const needsUpdate = () => {
-            if (this.lastSetCookieSessionOnServer === undefined && targetSessionState === undefined) { // No cookie set - up2date ?
+            if (this.lastSetCookieSessionOnServer === undefined && targetSessionState === undefined) { // No cookie set -> no cookie ?
                 return false;
-            } else if (this.lastSetCookieSessionOnServer === undefined) {
+            } else if (this.lastSetCookieSessionOnServer === undefined) { // No cookie -> cookie
+                return true;
+            }
+            else if(targetSessionState === undefined) { // cookie -> no cookie
                 return true;
             }
             else { // Bot are set ?
-                return this.lastSetCookieSessionOnServer.id !== targetSessionState!.id || this.lastSetCookieSessionOnServer.version < targetSessionState!.version
+                return this.lastSetCookieSessionOnServer.id !== targetSessionState.id || this.lastSetCookieSessionOnServer.version < targetSessionState.version
             }
         }
 
