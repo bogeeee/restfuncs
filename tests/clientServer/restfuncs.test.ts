@@ -855,7 +855,7 @@ test('Http stream and buffer results', async () => {
     }, "/api");
 })
 
-test('Http multipart file uploads', async () => {
+test('FEATURE TODO: Http multipart file uploads', async () => {
 
     await runRawFetchTests(new class extends Service {
         static options: ServerSessionOptions = {allowedOrigins: "all" , devDisableSecurity: false};
@@ -1630,7 +1630,7 @@ test('Sessions', async () => {
     }
 });
 
-test('Sessions - clearing values Note: Fails but should work with future JWT handler', async () => {
+test('FEATURE TODO: Sessions - clearing values Note: Fails but should work with future JWT handler', async () => {
     let initialValue = undefined;
     class MyService extends Service{
 
@@ -1735,7 +1735,7 @@ test('Automatically fetch corsReadToken', async () => {
 
 });
 
-test('getCurrent', async () => {
+test('TODO getCurrent', async () => {
     await runClientServerTests({}, async proxy => {
         throw new Error("TODO");
     })
@@ -2076,7 +2076,7 @@ test('ClientSocketConnection synchronizations', async () => {
     }
 });
 
-test('socket_requireAccessProofForIndividualServerSession option', async () => {
+test('TODO socket_requireAccessProofForIndividualServerSession option', async () => {
     throw new Error("TODO")
 });
 
@@ -2108,9 +2108,7 @@ test('Client - error handling with concurrent calls', async () => {
     );
 });
 
-test('ClientConnection - error handling with concurrent calls', async () => {
-
-
+test('TODO: ClientConnection - error handling with concurrent calls', async () => {
     throw new Error("TODO")
 });
 

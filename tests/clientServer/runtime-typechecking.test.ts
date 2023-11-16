@@ -102,7 +102,7 @@ test('Test arguments', async () => {
     );
 })
 
-test('Test arguments - extra properties value: TODO: implement shaping', async () => {
+test('FEATURE TODO: Test arguments - extra properties value', async () => {
     class ServerAPI extends ServerSession{
         @remote()
         params1(x: string, y: number, z: {}) {
