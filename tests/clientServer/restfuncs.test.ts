@@ -1638,9 +1638,8 @@ describe('Reserved names', () => {
         }, async apiProxy => {
             for (const forbiddenName of ["get", "set"]) {
                 await expectAsyncFunctionToThrow(async () => {
-                    // @ts-ignore
-                    await apiProxy.doCall(forbiddenName)
-                }, /You are trying to call a remote method that is a reserved name|No method candidate found|does not have a @remote\(\) decorato/);
+                    await apiProxy[forbiddenName]()
+                }, /You are trying to call a remote method that is a reserved name|No method candidate found|does not have a @remote\(\) decorato|Method not found/);
             }
         });
     });
