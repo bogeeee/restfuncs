@@ -7,7 +7,6 @@ export const mainSiteUrl = "http://localhost:3000";
 export const isMainSite = window.location.href.startsWith(mainSiteUrl);
 let failed = false;
 const debug_failAllTestsOnFirstFail = false; // enable to have a better error stack trace in the console (use firefox instead of chrome then)
-RestfuncsClient.improveErrorStacks = true
 
 async function assertRuns(fn: () => Promise<void>) {
     await fn();

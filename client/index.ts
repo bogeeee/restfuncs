@@ -25,11 +25,6 @@ export class ServerError extends Error {
 
     httpStatusCode?: Number
 
-    /**
-     * For later infiltration
-     */
-    _rawErrorObject: unknown
-
     static formatError(e: any): string {
         if (typeof (e) == "object") {
             return (e.name ? (e.name + ": ") : "") + (e.message || e) +
@@ -42,20 +37,10 @@ export class ServerError extends Error {
     }
 
     constructor(rawErrorObject: unknown, options: ErrorOptions, httpStatusCode: Number | undefined) {
-        let message = ServerError.formatError(rawErrorObject)
-        message+= "\n*** End of server stack. Note: If your (following) client-side error stack is cut off and you want to see more of it, enable RestfuncsClient.improveErrorStacks"
+        const message = ServerError.formatError(rawErrorObject)
         super(message, {cause: rawErrorObject ,...options});
         this.cause = rawErrorObject;
         this.httpStatusCode = httpStatusCode;
-        this._rawErrorObject = rawErrorObject
-    }
-
-    infiltrate(otherServerError: ServerError) {
-        let message = ServerError.formatError(otherServerError._rawErrorObject)
-        message+= "\n*** End of server stack."
-        this.message = message
-        this.cause = otherServerError.cause;
-        this.httpStatusCode = otherServerError.httpStatusCode;
     }
 }
 
@@ -81,16 +66,6 @@ export type ClientProxy<S> = {
  * @see restfuncsClient
  */
 export class RestfuncsClient<S extends IServerSession> {
-
-
-    /**
-     * Node and the browser don't properly track the call stack, when there's a fetch operation (or may be also websocket operation) made during a call.
-     * This flag improves those cut-off error stacks.
-     * <p>
-     * NOTE: Philosophy: Not enabled by default, because recording the call stack takes a bit of time and, in general, if every lib would do such stuff, this would be hell for performance. Instead, it's the job of the runtime, to fix these issues.
-     * </p>
-     */
-    static improveErrorStacks = false
 
     /**
      * Base url of the ServerSession (can be relative to the current url in the browser).
@@ -213,20 +188,11 @@ export class RestfuncsClient<S extends IServerSession> {
      * @param args
      */
     public async doCall(remoteMethodName:string, args: any[]) {
-        const proactiveServerError = RestfuncsClient.improveErrorStacks?new ServerError("No message yet", {}, undefined):undefined // Already create the Error object here, which records the stack.
-        try {
-            if (this.useSocket) {
-                return await this.doCall_socket(remoteMethodName, args);
-            } else {
-                return await this.doCall_http(remoteMethodName, args);
-            }
+        if(this.useSocket) {
+            return await this.doCall_socket(remoteMethodName, args);
         }
-        catch (e) {
-            if(e instanceof ServerError &&  RestfuncsClient.improveErrorStacks) {
-                proactiveServerError!.infiltrate(e)
-                throw proactiveServerError;
-            }
-            throw e;
+        else {
+            return await this.doCall_http(remoteMethodName, args);
         }
     }
 
@@ -354,7 +320,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 throw new Error(`Server error: ${responseText}`);
             }
 
-            throw new ServerError(responseJSON, {}, response.status); // If your client-side error stack is mostly cut off below here and you want to see more, enable RestfuncsClient.improveErrorStacks
+            throw new ServerError(responseJSON, {}, response.status);
         }
     }
 
