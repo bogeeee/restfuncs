@@ -5,7 +5,6 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
 import {CommunicationError} from "restfuncs-server/CommunicationError";
-import crypto from "node:crypto";
 import session from "express-session";
 import {restfuncsExpress, ServerOptions} from "restfuncs-server/Server";
 import {CookieSession, WelcomeInfo} from "restfuncs-common";
@@ -334,51 +333,6 @@ test('Non restfuncsExpress server', async () => {
     }
 });
 
-test('Non restfuncsExpress server with own session handler', async () => {
-    class GreeterService extends Service {
-        someValue?: string
-        greet(name: string) {
-            return `hello ${name} from the server`
-        }
-        writeSession() {
-            this.someValue = "123";
-        }
-        readSession() {
-            return this.someValue;
-        }
-    }
-
-
-    const app = express();
-
-    // Install session handler:
-    app.use(session({
-        secret: crypto.randomBytes(32).toString("hex"),
-        cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
-        saveUninitialized: false, // Privacy: Only send a cookie when really needed
-        unset: "destroy",
-        store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
-        resave: false
-    }));
-
-    app.use("/greeterAPI", GreeterService.createExpressHandler());
-    const server = app.listen();
-
-    try {
-        // @ts-ignore
-        const serverPort = server.address().port;
-
-        const greeterService = new RestfuncsClient<GreeterService>(`http://localhost:${serverPort}/greeterAPI`).proxy
-        expect(await greeterService.greet("Bob")).toBe("hello Bob from the server");
-        await greeterService.writeSession();
-        expect(await greeterService.readSession()).toBe("123");
-    }
-    finally {
-        // shut down server
-        server.closeAllConnections();
-        await new Promise((resolve) => server.close(resolve));
-    }
-});
 
 test('Proper example with express and type support', async () => {
     class GreeterService extends Service {
@@ -1645,123 +1599,139 @@ describe('Reserved names', () => {
     });
 });
 
-test('Sessions', async () => {
-    class MyService extends Service{
-
-            counter= 0
-            val= null
-            someObject?: {x:number}
-        someUndefined = undefined;
-
-
-        async checkInitialSessionValues() {
-            expect(this.counter).toBe(0);
-            expect(this.val).toBe(null);
-            expect(this.someObject).toStrictEqual(undefined);
-            // @ts-ignore
-            expect(this.undefinedProp).toBe(undefined);
-
-            // Test the proxy's setter / getter:
-            this.counter = this.counter + 1;
-            this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See ServerSession.ts -> Sessions#note1
-            expect(this.counter).toBe(2);
-            this.counter = null;
-            expect(this.counter).toBe(null);
-        }
-
-        async storeValueInSession(value) {
-            this.val = value;
-        }
-
-        getValueFromSession() {
-            return this.val;
-        }
-
-        async setSomeObject_x(value) {
-            if(this.someObject === undefined) {
-                this.someObject = {x:value};
+describe('Sessions', () => {
+    for(const classicExpress of [false, true]) {
+        for (const thirdPartySessionHandler of [false, true]) {
+            if(classicExpress && !thirdPartySessionHandler) {
+                continue; // this combination does not exist
             }
-            this.someObject.x = value;
-        }
 
-        async getSomeObject_x() {
-            return this.someObject.x;
-        }
-    }
+            for (const useSocket of [false, true]) {
+                const settings = {useSocket, classicExpress, thirdPartySessionHandler};
+                test(`Various read/write with ${JSON.stringify(settings)}`, async () => {
+                    class MyService extends Service {
 
-    for(const useSocket of [false, true]) {
-        resetGlobalState()
-        const server = createServer(MyService);
-        try {
-            // @ts-ignore
-            const port = server.address().port;
-            const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
+                        counter = 0
+                        val = null
+                        someObject?: { x: number }
+                        someUndefined = undefined;
 
-            await apiProxy.checkInitialSessionValues();
 
-            // Set a value
-            await apiProxy.storeValueInSession(123);
-            expect(await apiProxy.getValueFromSession()).toBe(123);
+                        async checkInitialSessionValues() {
+                            expect(this.counter).toBe(0);
+                            expect(this.val).toBe(null);
+                            expect(this.someObject).toStrictEqual(undefined);
+                            // @ts-ignore
+                            expect(this.undefinedProp).toBe(undefined);
 
-            // Set a value to null:
-            await apiProxy.storeValueInSession(null);
-            expect(await apiProxy.getValueFromSession()).toBe(null);
+                            // Test the proxy's setter / getter:
+                            this.counter = this.counter + 1;
+                            this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See ServerSession.ts -> Sessions#note1
+                            expect(this.counter).toBe(2);
+                            this.counter = null;
+                            expect(this.counter).toBe(null);
+                        }
 
-            await apiProxy.setSomeObject_x("test");
-            expect(await apiProxy.getSomeObject_x()).toBe("test");
+                        async storeValueInSession(value) {
+                            this.val = value;
+                        }
 
-        } finally {
-            // shut down server:
-            server.closeAllConnections();
-            await new Promise((resolve) => server.close(resolve));
+                        getValueFromSession() {
+                            return this.val;
+                        }
+
+                        async setSomeObject_x(value) {
+                            if (this.someObject === undefined) {
+                                this.someObject = {x: value};
+                            }
+                            this.someObject.x = value;
+                        }
+
+                        async getSomeObject_x() {
+                            return this.someObject.x;
+                        }
+                    }
+
+                    resetGlobalState()
+                    const server = createServer(MyService, settings);
+                    try {
+                        // @ts-ignore
+                        const port = server.address().port;
+                        const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
+
+                        await apiProxy.checkInitialSessionValues();
+
+                        // Set a value
+                        await apiProxy.storeValueInSession(123);
+                        expect(await apiProxy.getValueFromSession()).toBe(123);
+
+                        // Set a value to null:
+                        await apiProxy.storeValueInSession(null);
+                        expect(await apiProxy.getValueFromSession()).toBe(null);
+
+                        await apiProxy.setSomeObject_x("test");
+                        expect(await apiProxy.getSomeObject_x()).toBe("test");
+
+                    } finally {
+                        // shut down server:
+                        server.closeAllConnections();
+                        await new Promise((resolve) => server.close(resolve));
+                    }
+                })
+
+
+                test(`FEATURE TODO: Clearing values with ${JSON.stringify(settings)}`, async () => {
+                    let initialValue = undefined;
+
+                    class MyService extends Service {
+
+                        val = initialValue
+
+                        async storeValueInSession(value) {
+                            this.val = value;
+                        }
+
+                        getValueFromSession() {
+                            return this.val;
+                        }
+                    }
+
+                    resetGlobalState()
+                    const server = createServer(MyService, settings);
+                    try {
+                        // @ts-ignore
+                        const port = server.address().port;
+                        const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
+
+                        // Set a value to null:
+                        initialValue = "initial";
+                        await apiProxy.storeValueInSession(null);
+                        expect(await apiProxy.getValueFromSession()).toBe(null);
+
+                        // Set a value to null:
+                        initialValue = undefined;
+                        await apiProxy.storeValueInSession(null);
+                        expect(await apiProxy.getValueFromSession()).toBe(null);
+                        if(!thirdPartySessionHandler) {
+                            // Set a value to undefined
+                            initialValue = "initial";
+                            await apiProxy.storeValueInSession(undefined);
+                            expect(await apiProxy.getValueFromSession()).toBe(undefined); // Does not work with the traditional cookie handler, cause it can't store undefined.
+                        }
+                    } finally {
+                        // shut down server:
+                        server.closeAllConnections();
+                        await new Promise((resolve) => server.close(resolve));
+                    }
+                });
+
+            }
         }
     }
 });
 
-test('FEATURE TODO: Sessions - clearing values Note: Fails but should work with future JWT handler', async () => {
-    let initialValue = undefined;
-    class MyService extends Service{
 
-        val= initialValue
 
-        async storeValueInSession(value) {
-            this.val = value;
-        }
-
-        getValueFromSession() {
-            return this.val;
-        }
-    }
-
-    for(const useSocket of [false, true]) {
-        resetGlobalState()
-        const server = createServer(MyService);
-        try {
-            // @ts-ignore
-            const port = server.address().port;
-            const apiProxy = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket}).proxy
-
-            // Set a value to null:
-            initialValue = "initial";
-            await apiProxy.storeValueInSession(null);
-            expect(await apiProxy.getValueFromSession()).toBe(null);
-
-            // Set a value to null:
-            initialValue = undefined;
-            await apiProxy.storeValueInSession(null);
-            expect(await apiProxy.getValueFromSession()).toBe(null);
-
-            // Set a value to undefined
-            initialValue = "initial";
-            await apiProxy.storeValueInSession(undefined);
-            expect(await apiProxy.getValueFromSession()).toBe(undefined); // Does not work with the traditional cookie handler, cause it can't store undefined.
-        } finally {
-            // shut down server:
-            server.closeAllConnections();
-            await new Promise((resolve) => server.close(resolve));
-        }
-    }
-});
 
 test('Automatically fetch corsReadToken', async () => {
     class MyService extends ServerSession {

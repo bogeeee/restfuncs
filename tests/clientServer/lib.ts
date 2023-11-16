@@ -2,6 +2,9 @@ import {RemoteMethodOptions, restfuncsExpress, ServerSession, ServerSessionOptio
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
+import session from "express-session";
+import express from "express";
+import crypto from "node:crypto";
 
 export function resetGlobalState() {
     develop_resetGlobals();
@@ -112,8 +115,26 @@ export async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFe
     }
 }
 
-export function createServer(serviceClass: typeof ServerSession) {
-    const app = restfuncsExpress();
+export function createServer(serviceClass: typeof ServerSession, options?: {classicExpress?: boolean, thirdPartySessionHandler?: boolean}) {
+    let app
+    if(!options?.classicExpress) {
+        app = restfuncsExpress({installSessionHandler: !options?.thirdPartySessionHandler});
+    }
+    else {
+        app = express();
+    }
+
+    if(options?.thirdPartySessionHandler) {
+        // Install session handler:
+        app.use(session({
+            secret: crypto.randomBytes(32).toString("hex"),
+            cookie: {sameSite: false}, // sameSite is not required for restfuncs's security but you could still enable it to harden security, if you really have no cross-site interaction.
+            saveUninitialized: false, // Privacy: Only send a cookie when really needed
+            unset: "destroy",
+            store: undefined, // Defaults to MemoryStore. You may use a better one for production to prevent against growing memory by a DOS attack. See https://www.npmjs.com/package/express-session
+            resave: false
+        }));
+    }
 
     app.use("/", serviceClass.createExpressHandler());
     return app.listen(0);
