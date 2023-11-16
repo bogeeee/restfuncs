@@ -382,12 +382,12 @@ export class ServerSession implements IServerSession {
     private static current = new AsyncLocalStorage<ServerSession>();
 
     /**
-     * Use <code>MyService.getCurrent()</code>
+     * EXPERIMENTAL: Use <code>MyServerSession.getCurrent()</code> from anywhere.
      * <p>
      *     It uses the node's AsyncLocalStorage to associate this session to your current (sync or async) call stack.
      * </p>
      * <p>
-     *     SECURITY note: AsyncLocalStorage's values are sticking very strong ! Even a setTimeout does not shake them off. When using this method, make sure that you're not coming from a callback from someone else's management code (i.e: A function that informs all other users after a post was edited) or some message queue util library or similar.
+     *     SECURITY note: AsyncLocalStorage's values are sticking very strong ! Even a setTimeout does not shake them off. When using this method, make sure that you're not coming from a callback from someone else's management code (i.e: A function that informs all other users after a post was edited) or some message queue util library or similar. UPDATE: Tests were probably made when the restfuncs-server library that was compiled to ES5. Please re-evaluate
      *     You can use {@link exitCurrent} to invoke such management functions safely, but be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023.
      * </p>
      */
