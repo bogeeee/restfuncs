@@ -1506,12 +1506,12 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError(`methodName is not a string`)
         }
         if((this as any as ObjectWithStringIndex)[methodName] === undefined) {
-            throw new CommunicationError(`You are trying to call a remote method that does not exist: ${methodName} or is not a function`)
+            throw new CommunicationError(`You are trying to call a remote method that does not exist or is not a function: '${methodName}' `)
         }
         // @ts-ignore
         const method = this[methodName];
         if(typeof method != "function") {
-            throw new CommunicationError(`You are trying to call a remote method that does not exist: ${methodName} or is not a function`) // Same message as above, to prevent information leak that a field was set.
+            throw new CommunicationError(`You are trying to call a remote method that does not exist or is not a function: '${methodName}' `) // Same message as above, to prevent information leak that a field was set.
         }
 
         // Check that args is an array:
