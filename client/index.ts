@@ -293,20 +293,6 @@ export class RestfuncsClient<S extends IServerSession> {
             throw new Error(`Invalid response. Seems like '${this.url}' is not served by restfuncs cause there's no 'restfuncs-protocol' header field. Response body:\n${responseText}`);
         }
 
-        if(!isNode && !skipSocketConnectionCookieSessionUpdate) {
-            // check, if the cookieSession has changed and inform all ClientSocketConnections:
-            let rfSessStateHeader = response.headers.get("rfSessState");
-            if (rfSessStateHeader) {
-                let cookieSessionState = JSON.parse(rfSessStateHeader) as CookieSessionState
-                if(!cookieSessionState) {
-                    cookieSessionState = undefined; // Get rid of null
-                }
-                for (const conn of (await ClientSocketConnection.getAllOpenConnections())) {
-                    await conn.ensureCookieSessionUpto(cookieSessionState)
-                }
-            }
-        }
-
         if (response.status >= 200 && response.status < 300) { // 2xx ?
             // Parse result:
             const result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests

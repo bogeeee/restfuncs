@@ -792,11 +792,9 @@ export class ServerSession implements IServerSession {
             }
             const stateJson = JSON.stringify(state);
             res.header("Set-Cookie", `rfSessState=${stateJson}; Path=/`)
-            res.header("rfSessState", stateJson);
         }
         else {
             res.header("Set-Cookie", `rfSessState=; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/`) // clears the cookie
-            res.header("rfSessState", "null");
         }
     }
 
