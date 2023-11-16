@@ -1903,18 +1903,21 @@ test('Intercept with doFetch (client side)', async () => {
 
 test('validateCall security', async () => {
 
-   const service: Service & {validateCall: Service["validateCall"] /* make the method public */} = new class extends Service {
+   class MyService extends ServerSession {
+       static options: ServerSessionOptions = {exposeErrors: true, logErrors: false}
        x = "string";
+       @remote()
        myMethod(a,b) {
            return a + b;
        }
 
+       // Make public
        public validateCall(evil_methodName: string, evil_args: any[]){
            return super.validateCall(evil_methodName, evil_args);
        }
    }
 
-
+    const service = new MyService();
 
     expect(service.validateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
 
