@@ -932,7 +932,10 @@ export class ServerSession implements IServerSession {
     /**
      * @return The / index- / home page
      */
-    @remote({isSafe: true})
+    @remote({
+        isSafe: true,
+        validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false // Disable these, cause we have no type inspection at this class's level
+    })
     public async getIndex() {
         let className: string | undefined = this.constructor?.name;
         className = className === "Object"?undefined:className;
@@ -962,7 +965,7 @@ export class ServerSession implements IServerSession {
      *
      * Don't override. Not part of the API.
      */
-    @remote()
+    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
     public getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
@@ -980,6 +983,7 @@ export class ServerSession implements IServerSession {
      * </p>
      */
     @remote({
+        validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false,  // Disable these, cause we have no type inspection at this class's level
         isSafe: false // Don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     })
     public getCorsReadToken(): string {
@@ -1018,13 +1022,13 @@ export class ServerSession implements IServerSession {
         return this.getOrCreateSecurityToken(session, "csrfToken");
     }
 
-    @remote()
-    public getCookieSession(encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
+    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    public getCookieSession(evil_encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getCookieSession was not called via http.");
         }
-        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetCookieSession_question")
+        const question = this.clazz.server.server2serverDecryptToken(evil_encryptedQuestion, "GetCookieSession_question") // does the validation also
 
         const reqSession = this.call.req!.session as any as Record<string, unknown>;
 
@@ -1106,13 +1110,13 @@ export class ServerSession implements IServerSession {
         return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
 
-    @remote()
-    public getHttpSecurityProperties(encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
+    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    public getHttpSecurityProperties(evil_encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
         }
-        const question = this.clazz.server.server2serverDecryptToken(encryptedQuestion, "GetHttpSecurityProperties_question")
+        const question = this.clazz.server.server2serverDecryptToken(evil_encryptedQuestion, "GetHttpSecurityProperties_question") // does the validation also
         // Security check:
         if(question.serverSessionClassId !== this.clazz.id) {
             throw new CommunicationError(`GetHttpSecurityProperties_question is for a different ServerSession class: ${question.serverSessionClassId}`)
@@ -1128,17 +1132,17 @@ export class ServerSession implements IServerSession {
 
     /**
      * Called via http, if the socket connection has written to the session, to safe to the real session-cookie
-     * @param encryptedCookieSessionUpdate
-     * @param alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
+     * @param evil_encryptedCookieSessionUpdate
+     * @param evil_alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
-    @remote()
-    public async updateCookieSession(encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
+    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    public async updateCookieSession(evil_encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, evil_alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
         }
 
-        const cookieSessionUpdate = this.clazz.server.server2serverDecryptToken<CookieSessionUpdate>(encryptedCookieSessionUpdate, "CookieSessionUpdate");
+        const cookieSessionUpdate = this.clazz.server.server2serverDecryptToken<CookieSessionUpdate>(evil_encryptedCookieSessionUpdate, "CookieSessionUpdate"); // Will also validate evil_...
         if(cookieSessionUpdate.serverSessionClassId !== this.clazz.id) {
             throw new CommunicationError(`cookieSessionUpdate came from another service`)
         }
@@ -1171,8 +1175,8 @@ export class ServerSession implements IServerSession {
         if(newCookieSession.commandDestruction) {
             await this.clazz.destroyExpressSession(this.call.req!, this.call.res!);
 
-            // Do  "return this.getCookieSession(alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
-            const question = this.clazz.server.server2serverDecryptToken(alsoReturnNewSession, "GetCookieSession_question");
+            // Do  "return this.getCookieSession(evil_alsoReturnNewSession)" manually, cause it does not detect the destroyed session:
+            const question = this.clazz.server.server2serverDecryptToken(evil_alsoReturnNewSession, "GetCookieSession_question");
             return {
                 token: this.clazz.server.server2serverEncryptToken({
                     question: question,
@@ -1185,7 +1189,7 @@ export class ServerSession implements IServerSession {
             this.clazz.updateAndSendReqSession(newCookieSession, this.call.req!, this.call.res!);
         }
 
-        return this.getCookieSession(alsoReturnNewSession);
+        return this.getCookieSession(evil_alsoReturnNewSession); // will also validate evil_...
     }
 
     /**
@@ -1523,24 +1527,18 @@ export class ServerSession implements IServerSession {
             return;
         }
 
-        // obtain reflectedMethod:
-        if (!isTypeInfoAvailable(this)) {
-            throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
-        }
-        let reflectedClass = reflect(this);
-        const reflectedMethod = reflectedClass.getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
-        // Check if full type info is available:
-        if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
-            throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${methodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
-        }
-
-        if (reflectedMethod.isProtected) {
-            throw new CommunicationError("Method is protected.")
-        }
-        if (reflectedMethod.isPrivate) {
-            throw new CommunicationError("Method is private.")
-        }
         if(remoteMethodOptions.validateArguments !== false) {
+            // obtain reflectedMethod:
+            if (!isTypeInfoAvailable(this)) {
+                throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            }
+            let reflectedClass = reflect(this);
+            const reflectedMethod = reflectedClass.getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
+            // Check if full type info is available:
+            if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
+                throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${methodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            }
+
             validateMethodArguments(reflectedMethod, args);
         }
     }

@@ -3,7 +3,6 @@
   "description": "Tests and build/publish scripts",
   "type": "module",
   "scripts": {
-    "dev:mustBuildTheTransformerFirst": "npm run --prefix transformer-tsc build",
     "dev:fastbuild": "ttsc --build",
     "test:watch-and-run-tests": "nodemon -e ts --exec npm run dev:compile_and_run_tests",
     "test:compile_and_run_tests": "clear && ttsc --build && jest --runInBand",

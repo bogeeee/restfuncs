@@ -12,8 +12,6 @@ _This autoinstalls dependencies for every sub-package / workspace ;)_
 During coding, you would normally run `test:watch-and-run-tests`,
 or, because the filewatcher loves to crash often, start them manually with `test:compile_and_run_tests`  
 
-Fore these to run, you must first run: `dev:mustBuildTheTransformerFirst` (also after a `clean`)
-
 
 ### Test (with) examples
 You would want to test your code changes with the examples, or use them as a playground, then (from the root):
