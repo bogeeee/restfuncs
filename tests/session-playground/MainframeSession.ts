@@ -22,4 +22,9 @@ export class MainframeSession extends ServerSession {
     setValue(value: string) {
         this.value = value;
     }
+
+    @remote()
+    public destroy() {
+        super.destroy();
+    }
 }
