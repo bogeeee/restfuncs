@@ -84,6 +84,11 @@ export class ClientSocketConnection {
             return this.New(url, client);
         });
 
+        // Safety/security check, that the first client did not initialized the httpSecurityProperties with a weaker mode than what we want:
+        if(result.firstClient.csrfProtectionMode !== client.csrfProtectionMode) {
+            throw new Error(`RestfuncsClients for the same url '${url}' have different csrfProtectionModes. Yours: ${client.csrfProtectionMode}; other: ${result.firstClient.csrfProtectionMode}`)
+        }
+
         result.usedByClients.add(client); // Register client
 
         return result
