@@ -297,7 +297,10 @@ export class RestfuncsClient<S extends IServerSession> {
             // check, if the cookieSession has changed and inform all ClientSocketConnections:
             let rfSessStateHeader = response.headers.get("rfSessState");
             if (rfSessStateHeader) {
-                const cookieSessionState = JSON.parse(rfSessStateHeader) as CookieSessionState
+                let cookieSessionState = JSON.parse(rfSessStateHeader) as CookieSessionState
+                if(!cookieSessionState) {
+                    cookieSessionState = undefined; // Get rid of null
+                }
                 for (const conn of (await ClientSocketConnection.getAllOpenConnections())) {
                     await conn.ensureCookieSessionUpto(cookieSessionState)
                 }
