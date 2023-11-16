@@ -1676,17 +1676,21 @@ test('FEATURE TODO: Sessions - clearing values Note: Fails but should work with 
 });
 
 test('Automatically fetch corsReadToken', async () => {
-    class MyService extends Service{
+    class MyService extends ServerSession {
+        static options: ServerSessionOptions = {logErrors: false, exposeErrors: true, devDisableSecurity: false}
         logonUser?: string
 
+        @remote()
         logon(user: string) {
             this.logonUser = user;
         }
 
+        @remote()
         getLogonUser() {
             return this.logonUser;
         }
 
+        @remote()
         async test() {
             return "ok";
         }

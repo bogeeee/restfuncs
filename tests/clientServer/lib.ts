@@ -1,4 +1,4 @@
-import {restfuncsExpress, ServerSession, ServerSessionOptions} from "restfuncs-server";
+import {RemoteMethodOptions, restfuncsExpress, ServerSession, ServerSessionOptions} from "restfuncs-server";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
@@ -8,12 +8,12 @@ export function resetGlobalState() {
     restfuncsClientCookie = undefined;
 }
 
-export const standardOptions = {logErrors: false, exposeErrors: true, devDisableSecurity: true}
+export const standardOptions = {logErrors: false, exposeErrors: true}
 
 export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
 
-    // Hack: To lazy to mark all methods with @remote()
+    // Hack: To lazy to mark all methods with @remote(). Simulate a @remote() with all default options
     protected static getRemoteMethodOptions(methodName: string) {
         // @ts-ignore
         return (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner(methodName) || {}
@@ -49,10 +49,6 @@ export async function runClientServerTests<Api extends object>(serverAPI: Api, c
         const service = toServiceClass(serverAPI);
         service.options = {...standardOptions, ...service.options}
 
-        if(service.name === "ServiceWithTypeInfo" && !service.options.devDisableSecurity) {
-            throw new Error("Arguments validation does not work on your on-the-fly service. Please declare a proper, fixed Service subclass, set devDisableSecurity: true")
-        }
-
         app.use(testOptions.path, service.createExpressHandler());
         const server = app.listen();
         // @ts-ignore
@@ -80,17 +76,20 @@ function toServiceClass<Api>(serverAPI: Api): typeof ServerSession {
     if (serverAPI instanceof ServerSession) {
         return serverAPI.clazz;
     } else {
-        class ServiceWithTypeInfo extends Service { // Plain ServerSession was not compiled with type info but this file is
+        class AnonymousService extends Service { // Plain ServerSession was not compiled with type info but this file is
+            protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+                return {validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false} // Disable everything that needs type inspection because this would fail for an artificially generated class
+            }
         }
 
-        extendPropsAndFunctions(ServiceWithTypeInfo.prototype, serverAPI);
+        extendPropsAndFunctions(AnonymousService.prototype, serverAPI);
 
         if (Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
             throw new Error("ServerAPI should not be a class without beeing a ServerSession");
         }
 
         // @ts-ignore
-        return ServiceWithTypeInfo;
+        return AnonymousService;
     }
 }
 
@@ -114,7 +113,7 @@ export async function runRawFetchTests<Api extends object>(serverAPI: Api, rawFe
     }
 }
 
-export function createServer(serviceClass: typeof Service) {
+export function createServer(serviceClass: typeof ServerSession) {
     const app = restfuncsExpress();
 
     app.use("/", serviceClass.createExpressHandler());
