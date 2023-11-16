@@ -37,7 +37,8 @@ export class ServerError extends Error {
     }
 
     constructor(rawErrorObject: unknown, options: ErrorOptions, httpStatusCode: Number | undefined) {
-        const message = ServerError.formatError(rawErrorObject)
+        let message = ServerError.formatError(rawErrorObject)
+        message+= "\n*** End of server stack."
         super(message, {cause: rawErrorObject ,...options});
         this.cause = rawErrorObject;
         this.httpStatusCode = httpStatusCode;
