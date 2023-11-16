@@ -13,10 +13,9 @@ export const standardOptions = {logErrors: false, exposeErrors: true}
 export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
 
-    // Hack: To lazy to mark all methods with @remote(). Simulate a @remote() with all default options
-    protected static getRemoteMethodOptions(methodName: string) {
-        // @ts-ignore
-        return (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner(methodName) || {}
+    // Hack: To lazy to mark all methods with @remote().
+    protected static checkIfMethodHasRemoteDecorator() {
+
     }
 }
 

@@ -1521,7 +1521,8 @@ export class ServerSession implements IServerSession {
             throw new CommunicationError("args is not an array")
         }
 
-        const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName); // Will throw when @remote is missing
+        this.clazz.checkIfMethodHasRemoteDecorator(methodName);
+        const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName);
 
         if(this.clazz.options.devDisableSecurity) {
             return;
@@ -1862,35 +1863,58 @@ export class ServerSession implements IServerSession {
         }
     }
 
+    protected static checkIfMethodHasRemoteDecorator(methodName: string) {
+        let declaringClazz: typeof ServerSession = this;
+        while(declaringClazz && !declaringClazz.prototype?.hasOwnProperty(methodName)) {
+            declaringClazz = (declaringClazz.superClass as typeof ServerSession);
+        }
+
+        if(!declaringClazz) {
+            throw new Error(`Method not found: ${methodName}`)
+        }
+
+        const result = declaringClazz.hasOwnProperty("remoteMethod2Options") &&  declaringClazz.remoteMethod2Options!.has(methodName)
+        if (!result) {
+            throw new CommunicationError(`Method: ${methodName} does not have a @remote() decorator.${diagnosis_tsConfig(declaringClazz)}`);
+
+        }
+
+        function diagnosis_tsConfig(clazz: object) {
+            return (!clazz.hasOwnProperty("remoteMethod2Options"))?` Hint: No @remote() decorator was found at all in the ${clazz} class. Please make sure to enable "experimentalDecorators" in tsconfig.json.`:"";
+        }
+
+    }
+
+
     /**
-     * ..., errors if not a @remote method.
-     * You can override this as part of the Restfuncs API
+     * You can override this as part of the Restfuncs API.
+     * @see checkIfMethodHasRemoteDecorator
      * @param methodName
      * @returns
      */
     protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
-        const result = this.getRemoteMethodOptions_inner(methodName);
-        // Safety check:
-        if(!result) {
-            throw new Error(`Cant' determine result. Does methodName ${methodName} really exist`)
+        let declaringClazz: typeof ServerSession = this;
+        while(declaringClazz && !declaringClazz.prototype?.hasOwnProperty(methodName)) {
+            declaringClazz = (declaringClazz.superClass as typeof ServerSession);
         }
-        return result
+
+        if(!declaringClazz) {
+            throw new Error(`Method not found: ${methodName}`)
+        }
+
+        return declaringClazz.getRemoteMethodOptions_inner(methodName);
     }
 
-    private static getRemoteMethodOptions_inner(methodName: string) : RemoteMethodOptions | undefined {
-        const parentResult: RemoteMethodOptions | undefined = (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner?.(methodName);
-        if (!this.prototype.hasOwnProperty(methodName)) { // Instance method not defined at this level  ?
-            return parentResult;
-        }
+    /**
+     * You can override this as part of the Restfuncs API.
+     * @see checkIfMethodHasRemoteDecorator
+     * @param methodName
+     * @returns
+     */
+    protected static getRemoteMethodOptions_inner(methodName: string) : RemoteMethodOptions {
+        const parentResult: RemoteMethodOptions = (this.superClass as typeof ServerSession).getRemoteMethodOptions_inner?.(methodName) || {};
 
-        const ownMethodOptions = this.hasOwnProperty("remoteMethod2Options") &&  this.remoteMethod2Options!.get(methodName) // from @remote decorator
-        // Safety / error check:
-        if (!ownMethodOptions) {
-            if (parentResult) {
-                throw new CommunicationError(`${this.name}'s method: ${methodName} does not have a @remote() decorator, like it's super method does (forgotten ?).${diagnois_tsConfig(this)}`)
-            }
-            throw new CommunicationError(`Method: ${methodName} does not have a @remote() decorator.${diagnois_tsConfig(this)}`);
-        }
+        const ownMethodOptions = (this.hasOwnProperty("remoteMethod2Options") &&  this.remoteMethod2Options!.get(methodName) ) || {} // from @remote decorator
 
         const ownDefaultOptions = (this.hasOwnProperty("defaultRemoteMethodOptions") && this.defaultRemoteMethodOptions) || {};
         if(ownDefaultOptions.isSafe) {
@@ -1903,15 +1927,10 @@ export class ServerSession implements IServerSession {
             validateArguments: (ownMethodOptions.validateArguments !== undefined)?ownMethodOptions.validateArguments: ownDefaultOptions.validateArguments,
             validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
             shapeResult: (ownMethodOptions.shapeResult !== undefined)?ownMethodOptions.shapeResult: ownDefaultOptions.shapeResult,
-            shapeArgumens: (ownMethodOptions.shapeArgumens !== undefined)?ownMethodOptions.shapeArgumens : (parentResult?.shapeArgumens !== undefined?parentResult.shapeArgumens : ownDefaultOptions.shapeArgumens),
+            shapeArgumens: (ownMethodOptions.shapeArgumens !== undefined)?ownMethodOptions.shapeArgumens : (parentResult.shapeArgumens !== undefined?parentResult.shapeArgumens : ownDefaultOptions.shapeArgumens),
             apiBrowserOptions: {
-                needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions?.needsAuthorization : (parentResult?.apiBrowserOptions!.needsAuthorization !== undefined?parentResult.apiBrowserOptions!.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
+                needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions.needsAuthorization : (parentResult.apiBrowserOptions?.needsAuthorization !== undefined?parentResult.apiBrowserOptions.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
             }
-        }
-
-
-        function diagnois_tsConfig(clazz: object) {
-            return (!clazz.hasOwnProperty("remoteMethod2Options"))?` Hint: No @remote() decorator was found at all in this class. Please make sure to enable "experimentalDecorators" in tsconfig.json.`:"";
         }
     }
 
@@ -2331,7 +2350,7 @@ export class ServerSession implements IServerSession {
     }
 
     protected static diagnosis_methodWasDeclaredSafeAtAnyLevel(methodName: string): boolean {
-        if(this.getRemoteMethodOptions_inner(methodName)?.isSafe) {
+        if(this.getRemoteMethodOptions(methodName)?.isSafe) {
             return true
         }
         return (this.superClass as typeof ServerSession).diagnosis_methodWasDeclaredSafeAtAnyLevel?.(methodName) || false;

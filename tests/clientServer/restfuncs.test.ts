@@ -35,6 +35,11 @@ describe("getRemoteMethodOptions", () => {
         static getRemoteMethodOptions(name: string) {
             return super.getRemoteMethodOptions(name);
         }
+
+        // Elevate to public
+        static checkIfMethodHasRemoteDecorator(methodName: string) {
+            return super.checkIfMethodHasRemoteDecorator(methodName);
+        }
     }
 
     test("No @remote decorator", () => {
@@ -42,7 +47,21 @@ describe("getRemoteMethodOptions", () => {
             myMethod() {
             }
         }
-        expect( () => MyService.getRemoteMethodOptions("myMethod")).toThrow("@remote")
+        expect( () => MyService.checkIfMethodHasRemoteDecorator("myMethod")).toThrow("@remote")
+    })
+
+    test("No @remote decorator but at parent ", () => {
+        class MyServiceParent extends BaseService {
+            @remote()
+            myMethod() {
+            }
+        }
+
+        class MyService extends MyServiceParent {
+            myMethod() {
+            }
+        }
+        expect( () => MyService.checkIfMethodHasRemoteDecorator("myMethod")).toThrow("@remote")
     })
 
     it("Should still throw with no @remote decorator but with defaultRemoteMethodOptions set", () => {
@@ -51,7 +70,7 @@ describe("getRemoteMethodOptions", () => {
             myMethod() {
             }
         }
-        expect( () => MyService.getRemoteMethodOptions("myMethod")).toThrow("@remote")
+        expect( () => MyService.checkIfMethodHasRemoteDecorator("myMethod")).toThrow("@remote")
     })
 
     test("With @remote decorator", () => {
@@ -175,6 +194,76 @@ describe("getRemoteMethodOptions", () => {
         expect(options.shapeArgumens === undefined).toBeTruthy() // Should not be affected
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected
         expect(options.apiBrowserOptions.needsAuthorization === undefined).toBeTruthy() // Should not be affected
+    })
+
+
+    test("Overridden but parent has no @remote() decorator - with parent's defaultRemoteMethodOptions", () => {
+
+        let provokingChanges: RemoteMethodOptions = {
+            isSafe: true, // Should not be inherited
+            validateArguments: false,// Should not be inherited
+            validateResult: false, // Should not be inherited
+            shapeArgumens: false, // Should be inherited
+            shapeResult: false, // Should not be inherited
+            apiBrowserOptions: {needsAuthorization: true} // thould be inherited
+
+        };
+
+        class MyServiceParent extends BaseService {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {...provokingChanges, isSafe: undefined}
+
+            myMethod() {
+            }
+        }
+
+        class MyService extends MyServiceParent {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+            @remote()
+            myMethod() {
+            }
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options.isSafe).toBeFalsy()
+        expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
+    })
+
+    test("Just parent's defaultRemoteMethodOptions", () => {
+
+        let provokingChanges: RemoteMethodOptions = {
+            isSafe: true, // Should not be inherited
+            validateArguments: false,// Should not be inherited
+            validateResult: false, // Should not be inherited
+            shapeArgumens: false, // Should be inherited
+            shapeResult: false, // Should not be inherited
+            apiBrowserOptions: {needsAuthorization: true} // thould be inherited
+
+        };
+
+        class MyServiceParent extends BaseService {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {...provokingChanges, isSafe: undefined}
+
+            // no myMethod declared here at all
+        }
+
+        class MyService extends MyServiceParent {
+            static defaultRemoteMethodOptions: RemoteMethodOptions = {}
+            @remote()
+            myMethod() {
+            }
+        }
+
+        let options = MyService.getRemoteMethodOptions("myMethod");
+        expect(options.isSafe).toBeFalsy()
+        expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 });
 
