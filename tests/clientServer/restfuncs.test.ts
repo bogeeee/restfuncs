@@ -2270,6 +2270,36 @@ it('should close all ClientSocketConnections after client.close()', async () => 
     }
 });
 
+it('should reopen failed ClientSocketConnections', async () => {
+    class MyService extends Service {
+        myMethod() {}
+
+        failConnection() {
+            this.call.socketConnection.failFatal(new Error("test"));
+        }
+    }
+
+    const server = createServer(MyService);
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+        const client1 = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket: true, shareSocketConnections: true})
+        const client2 = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket: true, shareSocketConnections: true})
+
+        await client1.proxy.myMethod()
+        await client2.proxy.myMethod()
+
+        await expectAsyncFunctionToThrow(async () => await client1.proxy.failConnection());
+        // Should work again
+        await client1.proxy.myMethod()
+        await client2.proxy.myMethod()
+
+    } finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
+});
 
 test('listCallableMethods', () => {
    class A extends Service {
