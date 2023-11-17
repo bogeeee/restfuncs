@@ -151,6 +151,33 @@ export class DropConcurrentOperationMap<K, T> {
 }
 
 /**
+ * Concurrent and later exec calls will wait for that single promise to be resolved.
+ * On a fail, the next exec call will try again.
+ */
+export class RetryableResolver<T> {
+    resultPromise?: Promise<T>;
+
+    /**
+     * Concurrent and later exec calls will wait for that single promise to be resolved.
+     * On a fail, the next exec call will try again.
+     * @param resolver
+     */
+    exec(resolver: (() => Promise<T>)): Promise<T> {
+        if (this.resultPromise === undefined) {
+            return this.resultPromise = (async () => {
+                try {
+                    return await resolver();
+                } catch (e) {
+                    this.resultPromise = undefined; // Let the next one try again
+                    throw e;
+                }
+            })()
+        }
+        return this.resultPromise;
+    }
+}
+
+/**
  * Like the name says. Also if an old operation errors, this will be ignored
  */
 class LatestGreatestOperation<T> {

@@ -3,7 +3,9 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
-import {isNode, DropConcurrentOperation} from "./Util";
+import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver} from "./Util";
+
+export {ClientSocketConnection} from "./ClientSocketConnection";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature
@@ -84,6 +86,16 @@ export class RestfuncsClient<S extends IServerSession> {
     public useSocket: boolean = true
 
     /**
+     * Shares the {@link ClientSocketConnection} / engine.io connection with other RestfuncsClients.
+     * On Node this has the effect, that the cookieSession is also shared. In the browser, there's only one cookie per host anyway.
+     * Sharing is safe, meaning all http security (CORS, CSRF protection, basic auth, client certs) is kept intact for individual ServerSession classes through such a multiplexed socket connection.
+     * <p>
+     * Default: Enabled, when used in the browser, so the number of concurrent websockets won't get exhausted.
+     * </p>
+     */
+    public shareSocketConnections: boolean = !isNode
+
+    /**
      * HTTP Method for sending all (non-websocket) requests
      */
     public method = "POST";
@@ -128,31 +140,20 @@ export class RestfuncsClient<S extends IServerSession> {
         }
     }
 
-    protected _getWelcomeInfoPromise?: Promise<WelcomeInfo>
+    protected _getWelcomeInfoResolver = new RetryableResolver<WelcomeInfo>(); // TODO: We could remove this and return the result also by getClientSocketConnection to avoid unnecessary state
 
     protected async getWelcomeInfo(): Promise<WelcomeInfo> {
-        if(this._getWelcomeInfoPromise === undefined) {
-            this._getWelcomeInfoPromise = (async () => {
-                try {
-                    return (await this.controlProxy_http.getWelcomeInfo())
-                }
-                catch (e) {
-                    this._getWelcomeInfoPromise = undefined; // Let the next one try again
-                    throw e;
-                }
-            })()
-        }
-        return await this._getWelcomeInfoPromise;
+        return await this._getWelcomeInfoResolver.exec(() => this.controlProxy_http.getWelcomeInfo());
     }
 
-    protected _getClientSocketConnectionOp = new DropConcurrentOperation<ClientSocketConnection | undefined>()
+    protected _clientSocketConnectionResolver= new RetryableResolver<ClientSocketConnection | undefined>()
     /**
      * Creates the ClientSocketConnection, synchronized for multiple simultaneous calls.     *
      * @protected
      * @return the connection or undefined if the server does not support it.
      */
     protected async getClientSocketConnection(): Promise<ClientSocketConnection | undefined> {
-        return await this._getClientSocketConnectionOp.exec(async () => {
+        const result = await this._clientSocketConnectionResolver.exec(async () => {
             const welcomeInfo = await this.getWelcomeInfo();
 
             if(!welcomeInfo.engineIoPath) {
@@ -171,9 +172,20 @@ export class RestfuncsClient<S extends IServerSession> {
             fullUrl.pathname = "";
             fullUrl.search = "";
             fullUrl.hash = ""; // Clear everything after host and port
-
-            return await ClientSocketConnection.getInstance(fullUrl.toString(), this);
+            if(this.shareSocketConnections) {
+                return await ClientSocketConnection.getSharedInstance(fullUrl.toString(), this);
+            }
+            else {
+                return await ClientSocketConnection.New(fullUrl.toString(), this);
+            }
         });
+
+        if(result?.fatalError) { // Old connection failed ?
+            this._clientSocketConnectionResolver = new RetryableResolver(); // reset
+            return this.getClientSocketConnection(); // Try again
+        }
+
+        return result;
     }
 
     /**
@@ -398,7 +410,7 @@ export class RestfuncsClient<S extends IServerSession> {
      *
      */
     public async forceSyncCookieSession() {
-        if(!this._getClientSocketConnectionOp.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
+        if(!this._clientSocketConnectionResolver.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
             return;
         }
         const conn = await this.getClientSocketConnection();
@@ -410,10 +422,20 @@ export class RestfuncsClient<S extends IServerSession> {
      * Closes all associated connections (if not shared and used by other clients)
      */
     public async close() {
-        if(!this._getClientSocketConnectionOp.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
+        if(!this._clientSocketConnectionResolver.resultPromise) { // We have not tried to open a ClientSocketConnection yet ?
             return;
         }
         const conn = await this.getClientSocketConnection();
         conn?.unregisterClient(this);
     }
+}
+
+export function develop_resetGlobalState() {
+    (async () => {
+        for(const conn of await ClientSocketConnection.getAllOpenSharedConnections()) {
+            conn.close();
+        }
+    })()
+    ClientSocketConnection.sharedInstances = new DropConcurrentOperationMap<string, ClientSocketConnection>(); // re-init
+
 }

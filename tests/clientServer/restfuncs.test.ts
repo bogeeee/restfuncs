@@ -1,6 +1,6 @@
 import {ServerSession as ServerSession, ServerSessionOptions} from "restfuncs-server";
 import express from "express";
-import {RestfuncsClient} from "restfuncs-client";
+import {ClientSocketConnection, RestfuncsClient} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
@@ -2238,6 +2238,36 @@ test('Client - error handling with concurrent calls', async () => {
 
 test('TODO: ClientConnection - error handling with concurrent calls', async () => {
     throw new Error("TODO")
+});
+
+it('should close all ClientSocketConnections after client.close()', async () => {
+    class MyService extends Service {
+        myMethod() {}
+    }
+
+    const server = createServer(MyService);
+    try {
+        // @ts-ignore
+        const port = server.address().port;
+        const client1 = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket: true, shareSocketConnections: true})
+        const client2 = new RestfuncsClient<MyService>(`http://localhost:${port}`, {useSocket: true, shareSocketConnections: true})
+
+        await client1.proxy.myMethod()
+        await client2.proxy.myMethod()
+
+        expect((await ClientSocketConnection.getAllOpenSharedConnections()).length).toBe(1)
+
+        await client1.close()
+        expect((await ClientSocketConnection.getAllOpenSharedConnections()).length).toBe(1)
+
+        await client2.close()
+        expect((await ClientSocketConnection.getAllOpenSharedConnections()).length).toBe(0)
+
+    } finally {
+        // shut down server:
+        server.closeAllConnections();
+        await new Promise((resolve) => server.close(resolve));
+    }
 });
 
 

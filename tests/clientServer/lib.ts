@@ -1,5 +1,5 @@
 import {RemoteMethodOptions, restfuncsExpress, ServerSession, ServerSessionOptions} from "restfuncs-server";
-import {ClientProxy, RestfuncsClient} from "restfuncs-client";
+import {ClientProxy, RestfuncsClient, develop_resetGlobalState as client_develop_resetGlobalState} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import session from "express-session";
@@ -8,7 +8,7 @@ import crypto from "node:crypto";
 
 export function resetGlobalState() {
     develop_resetGlobals();
-    restfuncsClientCookie = undefined;
+    client_develop_resetGlobalState();
 }
 
 export const standardOptions = {logErrors: false, exposeErrors: true}
@@ -140,10 +140,6 @@ export function createServer(serviceClass: typeof ServerSession, options?: {clas
     return app.listen(0);
 }
 
-/**
- * Cookie that's used by restfuncsClient_fixed.
- */
-let restfuncsClientCookie: string;
 
 export async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<any>, expected?: string | RegExp | Error | jest.Constructable) {
     let caught = null;

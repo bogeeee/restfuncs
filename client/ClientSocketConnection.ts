@@ -26,13 +26,9 @@ class MethodCallPromise extends ExternalPromise<Socket_MethodCallResult> {
  */
 export class ClientSocketConnection {
     /**
-     * How often is the document.cookie polled for changes (so that changes to the session from other browser windows or manual fetch requests get recognized)
-     */
-    static RF_SESS_STATE_COOKIE_POLLINTERVAL = 20;
-    /**
      * Url -> ClientSocketConnection
      */
-    static instances = new DropConcurrentOperationMap<string, ClientSocketConnection>()
+    static sharedInstances = new DropConcurrentOperationMap<string, ClientSocketConnection>()
 
     static engineIoOptions: Partial<SocketOptions> = {
         transports: isNode?['websocket', 'webtransport']:undefined // Don't use "polling" in node. It does currently does not work in node 21.0.0
@@ -79,8 +75,8 @@ export class ClientSocketConnection {
      * @param url
      * @param client Will be registered so that this connection can be closed, when no more client owns it.
      */
-    static async getInstance(url: string, client: RestfuncsClient<any>): Promise<ClientSocketConnection> {
-        const result = await this.instances.exec(url, async () => {
+    static async getSharedInstance(url: string, client: RestfuncsClient<any>): Promise<ClientSocketConnection> {
+        const result = await this.sharedInstances.exec(url, async () => {
             return this.New(url, client);
         });
 
@@ -109,6 +105,7 @@ export class ClientSocketConnection {
         this.url = url;
         this.socket = new Socket(url, this.clazz.engineIoOptions);
         this.firstClient = initClient;
+        this.usedByClients.add(initClient)
 
         // Wait until connected and throw an Error on connection errors:
         await new Promise<void>((resolve, reject) => {
@@ -153,12 +150,14 @@ export class ClientSocketConnection {
         });
 
         await this.fetchAndSetCookieSession();
+
+        this.checkFatal(); // Fresh instance must not be failed
     }
 
     protected failFatal(err: Error ) {
         try {
             this.fatalError = err;
-            this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
+            this.clazz.sharedInstances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
             // Reject this.initMessage
             try {
@@ -189,7 +188,7 @@ export class ClientSocketConnection {
 
     protected onClose() {
         try {
-            this.clazz.instances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
+            this.clazz.sharedInstances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
             const error = new Error("Socket connection has been closed", {cause: this.fatalError});
 
@@ -413,8 +412,8 @@ export class ClientSocketConnection {
     /**
      * @returns ... All valid (=not failed) open connections. Such that are currently initializing, are awaited.
      */
-    static async getAllOpenConnections() {
-        return (await this.instances.getAllSucceeded()).filter(v => !v.fatalError);
+    static async getAllOpenSharedConnections() {
+        return (await this.sharedInstances.getAllSucceeded()).filter(v => !v.fatalError);
     }
 
     private static RF_SESS_STATE_COOKIE_PATTERN = /^\s*rfSessState\s*=\s*(.*)\s*$/;
