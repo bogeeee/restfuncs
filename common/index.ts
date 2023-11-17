@@ -74,7 +74,7 @@ export interface CookieSession extends Record<string, unknown> {
      * Should be possible in a browser (cross-site attacking scenario, when allowed for a subset of ServerSessions) and no problem with a non-browser client.
      * </p>
      */
-    bpSalt: string
+    bpSalt?: string
 
     /**
      * To allow for a more stupid SessionValidator that just stores [id]_[version]_[bpSalt] entry strings

@@ -54,7 +54,7 @@ export type ValidSessionRecord = {
     /**
      * See CookieSession#bpSalt
      */
-    bpSalt: string
+    bpSalt?: string
 }
 
 /**

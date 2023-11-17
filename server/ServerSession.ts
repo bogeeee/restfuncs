@@ -1080,7 +1080,7 @@ export class ServerSession implements IServerSession {
         const reqSession = req.session as any as Record<string, unknown>;
         // Detect uninitialized session:
         const standardSessionFields = new Set(["id","cookie", "req"]);
-        if(!Object.keys(reqSession).some(key => !standardSessionFields.has(key))) { // Session ha only standard fields set ?
+        if(!Object.keys(reqSession).some(key => !standardSessionFields.has(key))) { // Session has only standard fields set ?
             return undefined; // Treat that as uninitialized
         }
 
@@ -1088,7 +1088,7 @@ export class ServerSession implements IServerSession {
             ...reqSession,
             id: req.session.id, // Re-query that property accessor (otherwise it does not get included)
             version: (typeof reqSession.version === "number")?reqSession.version:0,
-            bpSalt: (typeof reqSession.bpSalt === "string")?reqSession.bpSalt: this.createBpSalt(),
+            bpSalt: (typeof reqSession.bpSalt === "string")?reqSession.bpSalt: undefined,
         }
 
         // Remove internal fields from the cookie handler to safe space / cut references:
