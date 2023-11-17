@@ -6,23 +6,11 @@ import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
 
 
 export class ControlService extends ServerSession {
-    static options: ServerSessionOptions = {allowedOrigins: "all", exposeErrors: true}
+    static options: ServerSessionOptions = {allowedOrigins: "all", exposeErrors: true, devDisableSecurity: true}
 
     @remote()
     async resetSession() {
-        if(!this.call.req) {
-            throw new Error("resetSession not called by http")
-        }
-
-        if(!this.call.req.session) {
-            return;
-        }
-
-        const session = this.call.req.session as any;
-
-        await new Promise<void>(function executor(resolve, reject) { // with an arrow function, it gives some super strange compile error
-            session.destroy((err: any) => {if(!err) resolve(); else reject(err)})
-        })
+        this.destroy()
     }
 
     @remote()

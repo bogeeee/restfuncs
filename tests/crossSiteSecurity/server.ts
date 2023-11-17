@@ -44,7 +44,7 @@ import {ControlService} from "./ControlService.js";
         app.use("/AllowedForceTokenCheckService", AllowedForceTokenCheckService.createExpressHandler());
 
 
-        app.use("/controlService", ControlService.createExpressHandler())
+        app.use("/ControlService", ControlService.createExpressHandler())
 
         // Pretend the browser does not send an origin:
         class AllowedTestsService_eraseOrigin extends TestsService {

@@ -5,9 +5,8 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "nodemon -e ts --ignore client --exec \"clear && ttsc --build && cross-env NODE_ENV=development ts-node server.js\"",
-    "dev:faster_but_without_rtti": "npm run clean && nodemon --ignore client --exec cross-env NODE_ENV=development tsx server.ts",
-    "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev:faster_but_without_rtti",
+    "dev": "ttsc --build && cross-env NODE_ENV=development ts-node server.js",
+    "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev",
 
     "clean": "ttsc --build --clean && rm -rf client/dist",
     "build": "ttsc --build --force && cd client && vite build",

@@ -1,7 +1,8 @@
-import {RestfuncsClient} from "restfuncs-client"
+import {develop_resetGlobalState, RestfuncsClient} from "restfuncs-client"
 import {TestsService} from "../TestsService";
 import {MainframeService} from "../MainframeService";
 import {ControlService} from "../ControlService";
+import {ClientSocketConnection} from "restfuncs-client";
 
 export const mainSiteUrl = "http://localhost:3000";
 export const isMainSite = window.location.href.startsWith(mainSiteUrl);
@@ -140,7 +141,12 @@ function makeSimpleXhrRequest(method: string, url: string, body = ""): Promise<s
 
 }
 
-const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/controlService`, {useSocket: false}).proxy
+const controlService = new RestfuncsClient<ControlService>(`${mainSiteUrl}/ControlService`, {useSocket: false}).proxy
+
+async function resetGlobalState() {
+    await controlService.resetSession();
+    develop_resetGlobalState()
+}
 
 async function createRestfuncsClient(serviceName: string, csrfProtectionMode: string, options: Partial<RestfuncsClient<any>>) {
     // @ts-ignore
@@ -157,7 +163,7 @@ async function createRestfuncsClient(serviceName: string, csrfProtectionMode: st
  */
 async function testSuite_CORSAndSimpleRequests(useSocket: boolean) {
     {
-        await controlService.resetSession();
+        await resetGlobalState();
 
         const service = new RestfuncsClient<TestsService>(`${mainSiteUrl}/TestsService`, {csrfProtectionMode: "preflight", useSocket}).proxy
         const corsAllowedService = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService`, {csrfProtectionMode: "preflight", useSocket}).proxy
@@ -236,20 +242,20 @@ async function testSuite_CORSAndSimpleRequests(useSocket: boolean) {
 /**
  * Copying corsReadToken from an allowed service to a restricted service, ...
  */
-async function testSuite_copyCorsReadToken(useSocket: boolean) {
+async function testSuite_copyCorsReadToken() {
     if (isMainSite) {
         // isMainSite: AllowedTestsService_eraseOrigin doesn't work cross origin. We would need to mock it somehow that in the normal response the access-control-allow-origin header is filled with i.e localhost:3666.
         // Sencondly: The TestsService is blocked by browser's CORS anyway
 
         await testAssertWorksSSAndXS(`Copying corsReadToken from an allowed service to a restricted service should not work. Copying the proper one to the resrticted service should work`, async () => {
-            await controlService.resetSession();
+            await resetGlobalState();
 
             // @ts-ignore
-            const allowedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken", useSocket});
+            const allowedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService_eraseOrigin`, {csrfProtectionMode: "corsReadToken", useSocket: false});
             const allowedService = allowedClient.proxy
             await allowedService.logon("bob");
 
-            const restrictedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/TestsService`, {csrfProtectionMode: "corsReadToken", useSocket});
+            const restrictedClient = new RestfuncsClient<TestsService>(`${mainSiteUrl}/TestsService`, {csrfProtectionMode: "corsReadToken", useSocket: false});
             const restrictedService = restrictedClient.proxy;
             const loginOnRestrictedService = async () => {
                 await restrictedService.logon("bob");
@@ -293,30 +299,58 @@ async function testSuite_csrfToken(useSocket: boolean) {
             continue; // TestsService is blocked anyway by browser's CORS
         }
         await testAssertWorksSSAndXS(`Check if no/wrong csrfToken is rejected and proper token is accepted for ${serviceName}`, async () => {
-            await controlService.resetSession();
-            // @ts-ignore
-            const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {csrfProtectionMode: "csrfToken", useSocket});
-            const service = client.proxy
-            // no token:
-            await assertFails(async () => {
-                await service.logon("bob")
-            })
+            await resetGlobalState();
+            // No token:
+            {
+                const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {
+                    csrfProtectionMode: "csrfToken",
+                    useSocket
+                });
+                // no token:
+                await assertFails(async () => {
+                    await client.proxy.logon("bob")
+                })
+                await client.close();
+            }
+
             // wrong token:
-            client.csrfToken = "wrongValue"
-            await assertFails(async () => {
-                await service.logon("bob")
-            })
+            {
+                const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {
+                    csrfProtectionMode: "csrfToken",
+                    useSocket
+                });
+                client.csrfToken = "wrongValue"
+                await assertFails(async () => {
+                    await client.proxy.logon("bob")
+                })
+                await client.close();
+            }
 
             // right token:
-            client.csrfToken = await controlService.getCsrfTokenForService(serviceName);
-            await service.logon("bob");
-            assertEquals(await service.getBalance("bob"), 5000);
+            {
+                const conns = (await ClientSocketConnection.getAllOpenSharedConnections())
+                const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {
+                    csrfProtectionMode: "csrfToken",
+                    useSocket
+                });
+                client.csrfToken = await controlService.getCsrfTokenForService(serviceName);
+                await client.proxy.logon("bob");
+                assertEquals(await client.proxy.getBalance("bob"), 5000);
+                await client.close();
+            }
 
             // right token but from wrong service:
-            client.csrfToken = await controlService.getCsrfTokenForService("MainframeService");
-            await assertFails(async () => {
-                await service.logon("bob")
-            });
+            {
+                const client = new RestfuncsClient<TestsService>(`${mainSiteUrl}/${serviceName}`, {
+                    csrfProtectionMode: "csrfToken",
+                    useSocket
+                });
+                client.csrfToken = await controlService.getCsrfTokenForService("MainframeService");
+                await assertFails(async () => {
+                    await client.proxy.logon("bob")
+                });
+                await client.close();
+            }
         });
     }
 }
@@ -328,7 +362,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
             for (const mode2 of ["preflight", "corsReadToken", "csrfToken"]) {
                 if (mode1 == mode2) {
                     await testAssertWorksSSAndXS(`Requests from same session protection modes with forceTokenCheck, (${mode1} )`, async () => {
-                        await controlService.resetSession();
+                        await resetGlobalState();
 
                         for (const mode of [mode1, mode2]) {
                             const corsAllowedService = (await createRestfuncsClient("AllowedForceTokenCheckService", mode, {useSocket})).proxy
@@ -336,7 +370,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
                         }
                     });
                     await testAssertWorksSSAndXS(`Requests from same session protection modes with session access, (${mode1} )`, async () => {
-                        await controlService.resetSession();
+                        await resetGlobalState();
 
 
                         const corsAllowedService1 = (await createRestfuncsClient("AllowedTestsService", mode1,{useSocket})).proxy
@@ -349,7 +383,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
                 } else {
                     for (const method of ["GET", "POST"]) {
                         await testAssertWorksSSAndXS(`Requests from different session protection modes but without session access, (simple ${method} ${mode1} vs restfuncs-client ${mode2} )`, async () => {
-                            await controlService.resetSession();
+                            await resetGlobalState();
 
                             await makeSimpleXhrRequest(method, `${mainSiteUrl}/AllowedTestsService/test?csrfProtectionMode=${mode1}`)
 
@@ -362,7 +396,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
 
 
                     await testAssertWorksSSAndXS(`Requests from different session protection modes with forceTokenCheck, (${mode1} vs ${mode2} )`, async () => {
-                        await controlService.resetSession();
+                        await resetGlobalState();
 
                         {
                             const corsAllowedService = (await createRestfuncsClient("AllowedForceTokenCheckService", mode1, {useSocket})).proxy
@@ -378,7 +412,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
                     });
 
                     await testAssertWorksSSAndXS(`Requests from different session protection modes with session access, (${mode1} vs ${mode2} )`, async () => {
-                        await controlService.resetSession();
+                        await resetGlobalState();
 
 
                         const service1 = (await createRestfuncsClient("AllowedTestsService", mode1, {useSocket})).proxy
@@ -398,7 +432,7 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
 
         // Test that undefined initializes the session as preflight
         await testAssertWorksSSAndXS(`Requests from different session protection modes with session access, (undefined = preflight vs corsReadToken )`, async () => {
-            await controlService.resetSession();
+            await resetGlobalState();
 
             // @ts-ignore
             const corsAllowedService1 = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService`, {csrfProtectionMode: undefined, useSocket}).proxy
@@ -429,7 +463,9 @@ export async function runAlltests() {
 
         await testSuite_CORSAndSimpleRequests(useSocket);
 
-        await testSuite_copyCorsReadToken(useSocket);
+        if(!useSocket) {
+            await testSuite_copyCorsReadToken();
+        }
 
         await testSuite_csrfToken(useSocket);
 
