@@ -26,7 +26,7 @@ export class ControlService extends ServerSession {
             throw new Error("Not called by http")
         }
         const ServiceClass = this.getServiceClass(id);
-        return ServiceClass.getCsrfToken(this.call.req.session)
+        return ServiceClass.getCsrfToken(this.call.req, this.call.res!)
     }
 
     private getServiceClass(id: string) {

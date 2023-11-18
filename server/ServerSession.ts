@@ -760,7 +760,7 @@ export class ServerSession implements IServerSession {
 
     /**
      *
-     * @param modifiedSession
+     * @param modifiedSession modified fields.
      * @param req
      * @param res headers will be added here to indicate, see {@link CookieSessionState}
      * @private
@@ -777,6 +777,20 @@ export class ServerSession implements IServerSession {
         }
 
         this.sendCookieSessionState(req, res)
+    }
+
+    /**
+     * Inits / increases the version field and fills the bpSalt fields
+     * @param cookieSession
+     * @private
+     */
+    private static increaseCookieSessionVersion(cookieSession: Partial<CookieSession>) {
+        if(typeof cookieSession.version !== "number") {
+            cookieSession.version = 0;
+        }
+        cookieSession.version = cookieSession.version+1;
+        cookieSession.previousBpSalt = cookieSession?.bpSalt
+        cookieSession.bpSalt = this.createBpSalt();
     }
 
     /**
@@ -829,7 +843,7 @@ export class ServerSession implements IServerSession {
      * @param call the properties that should be made available for the user during call time. like req, res, ...
      * @param diagnosis
      * @private
-     * @returns modifiedSession is returned, when a deep session modification was detected
+     * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
      */
     static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
 
@@ -909,11 +923,9 @@ export class ServerSession implements IServerSession {
         let modifiedSession: Omit<CookieSession, "id"> | undefined = undefined;
         if(modified) {
             modifiedSession = {
-                ...serverSession,
-                version: (serverSession.version || 0) +1, // Init / increase version
-                bpSalt: this.createBpSalt(),
-                previousBpSalt : cookieSession?.bpSalt
+                ...serverSession
             };
+            this.increaseCookieSessionVersion(modifiedSession);
         }
         return {
             modifiedSession,
@@ -984,38 +996,28 @@ export class ServerSession implements IServerSession {
     })
     public getCorsReadToken(): string {
         // Security check that is's called via http:
-        if(!this.call.req || this.call.socketConnection) {
+        if (!this.call.req || this.call.socketConnection) {
             throw new Error("getCorsReadToken was not called via http."); // TODO: test
         }
 
-        ServerSession.ensureSessionHandlerInstalled(this.call.req!)
-
-        return this.clazz.getOrCreateSecurityToken(<SecurityRelevantSessionFields> this.call.req!.session, "corsReadToken");
+        const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.call.req) || {};
+        const result = this.clazz.getOrCreateSecurityToken(cookieSession, "corsReadToken");
+        this.clazz.updateAndSendReqSession(cookieSession, this.call.req, this.call.res!);
+        return result;
     }
 
     /**
      * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
      * @param session req.session (from inside express handler) or this.call.req.session (from inside a ServerSession call).
-     * It must be the RAW session object (and not the proxy that protects it from csrf)
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
      * </p>
      */
-    static getCsrfToken(session: object): string {
-        // Check for valid input
-        if(!session) {
-            throw new Error(`session not set. Do you have no session handler installed like [here](https://github.com/bogeeee/restfuncs#store-values-in-the-http--browser-session)`)
-        }
-        if(typeof session !== "object") {
-            throw new Error(`Invalid session value`)
-        }
-        // Better error message:
-        // @ts-ignore
-        if(session["__isCsrfProtectedSessionProxy"]) {
-            throw new Error("Invalid session argument. Please supply the the raw session object to getCsrfToken() instead of the ServerSession object")
-        }
-
-        return this.getOrCreateSecurityToken(session, "csrfToken");
+    static getCsrfToken(req: Request, res: Response): string {
+        const cookieSession = this.getFixedCookieSessionFromRequest(req) || {};
+        const result = this.getOrCreateSecurityToken(cookieSession, "csrfToken");
+        this.updateAndSendReqSession(cookieSession, req, res);
+        return result;
     }
 
     @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
@@ -1033,7 +1035,6 @@ export class ServerSession implements IServerSession {
             if(!this.call.req!.session.id) {
                 throw new Error("Session should have an id by now.")
             }
-
             reqSession.version = (typeof reqSession.version === "number")?reqSession.version:0, // Like in getFixedCookieSessionFromRequest. Initialize one field, so getFixedCookieSessionFromRequest will detect it as initialized
             this.clazz.updateAndSendReqSession(this.clazz.getFixedCookieSessionFromRequest(this.call.req!)!, this.call.req!, this.call.res!);
 
@@ -1220,7 +1221,7 @@ export class ServerSession implements IServerSession {
     /**
      * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
      * The token is stored in the session and a transfer token is returned which is BREACH shielded.
-     * @param session
+     * @param session The raw CookieSession. The version will be increased, if written to
      * @param csrfProtectionMode
      * @private
      */
@@ -1231,8 +1232,14 @@ export class ServerSession implements IServerSession {
 
         const tokensFieldName = csrfProtectionMode==="corsReadToken"?"corsReadTokens":"csrfTokens";
 
+        let sessionWasModified = false;
+
         // initialize the session:
-        session.csrfProtectionMode = csrfProtectionMode;
+        if(session.csrfProtectionMode !== csrfProtectionMode) {
+            session.csrfProtectionMode = csrfProtectionMode;
+            sessionWasModified = true;
+        }
+
         const tokens = session[tokensFieldName] = session[tokensFieldName] || {}; // initialize
         checkIfSecurityFieldsAreValid(session);
 
@@ -1246,6 +1253,11 @@ export class ServerSession implements IServerSession {
 
             // Create a token:
             tokens[securityGroupId] = crypto.randomBytes(16).toString("hex");
+            sessionWasModified = true;
+        }
+
+        if(sessionWasModified) {
+            this.increaseCookieSessionVersion(session);
         }
 
         const token = tokens[securityGroupId];
