@@ -6,6 +6,7 @@ import session from "express-session";
 import crypto from "node:crypto";
 import {TestsService} from "./TestsService.js";
 import {ControlService} from "./ControlService.js";
+import helmet from "helmet"
 
 
 (async () => {
@@ -24,6 +25,8 @@ import {ControlService} from "./ControlService.js";
 
         MainframeService.options = commonOptions;
         TestsService.options = commonOptions;
+
+        //app.use(helmet({referrerPolicy: {policy: "strict-origin-when-cross-origin"}})); // Test that this does not corrupt stuff, also see below in front of the served web content
 
         app.use("/MainframeService", MainframeService.createExpressHandler());
         app.use("/TestsService", TestsService.createExpressHandler());
@@ -90,6 +93,16 @@ function eraseOrigin (req: any, res: any, next: any) {
 
 
 async  function serveClientWeb(app: Express, hmrPort: number) {
+    /*
+     // Test with helmet, that this does not corrupt stuff:
+    app.use(helmet({
+        contentSecurityPolicy: {directives: {
+            "connect-src": "*"
+            }},
+        referrerPolicy: {policy: "strict-origin-when-cross-origin"
+        }}));
+
+     */
     // Client web:
     if (process.env.NODE_ENV === 'development') {
         // Serve client web through vite dev server:

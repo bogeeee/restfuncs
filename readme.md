@@ -83,7 +83,7 @@ import {MyServerSession} from "MyServerSession";
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
 app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- Serve it ---- 
-// ... app.use(express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples.
+// ... app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
 
 app.listen(3000); // Listen on Port 3000
@@ -169,6 +169,8 @@ To serve a non API result, the remote method must explicitly **set the content t
         return fs.createReadStream("/someImage.png") // Returns a Readable which is streamed to client. You can also return Buffer, String, File(TODO)
     }
 ```
+
+**Security note:** When serving html with rich content or with scripts, you might want to add the [helmet](https://www.npmjs.com/package/helmet) middleware in front of your ServerSession for additional protection via `app.use("/myAPI", helmet(), MyServerSession.createExpressHandler())`
 
 ## REST interface
 

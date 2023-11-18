@@ -947,11 +947,14 @@ export class ServerSession implements IServerSession {
         validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false // Disable these, cause we have no type inspection at this class's level
     })
     public async getIndex() {
-        let className: string | undefined = this.constructor?.name;
-        className = className === "Object"?undefined:className;
+        let className = this.clazz?.name
         const title = className?`Index of class ${className}`:`Index of {}`
 
-        const example = (className?`class ${className} {`:'    //...inside your ServerSession class: ') +' \n\n' +
+        const example = (className?`class ${className} extends ${this.clazz.superClass?.name} {`:' //...inside your ServerSession class: ') +' \n\n' +
+            '    /**\n' +
+            `     * Note: When serving rich content / with scripts, you might want to add the 'helmet' middleware in front of ${className || "YourServerSessionClass"} for additional protection via: app.use("/...", helmet(), ${className || "YourServerSessionClass"}.createExpressHandler())\n` +
+            '     * @return The / index- / home page\n' +
+            '     */\n' +
             '    @remote({isSafe: true})\n' +
             '    getIndex() {\n\n' +
             '        //... you sayed, `isSafe`, so you must perform non-state-changing operations only !\n\n' +

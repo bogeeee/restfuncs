@@ -18,7 +18,8 @@
     "@types/express-session": "^1.17.7",
     "vite": "4.1.4",
     "restfuncs-server": "0.x",
-    "restfuncs-client": "^1.0.0"
+    "restfuncs-client": "^1.0.0",
+    "helmet": "^7.1.0"
   },
   "devDependencies": {
     "tsx": "^3.12.1",

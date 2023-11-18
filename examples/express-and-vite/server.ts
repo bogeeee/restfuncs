@@ -1,9 +1,8 @@
 import express from "express"
 import {createServer} from "vite"
 import {GreeterSession} from "./GreeterSession.js"
-import session from "express-session";
-import crypto from "node:crypto";
 import {restfuncsExpress} from "restfuncs-server";
+import helmet from "helmet";
 
 (async () => {
     const port = 3000
@@ -24,7 +23,7 @@ import {restfuncsExpress} from "restfuncs-server";
         });
         app.use(viteDevServer.middlewares)
     } else {
-        app.use(express.static('client/dist')) // Serve pre-built web (npm run build)
+        app.use(helmet(), express.static('client/dist')) // Serve pre-built web (npm run build)
     }
 
     app.listen(port)
