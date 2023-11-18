@@ -451,26 +451,28 @@ async function testSuite_csrfProtectionModesCollision(useSocket: boolean) {
 export async function runAlltests() {
     failed = false;
 
-    if(!isMainSite) {
-        // cheap prevention of race condition if both browser windows reload at the same time:
-        await new Promise(resolve => setTimeout(resolve, 4000)); // Wait a bit
-    }
+    console.log("Waiting for lock...")
+    await controlService.getLock() // Prevent it from running in 2 browser windows at the same time
+    console.log("got lock");
+    try {
+        for (const useSocket of [false, true]) {
+            console.log(`**********************************************************`)
+            console.log(`**** Following tests are with useSocket=${useSocket} *****`)
+            console.log(`**********************************************************`)
 
-    for(const useSocket of [false, true] ) {
-        console.log(`**********************************************************`)
-        console.log(`**** Following tests are with useSocket=${useSocket} *****`)
-        console.log(`**********************************************************`)
+            await testSuite_CORSAndSimpleRequests(useSocket);
 
-        await testSuite_CORSAndSimpleRequests(useSocket);
+            if (!useSocket) {
+                await testSuite_copyCorsReadToken();
+            }
 
-        if(!useSocket) {
-            await testSuite_copyCorsReadToken();
+            await testSuite_csrfToken(useSocket);
+
+            await testSuite_csrfProtectionModesCollision(useSocket);
         }
-
-        await testSuite_csrfToken(useSocket);
-
-        await testSuite_csrfProtectionModesCollision(useSocket);
+        return !failed;
     }
-
-    return !failed;
+    finally {
+        await controlService.releaseLock()
+    }
 }
