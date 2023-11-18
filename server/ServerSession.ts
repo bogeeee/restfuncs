@@ -616,6 +616,8 @@ export class ServerSession implements IServerSession {
                     res.header("Access-Control-Allow-Credentials", "true")
                 }
 
+                this.server.getComputed(); // Error diagnosis / workaround: getComputed may be called the first time through the engine.io -> cors handler -> isAllowed but in that case the error is swallowed. Therefore at this place, we can nicely display it to the user.
+
                 // Obtain cookieSession:
                 let cookieSession = this.getFixedCookieSessionFromRequest(req);
                 // TODO: this should go into our express cookie handler

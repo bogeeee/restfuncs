@@ -2037,6 +2037,32 @@ test("Security groups", () => {
         expect(server.getComputed().service2SecurityGroupMap.size).toBe(2);
     }
 
+    // Deep objects (arrays) should also be recognized
+    {
+        resetGlobalState();
+        const server = restfuncsExpress();
+        function isAllowedOrigin() {return true}
+
+        class SessionA extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: ["a","b","c"],
+            }
+        };
+        server.registerServerSessionClass(SessionA)
+
+        class SessionB extends ServerSession {
+            static options: ServerSessionOptions = {
+                allowedOrigins: ["a","b","c"],
+            }
+        }
+        server.registerServerSessionClass(SessionB)
+
+        expect(server.getComputed().securityGroups.size).toBe(1);
+        expect(server.getComputed().service2SecurityGroupMap.size).toBe(2);
+    }
+
+
+
     // Different options should place them into different groups
     {
         resetGlobalState();

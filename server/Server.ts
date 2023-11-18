@@ -609,7 +609,7 @@ class RestfuncsServerOOP {
         const securityGroups = new Map<string, SecurityGroup>();
         this.serverSessionClasses.forEach((service) => {
             function matchesGroup(group: SecurityGroup) {
-                return _(SecurityGroup.relevantProperties).find(key => group.options[key] !== service.options[key]) === undefined;
+                return _(SecurityGroup.relevantProperties).find(key => !_.isEqual(group.options[key], service.options[key])) === undefined;
             }
 
             const matchedGroups = Array.from(securityGroups.values()).filter( g => matchesGroup(g));
@@ -619,6 +619,7 @@ class RestfuncsServerOOP {
 
                 // Safety check:
                 if(securityGroups.has(newGroup.id)) {
+                    matchesGroup(securityGroups.get(newGroup.id)!)
                     throw new Error("id not unique");
                 }
 
