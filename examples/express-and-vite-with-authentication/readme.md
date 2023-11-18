@@ -4,7 +4,7 @@ Example with authentication
 ```bash
 git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/examples/express-and-vite-with-authentication
-npm install
+npm install --ignore-scripts
 npm run build
 npm run start
 ```

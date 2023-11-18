@@ -5,7 +5,7 @@ Tests for CSRF scenarios in the browser.
 ```bash
 git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/tests/crossSiteSecurity
-npm install
+npm install --ignore-scripts
 npn run dev
 ```
 
