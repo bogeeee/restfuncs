@@ -139,7 +139,7 @@ export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
 
-export type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string, destination?: string) => boolean);
+export type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string) => boolean);
 export type ServerSessionOptions = {
 
 
@@ -193,7 +193,7 @@ export type ServerSessionOptions = {
      * - undefined (default): Same-origin only
      * - string[]: List the allowed origins: http[s]://host[:port]. Same-origin is always implicitly allowed
      * - "all": No restrictions
-     * - function: A function (origin, destination) that returns true, if it should be allowed. Args are in the form: http[s]://host[:port]. Note: If you have multiple ServerSessions (for better organization) that have the same origins, make sure to pass them the same function <strong>instance</strong>. I.e. don't create the function in a closure. Otherwise, restfuncs can't know better and has to put the ServerSessions in different security groups, which results in performance and cookie-size penalties.
+     * - function: A function (origin?: string) => boolean that returns, if it should be allowed. Args are in the form: http[s]://host[:port]. Note: If you have multiple ServerSessions (for better organization) that have the same origins, make sure to pass them the same function <strong>instance</strong>. I.e. don't create the function in a closure. Otherwise, restfuncs can't know better and has to put the ServerSessions in different security groups, which results in performance and cookie-size penalties.
      *
      * <i>Technically, functions, which you flagged as {@link safe}, are still allowed to be called by [simple](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS#simple_requests) GET requests without an origin check.</i>
      *
@@ -2463,7 +2463,7 @@ export function remote(options?: RemoteMethodOptions) {
  * @param errorHints Error messages will be added here
  * @return if origin and destination are allowed by the "allowedOrigins" option
  */
-function originIsAllowed(params: { origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions }, errorHints?: string[]): boolean {
+export function originIsAllowed(params: { origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions }, errorHints?: string[]): boolean {
     function isSameOrigin() {
         return params.destination !== undefined && params.origin !== undefined && (params.origin === params.destination);
     }
@@ -2474,7 +2474,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
 
 
     if (typeof params.allowedOrigins === "function") {
-        if (params.allowedOrigins(params.origin, params.destination)) {
+        if (params.allowedOrigins(params.origin)) {
             return true;
         }
     }
@@ -2504,7 +2504,7 @@ function originIsAllowed(params: { origin?: string, destination?: string, allowe
         // errorHints.push(`it seems like your server is behind a reverse proxy and therefore the server side same-origin check failed. If this is the case, you might want to add ${x-forwarded-by header} to ServerSessionOptions.allowedOrigins`)
     }
 
-    errorHints?.push(`Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to allowedOrigins.`)
+    errorHints?.push(`Request is not allowed from ${params.origin || "<unknown / no headers present>"} to ${params.destination}. See the allowedOrigins setting in the RestfuncsOptions. Also if you app server is behind a reverse proxy and you think the resolved proto/host/port of '${params.destination}' is incorrect, add the correct one (=what the user sees in the address bar) to ServerSessionOptions#allowedOrigins.`)
 
     return false;
 }

@@ -15,7 +15,7 @@ import {
 } from "engine.io"
 import _ from "underscore";
 import {diagnisis_shortenValue, getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util";
-import {ServerSessionOptions, ServerSession} from "./ServerSession";
+import {ServerSessionOptions, ServerSession, originIsAllowed} from "./ServerSession";
 import session from "express-session";
 import {ServerSocketConnection} from "./ServerSocketConnection";
 import nacl from "tweetnacl";
@@ -449,6 +449,38 @@ class RestfuncsServerOOP {
 
     public installEngineIoServer(server: HttpServer) {
         const engineIoServer = engineIoAttach(server, {
+            cors: {
+                origin: (requestOrigin, callback) => {
+                    /**
+                     * Checks if at least one security group does allow that origin. Note: blocking origins is not essential for security here.
+                     */
+                    const isAllowed = () => {
+                        for (const group of this.getComputed().securityGroups.values()) {
+                            if (originIsAllowed({
+                                origin: requestOrigin,
+                                allowedOrigins: group.options.allowedOrigins
+                            })) {
+                                return true;
+                            }
+                        }
+                    }
+
+                    // Properly return the result if isAllowed(), as expected by the "cors" api:
+                    let result;
+                    try {
+                        result = isAllowed();
+                    }
+                    catch (e) {
+                        if(!(e instanceof Error)) {
+                            throw e;
+                        }
+                        callback(e, false);
+                        return;
+                    }
+                    callback(null, result);
+
+                }
+            },
             ...(this.serverOptions.engineIoOptions || {}),
             path: this.getEngineIoPath(),
         });
