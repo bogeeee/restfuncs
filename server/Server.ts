@@ -456,6 +456,10 @@ class RestfuncsServerOOP {
                      */
                     const isAllowed = () => {
                         for (const group of this.getComputed().securityGroups.values()) {
+                            if(group.options.devDisableSecurity) {
+                                return true;
+                            }
+
                             if (originIsAllowed({
                                 origin: requestOrigin,
                                 allowedOrigins: group.options.allowedOrigins
