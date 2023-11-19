@@ -3,6 +3,7 @@ import session from "express-session";
 import express from "express"
 import _ from "underscore";
 import {shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util"
+import {TestsService} from "./TestsService.js";
 
 
 export class ControlService extends ServerSession {
@@ -66,6 +67,10 @@ export class ControlService extends ServerSession {
     }
 
 
+    @remote()
+    clearLastCallWasSimpleRequest() {
+        TestsService.lastCallWasSimpleRequest = undefined
+    }
 }
 
 

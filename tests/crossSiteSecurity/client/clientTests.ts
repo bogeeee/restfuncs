@@ -219,10 +219,12 @@ async function testSuite_CORSAndSimpleRequests(useSocket: boolean) {
         for (const method of ["GET", "POST"]) {
             // Test/Playground to see if makeSimpleXhrRequest really does make simple requests and if it's property detected. No real security indication
             await testAssertWorksSSAndFailsXS(`Simple request (${method})`, async () => {
+                await controlService.clearLastCallWasSimpleRequest()
                 await makeSimpleXhrRequest(method, `${mainSiteUrl}/TestsService/getIsSimpleRequest`)
                 assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
             });
             await testAssertWorksSSAndXS(`Simple request (${method})`, async () => {
+                await controlService.clearLastCallWasSimpleRequest()
                 await makeSimpleXhrRequest(method, `${mainSiteUrl}/AllowedTestsService/getIsSimpleRequest`, "xyz")
                 assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), true);
             });
@@ -233,7 +235,11 @@ async function testSuite_CORSAndSimpleRequests(useSocket: boolean) {
             }));
 
             await testAssertWorksSSAndXS(`Spend money on allowed service with simple request (${method})`, async () => checkIfSpendsMoney(async () => {
-                await makeSimpleXhrRequest(method, `${mainSiteUrl}/AllowedTestsService/spendMoney`)
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/AllowedTestsService/spendMoney`) // should work because we look at the origin header
+            }));
+
+            await testAssertFailsSSAndXS(`Spend money on restricted service with simple request (${method}) with eraseOrigin`, async () => checkIfSpendsMoney(async () => {
+                await makeSimpleXhrRequest(method, `${mainSiteUrl}/AllowedTestsService_eraseOrigin/spendMoney`) // simple requests no non-safe methods should be blocked
             }));
         }
     }

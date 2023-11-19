@@ -1,6 +1,7 @@
 import {ServerSession, ServerSessionOptions, remote} from "restfuncs-server";
 import fs from "node:fs"
 import _ from "underscore";
+import {couldBeSimpleRequest} from "restfuncs-server/Util";
 
 export class TestServiceSessionBase extends ServerSession {
     user?: string;
@@ -66,7 +67,8 @@ export class TestsService extends TestServiceSessionBase {
     }
 
 
-    static lastCallWasSimpleRequest = false;
+    static lastCallWasSimpleRequest?: boolean
+
 
     @remote()
     getLastCallWasSimpleRequest() {
@@ -75,10 +77,10 @@ export class TestsService extends TestServiceSessionBase {
 
     @remote()
     getIsSimpleRequest(body?: string) {
-        if(!this.call.req) {
+        if (!this.call.req) {
             throw new Error("getIsSimpleRequest not called via http")
         }
-        return isSimpleRequest(this.call.req)
+        return couldBeSimpleRequest(this.call.req)
     }
 
     @remote()
@@ -90,9 +92,8 @@ export class TestsService extends TestServiceSessionBase {
     protected async doCall(funcName: string, args: any[]): Promise<any> {
         try {
             return super.doCall(funcName, args);
-        }
-        finally {
-            TestsService.lastCallWasSimpleRequest = (this.call.req != undefined) && isSimpleRequest(this.call.req);
+        } finally {
+            TestsService.lastCallWasSimpleRequest = this.call.req ? couldBeSimpleRequest(this.call.req) : undefined;
         }
     }
 }
