@@ -338,9 +338,9 @@ export class ServerSession implements IServerSession {
     /**
      * The id of the cookie or null if no cookie is used yet (nothing written to this session yet). Security: It is readable from inside the browser.
      */
-    id?: CookieSession["id"]
+    readonly id?: CookieSession["id"]
 
-    version?: number
+    readonly version?: number
 
     /**
      * Context information about the current remote method call.
