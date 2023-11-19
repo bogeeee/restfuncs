@@ -111,6 +111,10 @@ function assertEquals<T>(actual: T, expected: T) {
     }
 }
 
+function awaitBeacon() {
+    return new Promise((resolve, reject) => {setTimeout(resolve, 250)});
+}
+
 function makeSimpleXhrRequest(method: string, url: string, body = ""): Promise<string> {
 
 
@@ -243,6 +247,95 @@ async function testSuite_CORSAndSimpleRequests(useSocket: boolean) {
             }));
         }
     }
+}
+
+async function testSuite_Beacons() {
+
+    await resetGlobalState();
+
+    const service = new RestfuncsClient<TestsService>(`${mainSiteUrl}/TestsService`, {
+        csrfProtectionMode: "preflight",
+        useSocket: false
+    }).proxy
+    const corsAllowedService = new RestfuncsClient<TestsService>(`${mainSiteUrl}/AllowedTestsService`, {
+        csrfProtectionMode: "preflight",
+        useSocket: false
+    }).proxy
+
+    /**
+     * tests if runner successfully was able to spend money on bob's cookie-logged-in session.
+     * @param runner
+     */
+    async function checkIfSpendsMoney(runner: () => Promise<void>) {
+        await corsAllowedService.logon("bob"); // Logs in and give me some money
+        assertEquals(await corsAllowedService.getBalance("bob"), 5000)
+        let caught: any;
+        try {
+            await runner()
+        } catch (e) {
+            caught = e;
+        }
+        if (await corsAllowedService.getBalance("bob") !== 0) {
+            throw new Error(`Money was not spent: ${caught?.message || caught || ""}`, {cause: caught});
+        }
+    }
+
+    // Detect, which types of sendBeacon are treated as simple requests
+    const jsonInArrayBuffer: ArrayBuffer = new TextEncoder().encode('{"myArg": "string"}');
+    const jsonBlob = new Blob([JSON.stringify({myArg: "world"}, null, 2)], {
+        type: "application/json",
+    });
+    const textBlob = new Blob([JSON.stringify("myArg", null, 2)], {
+        type: "text/plain",
+    });
+    const types: {name: string, value?: BodyInit, isSimpleRequest?: boolean}[] = [
+        {name: "undefined", value: undefined},  // on chrome, it sends no content-type and therefore it should be detected simple request
+        {name: "string", value: "someString"},
+        {name: "jsonInArrayBuffer", value: jsonInArrayBuffer},
+        {name: "jsonBlob", value: jsonBlob}, // Will be a non simple request
+        {name: "textBlob", value: textBlob},
+    ];
+
+    for (const iter of types) {
+        await testAssertWorksSSAndXS(`sendBeacon -> allowed service: ${iter.name}`, async () => {
+            await controlService.clearLastCallWasSimpleRequest()
+            navigator.sendBeacon(`${mainSiteUrl}/AllowedTestsService/testBeacon`, iter.value)
+            await awaitBeacon();
+            iter.isSimpleRequest = await corsAllowedService.getLastCallWasSimpleRequest();
+            if(iter.isSimpleRequest === undefined) {
+                throw new Error("Could not determine isSimpleRequest");
+            }
+        });
+
+        await testAssertWorksSSAndFailsXS(`sendBeacon: ${iter.name}`, async () => { // should fail XS, because the proper origin header is sent
+            await controlService.clearLastCallWasSimpleRequest()
+            navigator.sendBeacon(`${mainSiteUrl}/TestsService/testBeacon`, iter.value);
+            await awaitBeacon();
+            assertEquals(await corsAllowedService.getLastCallWasSimpleRequest(), iter.isSimpleRequest)
+        });
+    }
+
+
+    for (const iter of types) {
+        if(iter.isSimpleRequest === true) {
+            continue; //
+        }
+        for (const eraseOrigin of [false, true]) {
+            // With erase origin, we only rely on the proper browser's preflight. Here we test, if the browser does this properly
+            // TODO: This may not work with a JWT session handler, since the cookie might not be returned back by the beacon -> test, how it behaves
+            await testAssertWorksSSAndFailsXS(`sendBeacon ->  Spend money on restricted service ${eraseOrigin ? "with erased origin" : ""} with type: ${iter.name}`, async () => checkIfSpendsMoney(async () => {
+                navigator.sendBeacon(`${mainSiteUrl}/TestsService${eraseOrigin ? "_eraseOrigin" : ""}/spendMoney`, iter.value)
+                await awaitBeacon();
+            }));
+
+            // TODO: This may not work with a JWT session handler, since the cookie might not be returned back by the beacon -> test, how it behaves
+            await testAssertWorksSSAndXS(`sendBeacon ->  Spend money on allowed service ${eraseOrigin ? "with erased origin" : ""} with type: ${iter.name}`, async () => checkIfSpendsMoney(async () => {
+                navigator.sendBeacon(`${mainSiteUrl}/AllowedTestsService${eraseOrigin ? "_eraseOrigin" : ""}/spendMoney`, iter.value)
+                await awaitBeacon();
+            }));
+        }
+    }
+
 }
 
 /**
@@ -461,6 +554,9 @@ export async function runAlltests() {
     await controlService.getLock() // Prevent it from running in 2 browser windows at the same time
     console.log("got lock");
     try {
+
+        await testSuite_Beacons();
+
         for (const useSocket of [false, true]) {
             console.log(`**********************************************************`)
             console.log(`**** Following tests are with useSocket=${useSocket} *****`)

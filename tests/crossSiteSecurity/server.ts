@@ -50,6 +50,12 @@ import helmet from "helmet"
         app.use("/ControlService", ControlService.createExpressHandler())
 
         // Pretend the browser does not send an origin:
+        class TestsService_eraseOrigin extends TestsService {
+            static options: ServerSessionOptions = {...commonOptions}
+        }
+        app.use("/TestsService_eraseOrigin", eraseOrigin, TestsService_eraseOrigin.createExpressHandler())
+
+        // Pretend the browser does not send an origin:
         class AllowedTestsService_eraseOrigin extends TestsService {
             static options: ServerSessionOptions = {...commonOptions, allowedOrigins: ["http://localhost:3666"]}
         }
@@ -82,11 +88,13 @@ import helmet from "helmet"
 })()
 
 function eraseOrigin (req: any, res: any, next: any) {
-    req.headers.origin = undefined
-    req.headers.referer = undefined
+    if(req.method !== "OPTIONS") { // Only erase for regular methods, cause we want to test if the preflight works properly
+        req.headers.origin = undefined
+        req.headers.referer = undefined
 
-    if(req.header("Origin")) {
-        throw "Unexpected"
+        if (req.header("Origin")) {
+            throw "Unexpected"
+        }
     }
     next()
 };

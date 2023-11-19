@@ -14,7 +14,6 @@
 - [Here](https://stackoverflow.com/questions/24680302/csrf-protection-with-cors-origin-header-vs-csrf-token?noredirect=1&lq=1) is a discussion of adpapting in-depth to browser behaviour vs csrf tokens. There's no point whether this could be unsafe for restfuncs' logik. 
 - As mentioned in [readme.md](../readme.md#csrf-protection). There's this unclear in-spec/in-practice situation with `preflight`. That's why `corsReadToken` mode was introduced and the restfuncs-client implements this by default. So the user is a bit safer by default ;)
 - Tokens that get send to the client are shielded against the BREACH attack (xor'ed with a random nonce).
-- TODO: check for [sendBeacon](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/sendBeacon)
 - TODO: Show the shortened code of requestIsAllowedToRunCredentialed here
 - See the [CrossSiteSecurity testcases application](../tests/crossSiteSecurity) which tests if this logic is working.
 
