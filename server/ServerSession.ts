@@ -1670,7 +1670,7 @@ export class ServerSession implements IServerSession {
             }
             //Diagnosis:
             if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
-                addErrorHint(`Lastly, you could switch to a different csrfProtectionMode. ${diagnosis_seeDocs}`, 10)
+                addErrorHint(`Lastly, but harder to implement: You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`, 10)
                 addErrorHint(`And for development, you could enable ServerSessionOptions#devDisableSecurity`, 8)
             }
 
@@ -1678,7 +1678,7 @@ export class ServerSession implements IServerSession {
             if (originIsAllowed({...reqSecurityProps, allowedOrigins}, diagnosis_oHints)) {
                 return true
             }
-            diagnosis_oHints.forEach(h => addErrorHint(h));
+            diagnosis_oHints.forEach(h => addErrorHint(h, 120));
 
             // The server side origin check failed but the request could still be legal:
             // In case of same-origin requests: Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
@@ -1710,17 +1710,17 @@ export class ServerSession implements IServerSession {
                     // Add error hints:
                     if (diagnosis.http?.contentType == "application/x-www-form-urlencoded" || diagnosis.http?.contentType == "multipart/form-data") { // SURELY came from html form ?
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined && diagnosis.http && _(diagnosis.http.acceptedResponseContentTypes).contains("text/html")) { // Top level navigation in web browser ?
-                        addErrorHint(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`);
-                        addErrorHint(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`)
+                        addErrorHint(`GET requests to '${remoteMethodName}' from top level navigations (=having no origin)  are not allowed because '${remoteMethodName}' is not considered safe.`, 110);
+                        addErrorHint(`If you want to allow '${remoteMethodName}', make sure it contains only read operations and mark it with @remote({isSafe: true}).`, 110)
                         if (this.diagnosis_methodWasDeclaredSafeAtAnyLevel(remoteMethodName)) {
-                            addErrorHint(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`)
+                            addErrorHint(`NOTE: '${remoteMethodName}' was only flagged 'isSafe' in a parent class, but that flag it is missing on your *overridden* method. See JSDoc of @remote({isSafe: ...})`, 110)
                         }
                     } else if (reqSecurityProps.httpMethod === "GET" && reqSecurityProps.origin === undefined) { // Crafted http request (maybe from in web browser)?
-                        addErrorHint(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        addErrorHint(`Also when this is from a crafted http request (written by you), you may set the 'IsComplex' header to 'true' and this error will go away.`,110);
                     } else if (diagnosis.http?.contentType == "text/plain") { // MAYBE from html form
-                        addErrorHint(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`);
+                        addErrorHint(`Also when this is from a crafted http request (and not a form), you may set the 'IsComplex' header to 'true' and this error will go away.`,110);
                     } else if (reqSecurityProps.httpMethod !== "GET" && reqSecurityProps.origin === undefined) { // Likely a non web browser http request (or very unlikely that a web browser will send these as simple request without origin)
-                        addErrorHint(`You have to specify a Content-Type header.`);
+                        addErrorHint(`You should specify a Content-Type header (to make it not count as a simple request).`, 110);
                     }
 
                     return false; // Deny
