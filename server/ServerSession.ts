@@ -378,42 +378,6 @@ export class ServerSession implements IServerSession {
         securityProps: Readonly<SecurityPropertiesOfHttpRequest>
     }
 
-
-    private static current = new AsyncLocalStorage<ServerSession>();
-
-    /**
-     * EXPERIMENTAL: Use <code>MyServerSession.getCurrent()</code> from anywhere.
-     * <p>
-     *     It uses the node's AsyncLocalStorage to associate this session to your current (sync or async) call stack.
-     * </p>
-     * <p>
-     *     SECURITY note: AsyncLocalStorage's values are sticking very strong ! Even a setTimeout does not shake them off. When using this method, make sure that you're not coming from a callback from someone else's management code (i.e: A function that informs all other users after a post was edited) or some message queue util library or similar. UPDATE: Tests were probably made when the restfuncs-server library that was compiled to ES5. Please re-evaluate
-     *     You can use {@link exitCurrent} to invoke such management functions safely, but be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023.
-     * </p>
-     */
-    static getCurrent<T extends ServerSession>(this: ClassOf<T>): T | undefined {
-        return ServerSession.current.getStore() as T;
-    }
-
-    /**
-     * Use, if you call into management code for all users which must not be associated to this session for security reasons.
-     * @see getCurrent
-     * <p>
-     * Be aware that [this is currently marked as experimental](https://nodejs.org/api/async_context.html#asynclocalstorageexitcallback-args) as of 2023. so don't rely your security completely on it and rather see it as an extra measure.
-     * </p>
-     * @param sessionFreeFn function in which getCurrent() will return undefined.
-     */
-    static exitCurrent(sessionFreeFn: () => void) {
-        ServerSession.current.exit(() => {
-            // As mentioned, the API is still marked as experimental. So we do a quick test, if it works:
-            if(this.getCurrent() !== undefined) {
-                throw new Error("this.getCurrent() is still defined");
-            }
-
-            sessionFreeFn();
-        });
-    }
-
     /**
      * Must have a no-args constructor
      */
@@ -882,20 +846,14 @@ export class ServerSession implements IServerSession {
             // @ts-ignore cannot use 'protected' field call otherwise
             const enhancementProps: Partial<ServerSession> = {call};
             await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make call (.req, .res, ...) safely available during call
-                // For `MyServerSession.getCurrent()`: Make this ServerSession available during call (from ANYWHERE via `MyServerSession.getCurrent()` )
-                let resultPromise: Promise<unknown>;
-                ServerSession.current.run(enhancedServerSession, () => {
-                    // Execute the remote method:
-                    if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
-                        // @ts-ignore
-                        resultPromise = enhancedServerSession[remoteMethodName](...methodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
-                    }
-                    else {
-                        resultPromise = enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
-                    }
-                })
-
-                result = await resultPromise!;
+                // Execute the remote method:
+                if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
+                    // @ts-ignore
+                    result = await enhancedServerSession[remoteMethodName](...methodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
+                }
+                else {
+                    result = await enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
+                }
             }, remoteMethodName);
         }
         catch (e) {
