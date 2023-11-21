@@ -855,6 +855,11 @@ export class ServerSession implements IServerSession {
                     result = await enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
                 }
             }, remoteMethodName);
+
+            // Validate the result:
+            if(this.getRemoteMethodOptions(remoteMethodName).validateResult !== false) {
+                serverSession.validateResult(result, remoteMethodName);
+            }
         }
         catch (e) {
             // Handle non-errors:
@@ -1513,6 +1518,43 @@ export class ServerSession implements IServerSession {
         }
     }
 
+    /**
+     * Validates the result of a remote method call.
+     * @param result
+     * @param remoteMethodName
+     * @protected
+     */
+    protected validateResult(result: unknown, remoteMethodName: string) {
+        if(this.clazz.options.devDisableSecurity) {
+            return;
+        }
+
+        // obtain reflectedMethod:
+        if (!isTypeInfoAvailable(this)) {
+            throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+        }
+        let reflectedClass = reflect(this);
+        const reflectedMethod = reflectedClass.getMethod(remoteMethodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
+        // Check if full type info is available:
+        if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
+            throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${remoteMethodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+        }
+
+
+        let returnType = reflectedMethod.returnType;
+        if(returnType.isPromise()) {
+           returnType = returnType.typeParameters[0]; // de-reference it
+        }
+
+        // Validate:
+        const errors: Error[] = []
+        const validationResult = returnType.matchesValue(result, {allowExtraProperties: false, errors});
+
+        if(!validationResult || errors.length > 0) {
+            throw new CommunicationError(`${remoteMethodName} returned an invalid value. Validation error(s): ${errors.length > 0?errors.join("; "): "Unknown validation error"}`);
+        }
+    }
+    
     /**
      * Allows you to intercept calls, by overriding this method.
      * You have access to this.call.req, this.call.res as usual.
