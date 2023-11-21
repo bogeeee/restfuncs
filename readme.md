@@ -298,7 +298,7 @@ But it's no excuse to not take it sportive ;)... i will focus on this topic late
 
 ### Skip shaping and validation passes
 For a performance-critical method, or for all methods (via `static defaultRemoteMethodOptions: RemoteMethodOptions = {...}` in your ServerSession class), do the following:
- - Disable `shapeArgumens`, `shapeResult` and `validateResult` (but mind security here).
+ - Disable `shapeArguments`, `shapeResult` and `validateResult` (but mind security here).
  - _If the server is trusted and authenticated (server 2 server), you would even disable `validateInput`._ 
 
 ### Further performance options

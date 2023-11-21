@@ -80,7 +80,7 @@ function toServiceClass<Api>(serverAPI: Api): typeof ServerSession {
     } else {
         class AnonymousService extends Service { // Plain ServerSession was not compiled with type info but this file is
             protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
-                return {validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false} // Disable everything that needs type inspection because this would fail for an artificially generated class
+                return {validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false} // Disable everything that needs type inspection because this would fail for an artificially generated class
             }
         }
 

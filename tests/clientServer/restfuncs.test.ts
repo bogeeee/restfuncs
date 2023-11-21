@@ -94,7 +94,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.isSafe).toBeFalsy()
         expect(options.validateArguments !== false).toBeTruthy()
         expect(options.validateResult !== false).toBeTruthy()
-        expect(options.shapeArgumens === undefined).toBeTruthy()
+        expect(options.shapeArguments === undefined).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy()
         expect(options.apiBrowserOptions.needsAuthorization).toBeFalsy()
     })
@@ -105,7 +105,7 @@ describe("getRemoteMethodOptions", () => {
             isSafe: true, // Should not be inherited
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
-            shapeArgumens: false, // Should be inherited
+            shapeArguments: false, // Should be inherited
             shapeResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
@@ -130,7 +130,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.isSafe).toBeFalsy()
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
@@ -142,7 +142,7 @@ describe("getRemoteMethodOptions", () => {
             static defaultRemoteMethodOptions: RemoteMethodOptions = {
                 validateArguments: false,// Should be used
                 validateResult: false, // Should be used
-                shapeArgumens: false, // Should be used
+                shapeArguments: false, // Should be used
                 shapeResult: false, // Should be used
                 apiBrowserOptions: {needsAuthorization: true} // Should be used
             }
@@ -161,7 +161,7 @@ describe("getRemoteMethodOptions", () => {
             expect(options.isSafe).toBeFalsy()
             expect(options.validateArguments === false).toBeTruthy()
             expect(options.validateResult === false).toBeTruthy()
-            expect(options.shapeArgumens === false).toBeTruthy()
+            expect(options.shapeArguments === false).toBeTruthy()
             expect(options.shapeResult === false).toBeTruthy()
             expect(options.apiBrowserOptions.needsAuthorization).toBeTruthy()
         }
@@ -179,7 +179,7 @@ describe("getRemoteMethodOptions", () => {
             static defaultRemoteMethodOptions: RemoteMethodOptions = {
                 validateArguments: false,// Should not be used
                 validateResult: false, // Should not be used
-                shapeArgumens: false, // Should not be used (but we could do so)
+                shapeArguments: false, // Should not be used (but we could do so)
                 shapeResult: false, // Should not be used
                 apiBrowserOptions: {needsAuthorization: true} // should not be used
             }
@@ -190,7 +190,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.isSafe).toBeFalsy()
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected
-        expect(options.shapeArgumens === undefined).toBeTruthy() // Should not be affected
+        expect(options.shapeArguments === undefined).toBeTruthy() // Should not be affected
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected
         expect(options.apiBrowserOptions.needsAuthorization === undefined).toBeTruthy() // Should not be affected
     })
@@ -202,7 +202,7 @@ describe("getRemoteMethodOptions", () => {
             isSafe: true, // Should not be inherited
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
-            shapeArgumens: false, // Should be inherited
+            shapeArguments: false, // Should be inherited
             shapeResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
@@ -226,7 +226,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.isSafe).toBeFalsy()
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
@@ -237,7 +237,7 @@ describe("getRemoteMethodOptions", () => {
             isSafe: true, // Should not be inherited
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
-            shapeArgumens: false, // Should be inherited
+            shapeArguments: false, // Should be inherited
             shapeResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
@@ -260,7 +260,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.isSafe).toBeFalsy()
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.shapeArgumens === false).toBeTruthy()
+        expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })

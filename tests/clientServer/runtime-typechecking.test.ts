@@ -108,7 +108,7 @@ test('FEATURE TODO: Test arguments - extra properties value', async () => {
         params1(x: string, y: number, z: {}) {
         }
 
-        @remote({shapeArgumens: false})
+        @remote({shapeArguments: false})
         params2(x: string, y: number, z: {}) {
         }
     };

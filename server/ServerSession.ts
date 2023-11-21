@@ -902,7 +902,7 @@ export class ServerSession implements IServerSession {
      */
     @remote({
         isSafe: true,
-        validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false // Disable these, cause we have no type inspection at this class's level
+        validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false // Disable these, cause we have no type inspection at this class's level
     })
     public async getIndex() {
         let className = this.clazz?.name
@@ -936,7 +936,7 @@ export class ServerSession implements IServerSession {
      *
      * Don't override. Not part of the API.
      */
-    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
     public getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
@@ -954,7 +954,7 @@ export class ServerSession implements IServerSession {
      * </p>
      */
     @remote({
-        validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false,  // Disable these, cause we have no type inspection at this class's level
+        validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false,  // Disable these, cause we have no type inspection at this class's level
         isSafe: false // Don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     })
     public getCorsReadToken(): string {
@@ -983,7 +983,7 @@ export class ServerSession implements IServerSession {
         return result;
     }
 
-    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
     public getCookieSession(evil_encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1070,7 +1070,7 @@ export class ServerSession implements IServerSession {
         return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
 
-    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
     public getHttpSecurityProperties(evil_encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1095,7 +1095,7 @@ export class ServerSession implements IServerSession {
      * @param evil_encryptedCookieSessionUpdate
      * @param evil_alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
-    @remote({validateArguments: false, validateResult: false, shapeArgumens: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
     public async updateCookieSession(evil_encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, evil_alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1895,7 +1895,7 @@ export class ServerSession implements IServerSession {
             validateArguments: (ownMethodOptions.validateArguments !== undefined)?ownMethodOptions.validateArguments: ownDefaultOptions.validateArguments,
             validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
             shapeResult: (ownMethodOptions.shapeResult !== undefined)?ownMethodOptions.shapeResult: ownDefaultOptions.shapeResult,
-            shapeArgumens: (ownMethodOptions.shapeArgumens !== undefined)?ownMethodOptions.shapeArgumens : (parentResult.shapeArgumens !== undefined?parentResult.shapeArgumens : ownDefaultOptions.shapeArgumens),
+            shapeArguments: (ownMethodOptions.shapeArguments !== undefined)?ownMethodOptions.shapeArguments : (parentResult.shapeArguments !== undefined?parentResult.shapeArguments : ownDefaultOptions.shapeArguments),
             apiBrowserOptions: {
                 needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions.needsAuthorization : (parentResult.apiBrowserOptions?.needsAuthorization !== undefined?parentResult.apiBrowserOptions.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
             }
@@ -2361,7 +2361,7 @@ export type RemoteMethodOptions = {
      * &lt;- Default: false (but RestfuncsClient enables it)
      * </p>
      */
-    shapeArgumens?: boolean
+    shapeArguments?: boolean
 
     /**
      * Disable, to improve performance. Like you usually know, what your remove method outputs.
