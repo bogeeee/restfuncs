@@ -159,6 +159,16 @@ export type ServerSessionOptions = {
     exposeErrors?: true | "messagesOnly" | "RestErrorsOnly" | false
 
     /**
+     * Makes the JSDoc and all parameter descriptions of all your @remote methods available to the public via the API browser or via the ./metadata service.
+     * <p>This feature is not yet implemented, but it will come without notice / in a minor version update, so be aware of the default !
+     * </p>
+     * <p>
+     * Default: true
+     * </p>
+     */
+    exposeMetadata?: boolean
+
+    /**
      * Web browser security: <strong>Which origins are allowed to make calls ?</strong>
      *
      * These origins will share the credentials (cookies, basic auth, ...) and therefore the user's session !
