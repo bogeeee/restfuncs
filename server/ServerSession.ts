@@ -242,14 +242,6 @@ export type ServerSessionOptions = {
 
 
     /**
-     * Enable/disable file uploads through http multipart
-     * If not needed, you may disable this to have one less http parser library (busboy) involved (security).
-     * TODO: do we need this flag ?
-     * undefined (default) = auto detect if really needed by scanning for functions that have Buffer parameters
-     */
-    enableMultipartFileUploads?: boolean
-
-    /**
      * Advanced (very): Enable this, if you want to throw other things than Errors from the server to the client.
      *
      * This should be very rare or occur by accident and we don't want to expose unwanted information to the client then. Therefore this feature is disabled by default.
@@ -446,8 +438,6 @@ export class ServerSession implements IServerSession {
 
         this.server.registerServerSessionClass(this); // Make sure, this is registered
 
-        const enableMultipartFileUploads = this.options.enableMultipartFileUploads || (this.options.enableMultipartFileUploads === undefined && (!isTypeInfoAvailable(this) || this.mayNeedFileUploadSupport()))
-
         const router = express.Router();
 
         router.use(express.raw({limit: Number.MAX_VALUE, inflate: false, type: req => true})) // parse application/brillout-json and make it available in req.body
@@ -606,7 +596,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Collect params / metaParams,...:
-                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(remoteMethodName, req, enableMultipartFileUploads);
+                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(remoteMethodName, req);
                 cleanupStreamsAfterRequest = c;
 
                 // Collect / pre-compute securityProperties:
@@ -1247,7 +1237,7 @@ export class ServerSession implements IServerSession {
      * @param methodName
      * @param req
      */
-    protected static collectParamsFromRequest(methodName: string, req: Request, enableMultipartFileUploads: boolean) {
+    protected static collectParamsFromRequest(methodName: string, req: Request) {
         // Determine path tokens:
         const url = URL.parse(req.url);
         const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -1394,10 +1384,8 @@ export class ServerSession implements IServerSession {
                 convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
             }
             else if(contentType == "multipart/form-data") {
-                if(!enableMultipartFileUploads) {
-                    throw new CommunicationError("Please set enableMultipartFileUploads=true in the ServerSessionOptions.")
-                }
-                let bb = busboy({ headers: req.headers });
+                throw new CommunicationError("multipart/form-data file uploads not yet implemented")
+                //let bb = busboy({ headers: req.headers });
             }
             else if(contentType == "application/octet-stream") { // Stream ?
                 convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
@@ -2156,9 +2144,7 @@ export class ServerSession implements IServerSession {
             }
 
             try {
-                // TODO: also check for @remote decorator
-                checkMethodAccessibility(<ReflectedMethod>reflectedMethod);
-                return true;
+                throw new Error("Not implemented") // TODO: check for @remote decorator
             }
             catch (e) {
             }

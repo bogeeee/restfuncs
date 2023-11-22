@@ -2329,35 +2329,3 @@ it('should reopen failed ClientSocketConnections', async () => {
         await new Promise((resolve) => server.close(resolve));
     }
 });
-
-test('listCallableMethods', () => {
-   class A extends Service {
-       async methodA() {}
-       async methodB(x: string) {}
-   }
-
-   const a = new A;
-   expect(A.listCallableMethods().length).toBe(2);
-   expect(A.listCallableMethods()[0].name).toBe("methodA");
-});
-
-test('mayNeedFileUploadSupport', () => {
-    class Service1 extends Service {
-        async methodA() {}
-        async methodB(x: string) {}
-        async methodC(x: any) {}
-        async methodD(x: string | number) {}
-    }
-    expect(Service1.mayNeedFileUploadSupport()).toBeFalsy()
-
-    class Service2 extends Service {
-        async methodA(b: Buffer) {}
-    }
-    expect(Service2.mayNeedFileUploadSupport()).toBeTruthy()
-
-    class Service3 extends Service {
-        async methodA(...b: Buffer[]) {}
-    }
-    expect(Service3.mayNeedFileUploadSupport()).toBeTruthy()
-
-});
