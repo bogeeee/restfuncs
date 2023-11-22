@@ -56,19 +56,6 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 
 
 /**
- * Throws an exception if you're not allowed to call the method from the outside
- * @param reflectedMethod
- */
-function checkMethodAccessibility(reflectedMethod: ReflectedMethod) {
-    if(reflectedMethod.isProtected) {
-        throw new CommunicationError("Method is protected.")
-    }
-    if(reflectedMethod.isPrivate) {
-        throw new CommunicationError("Method is private.")
-    }
-}
-
-/**
  * Throws an exception if args does not match the parameters of reflectedMethod
  * @param reflectedMethod
  * @param args
@@ -141,13 +128,6 @@ export type ParameterSource = "string" | "json" | null; // Null means: Cannot be
 
 export type AllowedOriginsOptions = undefined | "all" | string[] | ((origin?: string) => boolean);
 export type ServerSessionOptions = {
-
-
-    /**
-     * Only for standalone server
-     * TODO: remove
-     */
-    path?: string
 
     /**
      * Enable basic auth by specifying a function that returns true if username+password is allowed.
@@ -281,7 +261,15 @@ type ClassOf<T> = {
 }
 
 /**
- * TODO
+ * A remote interface / session.
+ * All (instance) @remote() methods can be called via http / sockets from the public.
+ * All (instance) fields are stored in the cookie session.
+ * <p>
+ *     Technically, instances are not created for every session, but for every request. But that should not need to bother you.
+ * </p>
+ * <p>
+ * To use it, see {@link createExpressHandler}. See the main readme.md for a usage concept.
+ * </p>
  */
 export class ServerSession implements IServerSession {
     //[index: string]: unknown // This prevents annoying "any can't be used to index ServerSession" typescript error. But on the other hand typescript does not complain about missing properties then
@@ -323,7 +311,7 @@ export class ServerSession implements IServerSession {
     protected static defaultRemoteMethodOptions?: RemoteMethodOptions
 
     /**
-     * Filled on decorator loading time: for each concrete subclass such a static field is created
+     * Internal: Filled on decorator loading time: for each concrete subclass such a static field is created
      */
     protected static remoteMethod2Options?: Map<string, RemoteMethodOptions>
 
@@ -371,6 +359,17 @@ export class ServerSession implements IServerSession {
     }
 
     /**
+     * Type hint.
+     * <p/>
+     * In order to make your special static subclass members available via <code>this.clazz</code>, you must help typescript a bit by redefining this field with the follwing line:
+     * </p>
+     * <pre><code>
+     *     classType!: typeof YOUR-SERVERSESSION-SUBCLASS;
+     * </code></pre>
+     */
+    classType!: typeof ServerSession
+
+    /**
      * Must have a no-args constructor
      */
     constructor() {
@@ -378,6 +377,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Pre checks some of the fields to give meaningful errors in advance.
+     * Internal.
      * @param options
      */
     protected static checkOptionsValidity(options: ServerSessionOptions) {
@@ -404,6 +404,7 @@ export class ServerSession implements IServerSession {
     }
 
     private static _referenceInstance?: ServerSession
+
     /**
      * The (single) instance to compare against, so you can check if any fields were modified.
      * @protected
@@ -429,8 +430,7 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Creates handler that allows all public (instance-) methods to be called by http. This can be by the restfuncs client
-     * A new instance if this class is created for every (allowed) http call and its fields are filled with the fields of the JWT session cookie (if present)
+     * Creates a handler that allows all (instance-) @remote methods to be called by http. This can be by the restfuncs client.
      */
     static createExpressHandler(): Router {
 
@@ -791,7 +791,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * This method is the entry point that's called by both: http request and socket connection.
-     * Does various stuff / look at the implementation.
+     * Does various stuff / look at the implementation. <p>Internal: Override {@link doCall} instead.</p>
      * @param cookieSession
      * @param securityPropertiesOfHttpRequest
      * @param remoteMethodName
@@ -815,7 +815,6 @@ export class ServerSession implements IServerSession {
         // Instantiate a serverSession:
         const referenceInstance = this.referenceInstance; // Make sure that lazy field is initialized before creating the instance. At least this is needed for the testcases
         let serverSession: ServerSession = new this();
-        serverSession.validateFreshInstance();
 
         serverSession.validateCall(remoteMethodName, methodArguments);
 
@@ -888,6 +887,9 @@ export class ServerSession implements IServerSession {
         };
     }
 
+    /**
+     * @returns The singleton instance. It's either the restfuncsExpress() server, created by the user or an anonymous instance
+     */
     static get server(): RestfuncsServer {
         return getServerInstance();
     }
@@ -932,7 +934,7 @@ export class ServerSession implements IServerSession {
      * Don't override. Not part of the API.
      */
     @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
-    public getWelcomeInfo(): WelcomeInfo {
+    getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
             engineIoPath: this.clazz.server.engineIoServers.size > 0?this.clazz.server.getEngineIoPath():undefined
@@ -946,6 +948,9 @@ export class ServerSession implements IServerSession {
      *
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
+     * </p>
+     * <p>
+     *     Don't override. Not part of the API.
      * </p>
      */
     @remote({
@@ -965,8 +970,7 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Returns the token for this service which is stored in the session. Creates it if it does not yet exist.
-     * @param session req.session (from inside express handler) or this.call.req.session (from inside a ServerSession call).
+     * Returns the token for this ServerSession class, which is stored in the session. Creates it, if it does not yet exist.
      * <p>
      * <i>Technically, the returned token value may be a derivative of what's stored in the session, for security reasons. Implementation may change in the future. Important for you is only that it is comparable / validatable.</i>
      * </p>
@@ -978,8 +982,12 @@ export class ServerSession implements IServerSession {
         return result;
     }
 
+    /**
+     * Internal. Do not override.
+     * @param evil_encryptedQuestion
+     */
     @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
-    public getCookieSession(evil_encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
+    getCookieSession(evil_encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getCookieSession was not called via http.");
@@ -1024,7 +1032,7 @@ export class ServerSession implements IServerSession {
     /**
      * Converts the cookieSession into our preferred transfer type: CookieSession | undefined.
      * Fixes the version field.
-     * <p>Not part of the API.</p>
+     * <p>Internal, not part of the API.</p>
      * @param req
      */
     protected static getFixedCookieSessionFromRequest(req: Request) : any {
@@ -1057,7 +1065,7 @@ export class ServerSession implements IServerSession {
         return result
     }
 
-    protected static getStateOfCookieSession(cookieSession: CookieSession | undefined): CookieSessionState {
+    private static getStateOfCookieSession(cookieSession: CookieSession | undefined): CookieSessionState {
         return cookieSession?{id: cookieSession.id, version: cookieSession.version}:undefined
     }
 
@@ -1065,8 +1073,12 @@ export class ServerSession implements IServerSession {
         return nacl_util.encodeBase64(nacl.randomBytes(10)); // Un brute-force-able over the network against a single value (non-pool).
     }
 
+    /**
+     * Internal. Do no override.
+     * @param evil_encryptedQuestion
+     */
     @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
-    public getHttpSecurityProperties(evil_encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
+    getHttpSecurityProperties(evil_encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
@@ -1087,11 +1099,14 @@ export class ServerSession implements IServerSession {
 
     /**
      * Called via http, if the socket connection has written to the session, to safe to the real session-cookie
+     * <p>
+     *     Internal. Do not override
+     * </p>
      * @param evil_encryptedCookieSessionUpdate
      * @param evil_alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
     @remote({validateArguments: false, validateResult: false, shapeArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
-    public async updateCookieSession(evil_encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, evil_alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
+    async updateCookieSession(evil_encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, evil_alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
             throw new CommunicationError("getHttpSecurityProperties was not called via http.");
@@ -1157,25 +1172,6 @@ export class ServerSession implements IServerSession {
         //this.id = undefined // Don't unset. In a socket call, this session is first regularly committed to the http side, and then the the commandDestruction flag is evaluated and it's really destroyed.
     }
 
-
-    /*
-    // We can't hand out a token for that in general, because it depends on the session state. As soon as the csrfProctedtionMode is set (by some other service), the caller won't be able to pass anymore.
-    public areCallsAllowed(encryptedQuestion: ServerPrivateBox<AreCallsAllowedQuestion>): ServerPrivateBox<AreCallsAllowedAnswer> {
-        const server = this.clazz.server;
-
-        const question = server.decryptToken(encryptedQuestion, "CallsAreAllowedQuestion");
-        // Security check:
-        if(question.securityGroupId  !== this.clazz.getSecurityGroupId()) {
-            throw new CommunicationError(`Question came from another service`)
-        }
-
-        return server.encryptToken({
-            question,
-            value: true
-        }, "AreCallsAllowedAnswer");
-    }
-    */
-
     /**
      * Generic method for both kinds of tokens (they're created the same way but are stored in different fields for clarity)
      * The token is stored in the session and a transfer token is returned which is BREACH shielded.
@@ -1223,6 +1219,9 @@ export class ServerSession implements IServerSession {
         return shieldTokenAgainstBREACH(rawToken);
     }
 
+    /**
+     * Don't override
+     */
     static get securityGroup(): SecurityGroup {
         return new SecurityGroup(this.options, [this]); // TODO: remove this line when implemented
         return this.server.getSecurityGroupOfService(this)
@@ -1231,8 +1230,8 @@ export class ServerSession implements IServerSession {
     /**
      * Wildly collects the parameters. This method is only side effect free but the result may not be secure / contain evil input !
      *
-     * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously
-     *
+     * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously.
+     * <p>You can override this as party of the Restfuncs API</p>
      * @see ServerSession#validateCall use this method to check the security on the result
      * @param methodName
      * @param req
@@ -1452,6 +1451,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Security checks the method name and args.
+     * <p>Internal. API may change</p>
      * @param evil_methodName
      * @param evil_args
      */
@@ -1508,6 +1508,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Validates the result of a remote method call.
+     * <p>Internal. API may change</p>
      * @param result
      * @param remoteMethodName
      * @protected
@@ -1595,7 +1596,7 @@ export class ServerSession implements IServerSession {
      * @param cookieSession holds the tokens
      * @param diagnosis
      */
-    protected static checkIfRequestIsAllowedToRunCredentialed(remoteMethodName: string, reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
+    private static checkIfRequestIsAllowedToRunCredentialed(remoteMethodName: string, reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on cookieSession value access where enforcedCsrfProtectionMode is set to the mode that's stored in the cookieSession.
 
         const errorHints: {priority: number, hint: string}[] = [];
@@ -1771,7 +1772,7 @@ export class ServerSession implements IServerSession {
      * @param allowedOrigins
      * @param diagnosis
      */
-    protected static createCsrfProtectedSessionProxy(remoteMethodName: string, session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
+    private static createCsrfProtectedSessionProxy(remoteMethodName: string, session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
@@ -1888,6 +1889,12 @@ export class ServerSession implements IServerSession {
         }
     }
 
+    /**
+     * ... and is therefore allowed, if no error is thrown.
+     * <p>You can override this as part of the Restfuncs API.</p>
+     * @param methodName
+     * @protected
+     */
     protected static checkIfMethodHasRemoteDecorator(methodName: string) {
         let declaringClazz: typeof ServerSession = this;
         while(declaringClazz && !declaringClazz.prototype?.hasOwnProperty(methodName)) {
@@ -1961,7 +1968,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * You can override this as part of the API
-     * @param target Either the instance or the class (as you can call instance + static methods)
+     * @param target Either the instance or the class (as you can call instance + static methods -> static methods will come in the future may be)
      * @param methodName
      */
     protected static hasMethod(target: ServerSession | ClassOf<ServerSession>, methodName: string) {
@@ -1972,10 +1979,10 @@ export class ServerSession implements IServerSession {
     /**
      * Retrieves, which method should be picked. I.e GET user -> getUser
      * <p>
-     * You can override this as part of the API. Note that you must not access properties here, since this could be called on the prototype.
+     * You can override this as part of the API.
      * </p>
      * @param httpMethod
-     * @param target Either the instance or the class (as you can call instance + static methods)
+     * @param target Either the instance or the class (as you can call instance + static methods -> static methods will come in the future may be)
      * @param path the path portion that should represents the method name. No "/"s contained. I.e. "user" (meaning getUser or user)
      */
     protected static getMethodNameForCall(httpMethod: RegularHttpMethod, target: ServerSession | ClassOf<ServerSession>, path: string): string | undefined {
@@ -2037,6 +2044,10 @@ export class ServerSession implements IServerSession {
         }
     }
 
+    /**
+     * Internal
+     * @protected
+     */
     protected static STRING_TO_BOOL_MAP: Record<string, boolean | undefined> = {
         "true": true,
         "false": false,
@@ -2049,7 +2060,7 @@ export class ServerSession implements IServerSession {
      * This method is called to convert them to the actual needed parameter type.
      * If it doesn't know how to convert it, the value is returned as is. The validity/security is checked at a later stage again.
      *
-     * You can override this as part of the API
+     * <p>You can override this as part of the API</p>
      * @param value
      * @param parameter The parameter where this will be inserted into
      * @returns
@@ -2102,7 +2113,7 @@ export class ServerSession implements IServerSession {
      * Currently this is only for Date objects, since json lacks of representing these.
      * Other values (i.e. parameter needs Number but value is a string) will be left untouched, so they will produce the right error message at the later validity/security checking stage.
      *
-     * You can override this as part of the API
+     * <p>You can override this as part of the API</p>
      * @param value
      * @param parameter The parameter where this will be inserted into
      * @returns
@@ -2177,7 +2188,7 @@ export class ServerSession implements IServerSession {
 
 
     /**
-     *
+     * Internal. See {@link ServerSessionOptions#logErrors} for a better hook.
      * @param error
      * @param req For retrieving info for logging
      */
@@ -2260,7 +2271,7 @@ export class ServerSession implements IServerSession {
      * Eventually logs the error and returns a line that is safe for pasting into a stream, meaning it contains no craftable content.
      * @param error
      */
-    protected static logAndGetErrorLineForPasteIntoStreams(error: Error, req: Request) {
+    private static logAndGetErrorLineForPasteIntoStreams(error: Error, req: Request) {
 
         // TODO: if(this.options.disableSecurity) { return full message }
 
@@ -2287,16 +2298,6 @@ export class ServerSession implements IServerSession {
 
 
     }
-
-    /**
-     * <p/>
-     * In order to make your special static subclass members available via <code>this.clazz</code>, you must help typescript a bit by redefining this field with the follwing line:
-     * </p>
-     * <pre><code>
-     *     classType!: typeof YOUR-SERVERSESSION-SUBCLASS;
-     * </code></pre>
-     */
-    classType!: typeof ServerSession
 
     /**
      * Helper, to access static members from a non-static context.
@@ -2356,10 +2357,6 @@ export class ServerSession implements IServerSession {
         return result;
     }
 
-    private validateFreshInstance() {
-        if(this.call) {throw new CommunicationError("Invalid state: call must not be set.")}
-    }
-
     /**
      * Internal (don't override)
      */
@@ -2372,7 +2369,7 @@ export class ServerSession implements IServerSession {
         }
     }
 
-    protected static diagnosis_methodWasDeclaredSafeAtAnyLevel(methodName: string): boolean {
+    private static diagnosis_methodWasDeclaredSafeAtAnyLevel(methodName: string): boolean {
         if(this.getRemoteMethodOptions(methodName)?.isSafe) {
             return true
         }
@@ -2380,7 +2377,9 @@ export class ServerSession implements IServerSession {
     }
 }
 
-
+/**
+ * @see ServerSession#defaultRemoteMethodOptions
+ */
 export type RemoteMethodOptions = {
     /**
      * Indicates, that this method is [safe](https://developer.mozilla.org/en-US/docs/Glossary/Safe/HTTP), meaning that you are sure, it essentially performs only *read* operations.
@@ -2464,16 +2463,6 @@ export function remote(options?: RemoteMethodOptions) {
         clazz.remoteMethod2Options!.set(methodName, options || {});
     };
 }
-
-
-
-
-
-// *** Tokens that are transfered between the websocket connection and the http service *** See Security concept.md
-
-
-
-
 
 /**
  *

@@ -45,17 +45,17 @@ import {ServerSession, ServerSessionOptions, UploadFile, remote} from "restfuncs
 
 /**
  * An instance of MyServerSession is created for every browser session.
- * All the fields are stored in a JWT cookie. If you have multiple ServerSession classes (i.e. for a better file structure organization), the fields will overlap.
+ * All the fields are stored in a JWT cookie. If you have multiple ServerSession classes (i.e. for a better file structure organization), these fields will overlap.
  */
 export class MyServerSession extends ServerSession {
 
   static options: ServerSessionOptions = {/* ... */}
 
-  myLogonUserId?: string // As sayed, stored in the cookie. Make use of the fact that this property is shared with all your ServerSessions classes. It is adviced to have a common base class for all logon specific fields and methods.
+  myLogonUserId?: string // All fields are stored in the session-cookie. as there's only Make use of the fact that this property is shared with all your ServerSessions classes. It is adviced to have a common base class for all logon specific fields and methods.
 
   /**
    * ---- Write your remote method as a plain typescript method... ----
-   * This JSDoc also gets outputted in the API browser / OpenAPI spec.
+   * This JSDoc also gets outputted in the public API browser and OpenAPI spec. Write only nice things here ;)
    * @param myComplexParam Your parameters can be of any typescript type. They are automatically validated at runtime.
    * @param myCallback You can have server->client callback functions as parameters. Their arguments also get validated and shaped (like, see return). Here we send the progress of the file upload. // TODO: allow deeply nested
    * @param myUploadFile Use the UploadFile type anywhere in your parameters (can be multiple, a ...rest param, or deeply nested). As soon as you suck on the stream, the restfuncs client will send that corresponding upload in an extra http request in the background.
@@ -72,7 +72,7 @@ export class MyServerSession extends ServerSession {
   // ... <-- More @remote methods  
   // ... <-- @remote methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
   // ... <-- Override the `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
-  // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description)
+  // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description). Also see the static methods.
 }
 ````
 **server.ts**
@@ -82,7 +82,7 @@ import {MyServerSession} from "MyServerSession";
 
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
-app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- Serve it ---- 
+app.use("/myAPI", MyServerSession.createExpressHandler()) // ---- ..., serve it... ---- 
 // ... app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
 // ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
 
@@ -93,25 +93,24 @@ app.listen(3000); // Listen on Port 3000
 // Use a bundler like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
 import {UploadFile} from "restfuncs-common";
 import {RestfuncsClient} from "restfuncs-client";
-import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the class to have full type support on the client
+import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Gives us the full end2end type support
 
 const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
-// ** Finally call your remote method: **
+// ---- ..., and finally call your remote method: ----
 console.log( await myRemoteSession.myRemoteMethod({name: "Hans"}) );
 
-// ** Example with a callback + a file upload: **
+// And an example with a callback + a file upload:
 const myFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
 await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myFile as UploadFile) // Must cast it to UploadFile    
 ````
 
-### Setting up the build (the annoying stuff)
+### Setting up the build (the annoying stuff 😈)
 
 **tsconfig.json**
 ````json
 "compilerOptions": {
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
     "plugins": [{ "transform": "restfuncs-transformer-tsc" }]
 }
 ````
