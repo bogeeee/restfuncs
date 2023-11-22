@@ -122,6 +122,7 @@ export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: 
     }
 }
 
+export type ClientCallback = ((...args: unknown[]) => void) & {};
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted

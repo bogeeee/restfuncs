@@ -19,6 +19,7 @@ export const ServerSession = cjsServerSession.ServerSession
 export const ServerSessionOptions = cjsServerSession.ServerSessionOptions
 export const remote = cjsServerSession.remote
 export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
+export const ClientCallback = cjsServerSession.ClientCallback
 
 import cjsCommunicationError from "./CommunicationError.js"
 export const CommunicationError = cjsCommunicationError.CommunicationError;

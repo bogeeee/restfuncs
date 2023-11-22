@@ -41,7 +41,7 @@ That is (features):
 **MyServerSession.ts**
 
 ````typescript
-import {ServerSession, ServerSessionOptions, UploadFile, remote} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, UploadFile, remote, ClientCallback} from "restfuncs-server";
 
 /**
  * An instance of MyServerSession is created for every browser session.
@@ -64,7 +64,7 @@ export class MyServerSession extends ServerSession {
   myRemoteMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
     // ADVANCED:
     // this.call.... // Access or modify the current call's context specific properties. I.e. this.call.res!.header("myHeader","...")
-    // (myCallback as Callback).... // Access some options under the hood
+    // (myCallback as ClientCallback).... // Access some options under the hood
 
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myRemoteMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
   }
