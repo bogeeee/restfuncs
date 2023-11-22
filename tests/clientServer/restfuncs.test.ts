@@ -670,6 +670,7 @@ test('various call styles', async () => {
     class TheService extends Service {
         static options: ServerSessionOptions = {allowedOrigins: "all"}
 
+        @remote({validateResult: false})
         getBook(name?: string, authorFilter?: string) {
             return [name, authorFilter];
         }
@@ -1616,7 +1617,7 @@ describe('CookieSessions', () => {
 
                             counter = 0
                             val = null
-                            someObject?: { x: number }
+                            someObject?: { x: string }
                             someUndefined = undefined;
 
 
@@ -1643,7 +1644,7 @@ describe('CookieSessions', () => {
                                 return this.val;
                             }
 
-                            async setSomeObject_x(value) {
+                            async setSomeObject_x(value: string) {
                                 if (this.someObject === undefined) {
                                     this.someObject = {x: value};
                                 }
@@ -1742,6 +1743,7 @@ describe('CookieSessions', () => {
                                 return this.val;
                             }
 
+                            @remote({validateResult: false /* RTTI has problems, following types from other modules https://github.com/typescript-rtti/typescript-rtti/issues/113 */})
                             getTheRawCookieSession() {
                                 return this.clazz.getFixedCookieSessionFromRequest(this.call.req);
                             }
@@ -2167,6 +2169,7 @@ test('ClientSocketConnection synchronizations', async () => {
             return super.getHttpSecurityProperties(...args);
         }
 
+        @remote({validateResult: false /* RTTI has problems, following types from other modules https://github.com/typescript-rtti/typescript-rtti/issues/113 */})
         public getCookieSession(...args: any[]) {
             getCookieSession_fetchCounter++;
             // @ts-ignore

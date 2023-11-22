@@ -10,7 +10,7 @@ import {
     Camelize,
     cloneError,
     couldBeSimpleRequest,
-    diagnisis_shortenValue,
+    diagnisis_shortenValue, diagnosis_hasDeepNullOrUndefined,
     diagnosis_looksLikeHTML,
     diagnosis_looksLikeJSON,
     enhanceViaProxyDuringCall,
@@ -131,7 +131,7 @@ export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: 
     }
 
     if(errors.length > 0) {
-        throw new CommunicationError(errors.join("; "))
+        throw new CommunicationError(errors.join("; ") + (args.some( arg => diagnosis_hasDeepNullOrUndefined(arg))?`. Note: This is likely due to a bug in typescript-rtti. Please disable argument validation via @remote({validateArguments:false}) until this bug is resolved: https://github.com/typescript-rtti/typescript-rtti/issues/111`:""))
     }
 }
 
@@ -1037,7 +1037,7 @@ export class ServerSession implements IServerSession {
      * <p>Not part of the API.</p>
      * @param req
      */
-    protected static getFixedCookieSessionFromRequest(req: Request) : CookieSession | undefined {
+    protected static getFixedCookieSessionFromRequest(req: Request) : any {
         if (!req.session) { // No session handler is installed (legal use case)
             return undefined;
         }
@@ -1540,10 +1540,25 @@ export class ServerSession implements IServerSession {
             throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${remoteMethodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
         }
 
+        if(result === undefined || result === null) {
+            return; // Bug workaround for: https://github.com/typescript-rtti/typescript-rtti/issues/111
+        }
 
         let returnType = reflectedMethod.returnType;
         if(returnType.isPromise()) {
-           returnType = returnType.typeParameters[0]; // de-reference it
+            returnType = returnType.typeParameters[0]; // de-reference it
+        }
+
+        // Bug workaround: Buffer causes a validation error:
+        if(result instanceof Buffer) {
+            // Obtain type (class) of parameter:
+            const typeRef = (returnType as any)?.ref;
+            if(typeRef === undefined) {
+                throw new Error("Cannot obtain typeRef. This may be due to nasty unsupported API usage of typescript-rtti by restfuncs and the API has may be changed. Report this as a bug to the restfuncs devs and try to go back to a bit older (minor) version of 'typescript-rtti'.")
+            }
+            if(typeRef === Buffer) {
+                return; // Skip validation of Buffer
+            }
         }
 
         // Validate:
@@ -1551,7 +1566,19 @@ export class ServerSession implements IServerSession {
         const validationResult = returnType.matchesValue(result, {allowExtraProperties: false, errors});
 
         if(!validationResult || errors.length > 0) {
-            throw new CommunicationError(`${remoteMethodName} returned an invalid value. Validation error(s): ${errors.length > 0?errors.join("; "): "Unknown validation error"}`);
+            // Throw error:
+            if(errors.length === 0) {
+                // Try to give the user a better hint:
+                let diagnosis_returnTypeString = "[error obtaining return type]";
+                try {
+                    diagnosis_returnTypeString = returnType.toString();
+                }
+                catch (e) { // Can fail, if we have recursions
+
+                }
+                throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Please make sure, that value matches the actual declared type of ${reflectedMethod.returnType.isPromise()?"(note: Promise<...> was unwrapped)":""}: ${diagnosis_returnTypeString}.${diagnosis_hasDeepNullOrUndefined(result)?" **NOTE**: The result has deep null or undefined values which causes a bug in the validator. Please await the bugfix and disable result validation so long via @remote({validateResult: false})":""}` );
+            }
+            throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Error(s): ${errors.join("; ")}`);
         }
     }
     

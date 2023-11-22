@@ -70,6 +70,13 @@ test('Test arguments', async () => {
         setObjWithValues(z: {prop1: boolean}) {
         }
 
+        withOptionalArgument(my?: string) {
+
+        }
+
+        withUndefined(my: string | undefined) {
+
+        }
     };
 
     await runClientServerTests(new ServerAPI(),
@@ -98,6 +105,29 @@ test('Test arguments', async () => {
 
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}) );
+
+            await apiProxy.withOptionalArgument()
+        }
+    );
+})
+
+test('BUG_IN_RTTI: Test arguments with deep undefined', async () => {
+    class ServerAPI extends TypecheckingService{
+        withDeepUndefined(my: {deep: string | undefined}) {
+
+        }
+
+        withDeepOptional(my: {deep?: string}) {
+
+        }
+
+
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            await apiProxy.withDeepUndefined({deep: undefined})
+            await apiProxy.withDeepOptional({})
         }
     );
 })
@@ -244,7 +274,7 @@ test('Test result validation', async () => {
 
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
-            const variousValues = ["", null, undefined, true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"]
+            const variousValues = ["", true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"]
             for(const value of variousValues) {
                 if(typeof value === "string") {
                     await apiProxy.returnsString(value)
@@ -258,6 +288,71 @@ test('Test result validation', async () => {
                     await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value));
                     await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value));
                 }
+            }
+
+            expect(await apiProxy.returnsOptionalString(undefined)).toBe(undefined);
+
+            await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue());
+            await apiProxy.returnsIllegalValuesVithoutValidation();
+
+        }
+    );
+})
+
+/**
+ * See https://github.com/typescript-rtti/typescript-rtti/issues/92
+ */
+test('BUG_IN_RTTI Test result validation with null and undefined', async () => {
+    class ServerAPI extends TypecheckingService {
+
+        returnsString(value: any): string {
+            return value
+        }
+
+        async returnsStringViaPromise(value: any): Promise<string> {
+            return value
+        }
+
+        returnsStringImplicitly(value: any) {
+            let myString: string;
+            myString = value;
+            return myString
+        }
+
+        async returnsStringImplicitlyViaPromise(value: any) {
+            let myString: string;
+            myString = value;
+            return myString
+        }
+
+        voidMethodReturnsIllegalValue(): void {
+            // @ts-ignore
+            return "test";
+        }
+
+        @remote({validateResult: false})
+        returnsIllegalValuesVithoutValidation():string {
+            // @ts-ignore
+            return {}
+        }
+
+        returnsOptionalString(value: any): string | undefined {
+            return value;
+        }
+
+        returnsImplicitOptionalString(value: string | undefined) {
+            return value;
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            const variousValues = [null, undefined]
+            for(const value of variousValues) {
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(value));
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringViaPromise(value));
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value));
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value));
             }
 
             expect(await apiProxy.returnsOptionalString(undefined)).toBe(undefined);

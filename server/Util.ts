@@ -594,3 +594,19 @@ export function isTypeInfoAvailable(value: object) {
 
     return true
 }
+
+export function diagnosis_hasDeepNullOrUndefined(obj: any): boolean {
+    if (obj === null || obj === undefined) {
+        return true;
+    }
+
+    if (typeof obj === 'object') {
+        for (const key in obj) {
+            if (obj.hasOwnProperty(key) && diagnosis_hasDeepNullOrUndefined(obj[key])) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
