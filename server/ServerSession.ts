@@ -838,14 +838,14 @@ export class ServerSession implements IServerSession {
             _.extend(serverSession, cookieSessionClone);
         }
 
-        const csrfProtectedServerSession = this.createSessionAccessCheckProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, remoteMethodName, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
+        const guardedServerSession = this.createGuardProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, remoteMethodName, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result: unknown;
         try {
             // Execute the remote method (wrapped):
             // @ts-ignore cannot use 'protected' field call otherwise
             const enhancementProps: Partial<ServerSession> = {call};
-            await enhanceViaProxyDuringCall(csrfProtectedServerSession, enhancementProps, async (enhancedServerSession) => { // make call (.req, .res, ...) safely available during call
+            await enhanceViaProxyDuringCall(guardedServerSession, enhancementProps, async (enhancedServerSession) => { // make call (.req, .res, ...) safely available during call
                 // Execute the remote method:
                 if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
                     // @ts-ignore
@@ -1782,7 +1782,7 @@ export class ServerSession implements IServerSession {
      * @param remoteMethodName
      * @param diagnosis
      */
-    private static createSessionAccessCheckProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, remoteMethodName: string, diagnosis: Omit<CIRIACS_Diagnosis,"isSessionAccess">) {
+    private static createGuardProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, remoteMethodName: string, diagnosis: Omit<CIRIACS_Diagnosis,"isSessionAccess">) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
