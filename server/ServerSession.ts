@@ -625,7 +625,7 @@ export class ServerSession implements IServerSession {
                     const strictestMode = this.options.csrfProtectionMode || (<SecurityRelevantSessionFields> req.session)?.csrfProtectionMode || securityPropertiesOfRequest.csrfProtectionMode; // Either wanted explicitly by server or by session or by client.
                     if(strictestMode === "corsReadToken" || strictestMode === "csrfToken") {
                         // Enforce the early check of the token:
-                        this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, {
+                        this.checkIfRequestIsAllowedCrossSite(securityPropertiesOfRequest, strictestMode, (origin) => false, <SecurityRelevantSessionFields> req.session, remoteMethodName, {
                             http: {
                                 acceptedResponseContentTypes,
                                 contentType: parseContentTypeHeader(req.header("Content-Type"))[0],
@@ -812,12 +812,12 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], diagnosis: Omit<CIRIATRC_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
         {
             const cookieSessionParam = cookieSession as SecurityRelevantSessionFields || {}; // _Don't know why typescript complains without a cast, as SecurityRelevantSessionFields has all props optional_
-            this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSessionParam, {
+            this.checkIfRequestIsAllowedCrossSite(securityPropertiesOfHttpRequest, this.options.csrfProtectionMode, this.options.allowedOrigins, cookieSessionParam, remoteMethodName, {
                 ...diagnosis,
                 isSessionAccess: false
             });
@@ -838,7 +838,7 @@ export class ServerSession implements IServerSession {
             _.extend(serverSession, cookieSessionClone);
         }
 
-        const csrfProtectedServerSession = this.createCsrfProtectedSessionProxy(remoteMethodName, serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
+        const csrfProtectedServerSession = this.createSessionAccessCheckProxy(serverSession, securityPropertiesOfHttpRequest, this.options.allowedOrigins, remoteMethodName, diagnosis) // wrap session in a proxy that will check the security on actual session access with the csrfProtectionMode that is required by the **session**
 
         let result: unknown;
         try {
@@ -1600,14 +1600,14 @@ export class ServerSession implements IServerSession {
      * Meaning it passes all the CSRF prevention requirements
      *
      * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqSecurityProps to make it clearer readable.
-     * @param remoteMethodName
      * @param reqSecurityProps
      * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
      * @param allowedOrigins from the options
      * @param cookieSession holds the tokens
+     * @param remoteMethodName
      * @param diagnosis
      */
-    private static checkIfRequestIsAllowedToRunCredentialed(remoteMethodName: string, reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, diagnosis: CIRIATRC_Diagnosis): void {
+    private static checkIfRequestIsAllowedCrossSite(reqSecurityProps: SecurityPropertiesOfHttpRequest, enforcedCsrfProtectionMode: CSRFProtectionMode | undefined, allowedOrigins: AllowedOriginsOptions, cookieSession: Pick<SecurityRelevantSessionFields,"corsReadTokens" | "csrfTokens">, remoteMethodName: string, diagnosis: CIRIACS_Diagnosis): void {
         // note that this this called from 2 places: On the beginning of a request with enforcedCsrfProtectionMode like from the ServerSessionOptions. And on cookieSession value access where enforcedCsrfProtectionMode is set to the mode that's stored in the cookieSession.
 
         const errorHints: {priority: number, hint: string}[] = [];
@@ -1775,22 +1775,21 @@ export class ServerSession implements IServerSession {
 
 
     /**
-     * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedToRunCredentialed} on every access (with the session's csrfProtectionMode)
-     * @param remoteMethodName
-     * @param remoteMethodOptions
+     * Wraps the session in a proxy that that checks {@link checkIfRequestIsAllowedCrossSite} on every access (with the session's csrfProtectionMode)
      * @param session
      * @param reqSecurityProperties
      * @param allowedOrigins
+     * @param remoteMethodName
      * @param diagnosis
      */
-    private static createCsrfProtectedSessionProxy(remoteMethodName: string, session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, diagnosis: Omit<CIRIATRC_Diagnosis,"isSessionAccess">) {
+    private static createSessionAccessCheckProxy(session: ServerSession & SecurityRelevantSessionFields, reqSecurityProperties: SecurityPropertiesOfHttpRequest, allowedOrigins: AllowedOriginsOptions, remoteMethodName: string, diagnosis: Omit<CIRIACS_Diagnosis,"isSessionAccess">) {
 
         const checkFieldAccess = (isRead: boolean) => {
             if(isRead && session.csrfProtectionMode === undefined) {
                 //Can we allow this ? No, it would be a security risk if the attacker creates such a session and makes himself a login and then the valid client with with an explicit csrfProtectionMode never gets an error and actions performs with that foreign account.
             }
 
-            this.checkIfRequestIsAllowedToRunCredentialed(remoteMethodName, reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, {... diagnosis, isSessionAccess: true})
+            this.checkIfRequestIsAllowedCrossSite(reqSecurityProperties, session.csrfProtectionMode, allowedOrigins, session, remoteMethodName, {... diagnosis, isSessionAccess: true})
         }
 
         return new Proxy(session, {
@@ -2530,9 +2529,9 @@ export function originIsAllowed(params: { origin?: string, destination?: string,
 
 
 /**
- * @see ServerSession#checkIfRequestIsAllowedToRunCredentialed
+ * @see ServerSession#checkIfRequestIsAllowedCrossSite
  */
-type CIRIATRC_Diagnosis = { http?: { acceptedResponseContentTypes: string[], contentType?: string }, isSessionAccess: boolean };
+type CIRIACS_Diagnosis = { http?: { acceptedResponseContentTypes: string[], contentType?: string }, isSessionAccess: boolean };
 
 /**
  * Checks that session is in a valid state (security relevant fields)
