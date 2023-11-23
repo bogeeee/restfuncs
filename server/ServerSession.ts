@@ -454,7 +454,7 @@ export class ServerSession implements IServerSession {
         router.use(express.raw({limit: Number.MAX_VALUE, inflate: false, type: req => true})) // parse application/brillout-json and make it available in req.body
 
         router.use(async (req, res, next) => {
-            let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json" // TODO: add options
+            let acceptedResponseContentTypes = [...(req.header("Accept")?.split(",") || []), "application/json"]; // The client sent us a comma separated list of accepted content types. + we add a default: "application/json"
             acceptedResponseContentTypes.map(value => value.split(";")[0]) // Remove the ";q=..." (q-factor weighting). We just simply go by order
 
             let cleanupStreamsAfterRequest: (() => void) | undefined = undefined
@@ -585,7 +585,7 @@ export class ServerSession implements IServerSession {
 
                 // Obtain cookieSession:
                 let cookieSession = this.getFixedCookieSessionFromRequest(req);
-                // TODO: this should go into our express cookie handler
+                // TODO: this should go into our JWT cookie handler
                 // Validate cookieSession
                 if(cookieSession && !(await this.server.cookieSessionIsValid(cookieSession))) { // cookieSession is invalid ?
                     await this.regenerateExpressSession(req);
@@ -971,7 +971,7 @@ export class ServerSession implements IServerSession {
     public getCorsReadToken(): string {
         // Security check that is's called via http:
         if (!this.call.req || this.call.socketConnection) {
-            throw new Error("getCorsReadToken was not called via http."); // TODO: test
+            throw new Error("getCorsReadToken was not called via http.");
         }
 
         const cookieSession = this.clazz.getFixedCookieSessionFromRequest(this.call.req) || {};
@@ -1210,12 +1210,6 @@ export class ServerSession implements IServerSession {
 
         const securityGroupId = this.securityGroup.id;
         if (tokens[securityGroupId] === undefined) {
-            // TODO: Assume the the session could be sent to the client in cleartext via JWT. Quote: [CSRF tokens should not be transmitted using cookies](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html#synchronizer-token-pattern).)
-            // So store a hash(token + server.secret) in the session instead.
-            // For a faster validation, the token should have a prefix (64bit randomness to prevent collisions for runtime stability) as a hint which secret was used, so we don't have to try them out all. Similar to Server2ServerEncryptedBox
-            // The ServerSessionOptions should may be moved to a field inside this class then (easier API).
-            // When having multiple Services, all should use the same key(s), like all session related stuff is global.
-
             // Create a token:
             tokens[securityGroupId] = crypto.randomBytes(16).toString("hex");
             sessionWasModified = true;
@@ -2339,7 +2333,6 @@ export class ServerSession implements IServerSession {
         }
 
         const generateIdFromContent = (sessionPrototype: object): string | undefined => {
-            // TODO: create a hash instead, that's better and shorter (imagine JWT sessions with limited size)
             // generate an id of the first function names that are found.
             const MAX_LENGTH = 40;
             let result = "Obj";
@@ -2462,7 +2455,7 @@ export type RemoteMethodOptions = {
  */
 export function remote(options?: RemoteMethodOptions) {
     return function (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
-        // TODO: handle static methods
+        // TODO: handle static methods (if we choose to support them)
         const clazz = target.clazz;
         if(!Object.getOwnPropertyDescriptor(clazz,"remoteMethod2Options")?.value) { // clazz does not have it's OWN .remoteMethod2Options initialized yet ?
             // @ts-ignore we want the field to stay protected

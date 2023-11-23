@@ -106,7 +106,7 @@ export class MemorySessionValidator extends SessionValidator {
 export type ServerOptions = {
 
     /**
-     * A secret to sign the session cookies (TODO: use word 'encrypt', depending on implementation) and to encrypt other necessary server2server tokens.
+     * Used, to encrypt the session cookies and other necessary server2server tokens.
      * In a multi node environment, this must be shared with all instances.
      * @default A randomized value
      */
@@ -313,9 +313,6 @@ class RestfuncsServerOOP {
      * @param httpServerToAttachTo
      */
     constructor(options: ServerOptions) {
-        // TODO: Copy the properties from the default/fallback server to this
-
-
         this.serverOptions = options;
 
         function extend(target: {[index: string]: any }, base: {[index: string]: any }) {
@@ -587,7 +584,6 @@ class RestfuncsServerOOP {
      * Don't override. Not part of the API
      * @param serviceClass
      * @return A hash that groups together serverSessionClasses with the same security relevant settings.
-     * TODO: write testcases
      */
     public getSecurityGroupOfService(serviceClass: typeof ServerSession): SecurityGroup {
         const result = this.getComputed().service2SecurityGroupMap.get(serviceClass);
