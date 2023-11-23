@@ -2232,8 +2232,8 @@ export class ServerSession implements IServerSession {
 
         // ** Cut off the parts of errorExt that should not be exposed and add some description *** :
 
-        const DIAGNOSIS_SHOWFULLERRORS="If you want to see full errors on the client (development), set exposeErrors=true in the ServiceOptions."
-        if(this.options.exposeErrors === true) {
+        const DIAGNOSIS_SHOWFULLERRORS="If you want to see full errors on the client (development), set exposeErrors=true in the ServerSessionOptions."
+        if(this.options.exposeErrors === true || this.options.devDisableSecurity) {
             return errorExt;
         }
 
