@@ -14,6 +14,7 @@
     ],
     "moduleResolution": "node",
     "sourceMap": true,
+    "declarationMap": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
