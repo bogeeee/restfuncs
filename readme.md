@@ -147,9 +147,9 @@ In some cases where more configuration needs to be decided for, contextual error
 
 # Example projects
 
-- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite) (use as starter stack)
-- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-separate) (if you prefer that cleaner layout)
-- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite) (use as starter stack)
+- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-separate) (if you prefer that cleaner layout)
+- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
 
 
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._

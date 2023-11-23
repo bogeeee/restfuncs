@@ -246,6 +246,8 @@ type ObjectWithStringIndex = {[index: string]: unknown};
  * Values that are allowed to be set as meta parameters via header / query params / request body params.
  */
 export const metaParameterNames = new Set<string>(["csrfProtectionMode", "corsReadToken", "csrfToken"])
+export const DOCS_BASEURL = "https://github.com/bogeeee/restfuncs/tree/2.x"
+export const DOCS_READMEURL = `${DOCS_BASEURL}/readme.md`
 
 export type SecurityRelevantSessionFields = {
     /**
@@ -1615,7 +1617,7 @@ export class ServerSession implements IServerSession {
          * returns the result as boolean. Collects the above variables.
          */
         const isAllowedInner = () => {
-            const diagnosis_seeDocs = "See https://github.com/bogeeee/restfuncs/#csrf-protection."
+            const diagnosis_seeDocs = `${DOCS_READMEURL}#csrf-protection.`
 
             if(this.options.devDisableSecurity) {
                 return true;
@@ -2187,7 +2189,7 @@ export class ServerSession implements IServerSession {
     }
 
     static _diagnosisWhyIsRTTINotAvailable() {
-        return "TODO"
+        return `Please see ${DOCS_READMEURL}#setting-up-the-build-the-annoying-stuff- .`
     }
 
 
