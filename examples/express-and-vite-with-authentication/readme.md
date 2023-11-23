@@ -11,10 +11,12 @@ npm run start
 
 
 ### Development
+Security is disabled.
 ```bash
 npn run dev
 ```
 
-Or `npn run dev:faster_but_without_rtti` which reloads faster and should still be good enough for your usual development needs.
 
-_The dev script might look a bit strange but these routes work you through the CommonJS / ESM / typescript / transformer / with_proper_debugging  jungle ;)_
+Or `npn run dev:faster_no_typeInfo` which reloads faster and should still be good enough for your usual development needs.
+
+_The starter script might look a bit strange but these routes work you through the CommonJS / ESM / typescript / transformer / with_proper_debugging  jungle. Hope, we will get a version for bun and be relieved one day ;)_
