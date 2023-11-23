@@ -7,20 +7,85 @@
 # Validation via typescript-rtti
 - The typescript-rtti library needs more reviewing.
    - More testcases should be added there.
--  [Extra properties validation](https://github.com/typescript-rtti/typescript-rtti/issues/92) is rather new and still flagged as open.
-
+    
 #CSRF protection
- 
+Make sure you've read the [CSRF protection topic in the documentation](../readme.md#csrf-protection) first.
 - [Here](https://stackoverflow.com/questions/24680302/csrf-protection-with-cors-origin-header-vs-csrf-token?noredirect=1&lq=1) is a discussion of adpapting in-depth to browser behaviour vs csrf tokens. There's no point whether this could be unsafe for restfuncs' logik. 
 - As mentioned in [readme.md](../readme.md#csrf-protection). There's this unclear in-spec/in-practice situation with `preflight`. That's why `corsReadToken` mode was introduced and the restfuncs-client implements this by default. So the user is a bit safer by default ;)
 - Tokens that get send to the client are shielded against the BREACH attack (xor'ed with a random nonce).
-- TODO: Show the shortened code of requestIsAllowedToRunCredentialed here
+- The core CSRF checking method is: ServerSession#checkIfRequestIsAllowedCrossSite
 - See the [CrossSiteSecurity testcases application](../tests/crossSiteSecurity) which tests if this logic is working.
 
+Here's a the core CSRF checking method. Diagnosis and some other stuff was removed. It's called from 2 places. Before each call, and lazily on session field access (this is a "credential" to protect),
+with enforcedCsrfProtectionMode set to, what's currently stored in the cookie session.
+````typescript
+    const isAllowedInner = () => {
+        if (this.options.devDisableSecurity) {
+            return true;
+        }
 
-# Websockets
-_"http" referes to traditional non-websocket http here_
-_"encrypted" means: Symmetrical encrypted by the server + MAC'ed. (MAC'ed only would even mostly be fine but for simplicity, we always encrypt)
+        // Fix / default some reqSecurityProps for convenience:
+        // ...
+
+        // Check protection mode compatibility:
+        if (enforcedCsrfProtectionMode !== undefined) {
+            if ((reqSecurityProps.csrfProtectionMode || "preflight") !== enforcedCsrfProtectionMode) { // Client and server(/cookieSession) want different protection modes  ?
+                return false;
+            }
+        }
+
+        if (enforcedCsrfProtectionMode === "csrfToken") {
+            if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {                
+                return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
+            }
+            return tokenValid("csrfToken"); // Strict check already here.
+        }
+
+        if (originIsAllowed({...reqSecurityProps, allowedOrigins})) { // Check, if origin is allowed, by looking at the host, origin and referer fields.
+            return true
+        }
+
+        // The server side origin check failed but the request could still be legal:
+        // In case of same-origin requests: Maybe our originAllowed assumption was false negative (because behind a reverse proxy) and the browser knows better.
+        // Or maybe the browser allows non-credentialed requests to go through (which can't do any security harm)
+        // Or maybe some browsers don't send an origin header (i.e. to protect privacy)
+
+        if (reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
+            return false; // Note: Not even for simple requests. A non-cors browser probably also does not block reads from them
+        }
+
+        if (enforcedCsrfProtectionMode === "corsReadToken") {
+            if (reqSecurityProps.readWasProven || tokenValid("corsReadToken")) {  // Read was proven ?
+                return true;
+            }
+        } 
+
+        if (reqSecurityProps.couldBeSimpleRequest) { // Simple request (or a false positive non-simple request)
+            // Simple requests have not been preflighted by the browser and could be cross-site with credentials (even ignoring same-site cookie)
+            if (reqSecurityProps.httpMethod === "GET" && this.getRemoteMethodOptions(remoteMethodName).isSafe) {
+                return true // Exception is made for GET to a safe method. These don't write and the results can't be read (and for the false positives: if the browser thinks that it is not-simple, it will regard the CORS header and prevent reading)
+            } else {
+                return false; // Deny
+            }
+        } else { // Surely a non-simple request ?
+            // *** here we are only secured by the browser's preflight ! ***
+            
+            if (remoteMethodName === "getCorsReadToken") {
+                return true;
+            }
+            
+            if (enforcedCsrfProtectionMode === undefined || enforcedCsrfProtectionMode === "preflight") {
+                return true; // Trust the browser that it would bail after a negative preflight
+            }
+        }
+
+        return false;
+    }
+````
+
+
+# Websockets (engine.io sockets)
+_"http site" referes to traditional non-websocket http here_
 
 All the above applies to traditional http and all this seems fine but now come Websockets and new problems arise:
 - Do calls to Websockets regard CORS and the same security restrictions normal http calls ?
@@ -28,13 +93,14 @@ All the above applies to traditional http and all this seems fine but now come W
 - Can we keep track of the session content in websocket connections ? The session cookie might only be sent during connection establishment and from there on have a stale value
 - There's even no proper API in engine.io for checking all the http state and cookies
 
-The answer to all this is: We don't secure websocket connections themselves (+they're CORS allowed to all origins)
-Instead, the client pulls the context in which it operates from the main trusted http service to the websocket connection via encrypted tokens.
-Context means: "Can the client make requests to the service ?" + the full content of the session + the req (http request) object, which may contain the basicAuth user + clientcert info + other identifying stuff.
+The answer to all this is: We don't secure websocket connections themselves.
+Instead, the client pulls the context in which it operates from the http site to the websocket connection via encrypted and signed tokens. (Method `Server#server2serverEncryptToken` is used)
+Context means: 
+ - The full content of the cookieSession.
+ - The `SecurityPropertiesOfHttpRequest`, which includes all security relavant stuff and also the csrfToken/corsReadToken/csrfProtectionmode. [See type](../common/index.ts)  
+When pulling these 2 objects, the id of the ServerSocketConnection is included in the request (question), and checked, when returned, so an attacker can't install foreign tokens.
+   
+The main source of truth of the cookieSession is always the http side. After a write, the cookieSession must be committed there, and then re-fetched to the ServerSocketConnection (like above, again with the id in the question). On each side, there are checks, that the session can only be updated *incrementally*, by checking the version and additionally a branch-protection-salt. This is to prevent replay attacks. So your (new) calls can at maximum be only one version off, just like in a normal http setup. Additionally, the JWT validator guards validity before every request (TODO).
 
-See the types: AreCallsAllowedQuestion, AreCallsAllowedAnswer and corresponding methods in the ServerSession
-For session transfer, see: SessionTransferRequest, SessionTransferToken, UpdateSessionToken. and corresponding methods in the ServerSession
+Another advantage of this approach is, that all RestunfsClients can just share one connection, so they don't exhaust connections. The pulled `SecurityPropertiesOfHttpRequest` is simply associated to the ServerSession class id (or group of such with same security settings = `SecurityGroup`).
 
-Tokens always contain an unguessable id from inside the websocket handler's situation, so they can't be replaced with tokens which an attacker has in stock (previously validly obtained by his own connection) and also can't be replayed.
-
-The main source of truth for the session is the http cookie. The websocket connection is only a downstream subscriber and also can push updates there (see the above tokens). A unique session key + a version number makes sure that it can't be updated to an old value.

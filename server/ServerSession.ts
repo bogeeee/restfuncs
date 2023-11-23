@@ -1591,13 +1591,11 @@ export class ServerSession implements IServerSession {
     }
 
     /**
-     * Check if the specified request to the specified service's method is allowed to access the cookieSession or run using the request's client-cert / basic auth
+     * Browser CSRF protection:
+     * Checks, that we can trust the request to be from an allowed origin, so that it can't make unallowed cross-site write operations.
      *
-     * Meaning it passes all the CSRF prevention requirements
-     *
-     * In the first version, we had the req, metaParams (computation intensive) and options as parameters. But this variant had redundant info and it was not so clear where the enforcedCsrfProtectionMode came from. Therefore we pre-fill the information into reqSecurityProps to make it clearer readable.
      * @param reqSecurityProps
-     * @param enforcedCsrfProtectionMode Must be met by the request (if defined)
+     * @param enforcedCsrfProtectionMode Must be met by the request. Undefined = "preflight".
      * @param allowedOrigins from the options
      * @param cookieSession holds the tokens
      * @param remoteMethodName
