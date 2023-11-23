@@ -4,6 +4,7 @@ import {MainframeSession} from "./MainframeSession.js"
 import session from "express-session";
 import crypto from "node:crypto";
 import {restfuncsExpress} from "restfuncs-server";
+import helmet from "helmet";
 
 (async () => {
     const port = 3000
@@ -26,7 +27,7 @@ import {restfuncsExpress} from "restfuncs-server";
             root: "client",
             base: "/",
         });
-        app.use(viteDevServer.middlewares)
+        app.use(helmet(), viteDevServer.middlewares)
     } else {
         app.use(express.static('client/dist')) // Serve pre-built web (npm run build)
     }
