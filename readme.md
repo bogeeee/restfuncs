@@ -118,7 +118,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 **package.json**
 ````json
 "scripts": {
-    "dev": "nodemon -e ts --exec \"clear && tspc --build ts-node server.js\"",
+    "dev": "nodemon -e ts --exec \"clear && tspc --build && ts-node server.js\"",
     "clean": "tspc --build --clean",
     "build": "tspc --build --force",
     "start": "ts-node server.js"
@@ -133,9 +133,8 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "restfuncs-transformer": "^0.9.6"
 },
 ````
-_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
-In some cases where a (configuration) decision must be made 
-See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite bundling for the client/browser._
+_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).  
+You can also run it with the faster `tsx` in development with disabled validations, see the [example](examples/express-and-vite/tsconfig.json)._
 
 **Security note:** When using client certificates, you must read the [CSRF protection chapter](#csrf-protection).
 ## &lt;/Boilerplate cheat sheet&gt;
