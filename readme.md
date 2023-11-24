@@ -128,7 +128,6 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "restfuncs-client": "^2.0.0"
 },
 "devDependencies": {
-  "typescript": "5.1.x",
   "ts-patch": "^3.0.2",
   "restfuncs-transformer": "^0.9.6"
 },
