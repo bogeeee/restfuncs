@@ -1,6 +1,6 @@
 ### - Warning: Not yet secure for production -
 Restfuncs dependency: typescript-rtti [still has some flaws and lacks regression tests](https://github.com/typescript-rtti/typescript-rtti/issues/112), and i can't give green light here. 
-I'm keeping track of that and will also evaluate, if it's possible to switch to a different type-information/validation library called [TYPIA](https://typia.io/docs/).
+I'm keeping track of that and will also try to switch the validator library to [TYPIA](https://typia.io/docs/).
 
 # Restfuncs 2.0 - HTTP API done proper
 
@@ -282,8 +282,7 @@ Notes:
 
 ## Hardening security for the paranoid
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
-- Set `ServerSessionOptions.csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
-- TODO: List all sorts of disableXXX options to disable unneeded features
+- Set `ServerSessionOptions#csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 
 
 # Performance
@@ -311,7 +310,7 @@ When using a load balancer in front of your servers, you have to configure it fo
 
 # That's it !
 
-### Comparison to other RPC frameworks
+### Comparison to other RPC libraries
 [Comparison table](https://github.com/bogeeee/RPCFrameworksComparison)
 
 ### _Contribution_
