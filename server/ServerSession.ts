@@ -444,6 +444,9 @@ export class ServerSession implements IServerSession {
 
     /**
      * Creates a handler that allows all (instance-) @remote methods to be called by http. This can be by the restfuncs client.
+     * <p>
+     *     The structure of this method is explained in 'ServerSession breakdown.md'
+     * </p>
      */
     static createExpressHandler(): Router {
 
@@ -805,6 +808,9 @@ export class ServerSession implements IServerSession {
     /**
      * This method is the entry point that's called by both: http request and socket connection.
      * Does various stuff / look at the implementation. <p>Internal: Override {@link doCall} instead.</p>
+     * <p>
+     *     The structure of this method is explained in 'ServerSession breakdown.md'
+     * </p>
      * @param cookieSession
      * @param securityPropertiesOfHttpRequest
      * @param remoteMethodName
@@ -1593,6 +1599,9 @@ export class ServerSession implements IServerSession {
     /**
      * Browser CSRF protection:
      * Checks, that we can trust the request to be from an allowed origin, so that it can't make unallowed cross-site write operations.
+     * <p>
+     *     A breakdown of this method can be found in 'Security concept.md#csrf-protection'
+     * </p>
      *
      * @param reqSecurityProps
      * @param enforcedCsrfProtectionMode Must be met by the request. Undefined = "preflight".
