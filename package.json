@@ -15,7 +15,7 @@
     "publish:npmlogin": "npm login",
     "publish:publish": "npm run prepublish && npm publish --workspace transformer --workspace common --workspace server --workspace client --workspace restfuncs-metapackage"
   },
-  "workspaces": ["transformer", "common", "server", "client", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity", "tests/session-playground"],
+  "workspaces": ["transformer", "common", "server", "client", "restfuncs-metapackage", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity", "tests/session-playground"],
   "dependencies": {
     "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13"
