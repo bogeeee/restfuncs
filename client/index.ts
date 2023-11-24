@@ -371,7 +371,7 @@ export class RestfuncsClient<S extends IServerSession> {
      * <p>'api route' is what you used on the server by 'app.use("[api route]", MyServerSession)'</p>
      * @param options see the public fields (of this class)
      */
-    constructor(url: string, options: Partial<RestfuncsClient<any>> = {}) {
+    constructor(url: string, options: RestfuncsClientOptions = {}) {
         this.url = url;
         _.extend(this, options); // just copy all given options to this instance (effortless constructor)
 
@@ -429,6 +429,8 @@ export class RestfuncsClient<S extends IServerSession> {
         conn?.unregisterClient(this);
     }
 }
+
+export type RestfuncsClientOptions = Partial<Pick<RestfuncsClient<any>, "useSocket" | "shareSocketConnections" | "csrfProtectionMode" | "method">>
 
 export function develop_resetGlobalState() {
     (async () => {
