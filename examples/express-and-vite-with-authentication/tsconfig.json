@@ -16,6 +16,7 @@
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
     "experimentalDecorators": true,
+    "strict": true,
     "plugins": [{ "transform": "restfuncs-transformer" }]
   }
 }
