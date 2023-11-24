@@ -5,11 +5,11 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "ttsc --build && cross-env NODE_ENV=development ts-node server.js",
+    "dev": "tspc --build && cross-env NODE_ENV=development ts-node server.js",
     "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev",
 
-    "clean": "ttsc --build --clean && rm -rf client/dist",
-    "build": "ttsc --build --force && cd client && vite build",
+    "clean": "tspc --build --clean && rm -rf client/dist",
+    "build": "tspc --build --force && cd client && vite build",
     "start": "ts-node server.js"
   },
   "dependencies": {
@@ -25,7 +25,7 @@
     "tsx": "^3.12.1",
     "ts-node": "^10.9.1",
     "typescript": "^4.6",
-    "ttypescript": "^1.5.15",
+    "ts-patch": "^3.0.2",
     "restfuncs-transformer-tsc": "^0.9.6",
     "nodemon": "^2.0.15",
     "cross-env": "^7.0.3"

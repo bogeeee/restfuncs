@@ -4,7 +4,7 @@ export default {
   testPathIgnorePatterns: [".*\.ts$",".*dist/.*$"], // Don't let jest try to execute .ts files (it fails cause you can't load MODULES at runtime). One can only the compiled commonjs .js files :(
   globals: {
     'ts-jest': {
-      compiler: 'ttypescript'
+      compiler: 'ts-patch'
     }
   }
 };

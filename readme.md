@@ -117,9 +117,9 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 **package.json**
 ````json
 "scripts": {
-    "dev": "nodemon -e ts --exec \"clear && ttsc --build ts-node server.js\"",
-    "clean": "ttsc --build --clean",
-    "build": "ttsc --build --force",
+    "dev": "nodemon -e ts --exec \"clear && tspc --build ts-node server.js\"",
+    "clean": "tspc --build --clean",
+    "build": "tspc --build --force",
     "start": "ts-node server.js"
 },
 "dependencies": {
@@ -127,12 +127,12 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "restfuncs-client": "^2.x"
 },
 "devDependencies": {
-  "typescript": "4.9",
-  "ttypescript": "^1.5.15",
+  "typescript": "5.1.x",
+  "ts-patch": "^3.0.2",
   "restfuncs-transformer-tsc": "^0.9.6"
 },
 ````
-_Here we compile with `ttsc` (instad of tsc) which **allows for our `restfuncs-transformer-tsc` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
+_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer-tsc` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
 In some cases where a (configuration) decision must be made 
 See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite bundling for the client/browser._
 
