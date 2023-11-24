@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-transformer",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Enhances your classes with typescript-rtti, to make them usable with Restfuncs",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
