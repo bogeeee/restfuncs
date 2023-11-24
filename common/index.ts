@@ -1,4 +1,8 @@
+import {Readable} from "node:stream"
 
+export type UploadFile = {
+    createReadStream: () => Readable
+}
 
 export type CSRFProtectionMode = "preflight" | "corsReadToken" | "csrfToken"
 

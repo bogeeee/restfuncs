@@ -21,5 +21,8 @@ export const remote = cjsServerSession.remote
 export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
 export const ClientCallback = cjsServerSession.ClientCallback
 
+import cjsCommon from "restfuncs-common"
+export const UploadFile = cjsCommon.UploadFile
+
 import cjsCommunicationError from "./CommunicationError.js"
 export const CommunicationError = cjsCommunicationError.CommunicationError;
