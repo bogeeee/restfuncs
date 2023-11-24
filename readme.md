@@ -123,8 +123,8 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
     "start": "ts-node server.js"
 },
 "dependencies": {
-  "restfuncs-server": "^2.x",
-  "restfuncs-client": "^2.x"
+  "restfuncs-server": "^2.0.0",
+  "restfuncs-client": "^2.0.0"
 },
 "devDependencies": {
   "typescript": "5.1.x",
