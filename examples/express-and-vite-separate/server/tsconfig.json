@@ -15,6 +15,6 @@
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
     "experimentalDecorators": true,
-    "plugins": [{ "transform": "restfuncs-transformer-tsc" }]
+    "plugins": [{ "transform": "restfuncs-transformer" }]
   }
 }

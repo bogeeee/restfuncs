@@ -111,7 +111,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 ````json
 "compilerOptions": {
     "experimentalDecorators": true,
-    "plugins": [{ "transform": "restfuncs-transformer-tsc" }]
+    "plugins": [{ "transform": "restfuncs-transformer" }]
 }
 ````
 **package.json**
@@ -129,10 +129,10 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 "devDependencies": {
   "typescript": "5.1.x",
   "ts-patch": "^3.0.2",
-  "restfuncs-transformer-tsc": "^0.9.6"
+  "restfuncs-transformer": "^0.9.6"
 },
 ````
-_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer-tsc` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
+_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).
 In some cases where a (configuration) decision must be made 
 See also this [example/package.json](examples/express-and-vite/tsconfig.json) which additionaly has a faster `tsx` based dev script and does the vite bundling for the client/browser._
 

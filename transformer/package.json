@@ -1,5 +1,5 @@
 {
-  "name": "restfuncs-transformer-tsc",
+  "name": "restfuncs-transformer",
   "version": "0.9.6",
   "description": "Enhances your classes with typescript-rtti, to make them usable with Restfuncs",
   "keywords": ["rpc","rest"],
@@ -7,7 +7,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/bogeeee/restfuncs.git",
-    "directory": "transformer-tsc"
+    "directory": "transformer"
   },
   "license": "MIT",
   "scripts": {
