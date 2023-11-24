@@ -1,6 +1,6 @@
 ### - Warning: Not yet secure for production -
-Restfuncs dependency: typescript-rtti [still has some flaws and lacks regression tests](https://github.com/typescript-rtti/typescript-rtti/issues/112), and i can't give green light here. 
-I'm keeping track of that and will also try to switch the validator library to [TYPIA](https://typia.io/docs/).
+A Restfuncs dependency: typescript-rtti [still has some flaws and lacks regression tests](https://github.com/typescript-rtti/typescript-rtti/issues/112), and i can't give green light here. 
+I'm keeping track of that and will also try to switch the validators to [TYPIA](https://typia.io/docs/) but this might not be before march 2024.
 
 # Restfuncs 2.0 - HTTP API done proper
 
@@ -78,8 +78,8 @@ export class MyServerSession extends ServerSession {
 ````
 **server.ts**
 ````typescript
-import {restfuncsExpress} from "restfuncs-server/Server";
-import {MyServerSession} from "MyServerSession";
+import {restfuncsExpress} from "restfuncs-server";
+import {MyServerSession} from "./MyServerSession.js";
 
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
