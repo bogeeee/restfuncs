@@ -6,7 +6,7 @@ The client web does not have its own package.json for simplicity.
 ```bash
 git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/examples/express-and-vite
-npm install --ignore-scripts
+npm install
 npm run build
 npm run start
 ```

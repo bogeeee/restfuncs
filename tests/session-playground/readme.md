@@ -4,7 +4,7 @@
 ```bash
 git clone https://github.com/bogeeee/restfuncs.git
 cd restfuncs/tests/session-playground
-npm install --ignore-scripts
+npm install
 npm run build
 npm run start
 ```
