@@ -1585,9 +1585,9 @@ export class ServerSession implements IServerSession {
      *     Calls to Restfuncs internal control methods do not go though this method.
      * </p>
      */
-    protected async doCall(methodName: string, args: unknown[]) {
+    protected async doCall(remoteMethodName: string, args: unknown[]) {
         // @ts-ignore
-        return await this[methodName](...args) // Call the original function
+        return await this[remoteMethodName](...args) // Call the method
     }
 
     /**
