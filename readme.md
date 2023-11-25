@@ -110,6 +110,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 **tsconfig.json**
 ````json
 "compilerOptions": {
+    "moduleResolution": "node",
     "experimentalDecorators": true,
     "strict": true,
     "plugins": [{ "transform": "restfuncs-transformer" }]
