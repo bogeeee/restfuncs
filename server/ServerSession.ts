@@ -316,9 +316,16 @@ export class ServerSession implements IServerSession {
     options?: never;
 
     /**
-     * Set the defaults for every method that is decorated with {@link remote @remote}.
-     * For some fields (see description there), this inherits to overridden methods in subclasses.
-     *
+     * Some RemoteMethodOptions fields allow you to specify defaults on the class level.
+     * See each field's description, if and how the defaulting mechanism works.
+     * <p>
+     * Example Usage:
+     * </p>
+     * <pre><code>
+     *     class MyServerSession extends ServerSession {
+     *         static defaultRemoteMethodOptions: RemoteMethodOptions = {shapeArguments: true, ...}
+     *     }
+     * </code></pre>
      * @protected
      */
     protected static defaultRemoteMethodOptions?: RemoteMethodOptions
@@ -2390,7 +2397,11 @@ export class ServerSession implements IServerSession {
 }
 
 /**
- * @see ServerSession#defaultRemoteMethodOptions
+ *
+ * Options for your remote method.
+ * <p>
+ * For setting defaults on class level, see {@link ServerSession#defaultRemoteMethodOptions}
+ * </p>
  */
 export type RemoteMethodOptions = {
     /**
@@ -2401,7 +2412,7 @@ export type RemoteMethodOptions = {
      *   - Remote methods that serve an image publicly to all origins.
      *
      * <p>
-     * Inheritance: not inherited from the super method or the defaultRemoteMethodOptions. You have to mark it actually, where the implementation is.
+     * Default: false (you can't set defaults on class / parent level, you have to mark it actually, where the implementation is)
      * </p>
      */
     isSafe?: boolean
@@ -2412,37 +2423,44 @@ export type RemoteMethodOptions = {
      * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity}.
      * </p>
      * <p>
-     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether validation is taken care of)
-     * </p>
-     * <p>
-     * &lt;- Default: true
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
      * </p>
      */
     validateArguments?: boolean
 
     /**
-     *
-     * Inheritance: this method &lt;- super method &lt;- ... &lt;- this class's defaultRemoteMethodOptions &lt;- super class's defaultRemoteMethodOptions &lt;- the client's "shapeArguments" http header
-     * <p>
-     * &lt;- Default: false (but RestfuncsClient enables it)
-     * </p>
+     * Default: Value from <b>super method</b>'s @remote options || value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || value from <b>super class</b>'s {@link #defaultRemoteMethodOptions} || the <b>client</b>'s "shapeArguments" http header || <b>false</b>
      */
     shapeArguments?: boolean
 
     /**
-     * Disable, to improve performance. Like you usually know, what your remove method outputs.
+     * Performs a check at runtime, to ensure, that the returned value matches the type that is declared by the method (explicitly or implicitly).
+     * <i>Prevent values that were formed illegally with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
+     *
      * <p>
-     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether validation is taken care of)
+     *     Example:
      * </p>
-     * &lt;- Default: true
+     * <pre>
+     *  @remote({validateResult: true})
+     *  shouldReturnString(): string { // return type declared explicitly here
+     *      // @ts-ignore
+     *      return 123 // will fail
+     *  }
+     * </pre>
+     * <p>
+     *     Disable, to improve performance. Like you usually know, what your remote method returns.
+     * </p>
+     *
+     * <p>
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
      */
     validateResult?: boolean
 
     /**
      * <p>
-     * Inheritance: this method &lt;- this class's defaultRemoteMethodOptions (cause only the author of **this** file knows whether shaping is necessary)
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
      * </p>
-     * &lt;- Default: true
      */
     shapeResult?: boolean
 
@@ -2450,9 +2468,8 @@ export type RemoteMethodOptions = {
         /**
          * Indicates this to the viewer by showing a lock symbol.
          * <p>
-         * Inheritance: Full: this method &lt;- super method &lt;- ... &lt;- this class's defaultRemoteMethodOptions &lt;- super class's defaultRemoteMethodOptions
+         * Default: Value from <b>actual method</b>'s @remote options || value from <b>super method</b>'s @remote options || <b>...</b> || value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || value from <b>super class</b>'s {@link #defaultRemoteMethodOptions} || <b>...</b> || <b>false</b>
          * </p>
-         * &lt;- Default: false
          */
         needsAuthorization?: boolean
     }
