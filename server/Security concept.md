@@ -8,7 +8,7 @@
 - The typescript-rtti library needs more reviewing.
    - More testcases should be added there.
     
-#CSRF protection
+# CSRF protection
 Make sure you've read the [CSRF protection topic in the documentation](../readme.md#csrf-protection) first.
 - [Here](https://stackoverflow.com/questions/24680302/csrf-protection-with-cors-origin-header-vs-csrf-token?noredirect=1&lq=1) is a discussion of adpapting in-depth to browser behaviour vs csrf tokens. There's no point whether this could be unsafe for restfuncs' logik. 
 - As mentioned in [readme.md](../readme.md#csrf-protection). There's this unclear in-spec/in-practice situation with `preflight`. That's why `corsReadToken` mode was introduced and the restfuncs-client implements this by default. So the user is a bit safer by default ;)
