@@ -10,7 +10,7 @@ With restfuncs, you write your http API endpoints just as **plain typescript fun
 Per-endpoint boilerplate is basically:
 ````typescript
 @remote()
-function greet(name: string) {
+greet(name: string) {
     return  `Hello ${name}` 
 }
 ````
