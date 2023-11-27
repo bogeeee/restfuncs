@@ -4,8 +4,8 @@
   "description": "",
   "type": "module",
   "scripts": {
-    "dev": "nodemon -e ts --exec \"clear && tspc --build && cross-env NODE_ENV=development ts-node server.js\"",
-    "dev:faster_no_typeInfo": "npm run clean && nodemon --exec cross-env NODE_ENV=development tsx server.ts",
+    "dev": "npm run clean && nodemon --exec cross-env NODE_ENV=development DISABLESECURITY=true tsx server.ts",
+    "dev:with_validation": "nodemon -e ts --ignore client --exec \"clear && tspc --build && cross-env NODE_ENV=development ts-node server.js\"",
     "clean": "tspc --build --clean && rm -rf ../client/dist",
     "build": "tspc --build --force && npm run build:client",
     "build:client": "cd ../client && vite build",

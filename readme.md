@@ -17,7 +17,7 @@ greet(name: string) {
 See, it uses natural parameters and natual `return` and `throw` flow, instead of dealing with `req` and `res` and Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
 - 🔌 **Automatic [REST interface](#rest-interface)**, that comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them.
-- 🛡️ **Arguments validation from native typescript types**: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will **validate that automatically** at runtime.  _No need to repeat yourself in any inconvenient declaration language, **no need to learn ZOD**. It is achieved by a `(t)tsc` complier plugin that uses the [typescript-rtti](https://typescript-rtti.org/) library._
+- 🛡️ **Automatic arguments validation** from native typescript types: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will validate that automatically at runtime.  _No need to repeat yourself in any inconvenient declaration language, no need to learn ZOD._ How does it work ? As we know, typescript usually erases all types at runtime. Therefore, Restfuncs needs a [tsc compiler plugin](https://www.npmjs.com/package/restfuncs-transformer), to add that type information. _It's currently just a wrapper for [typescript-rtti](https://typescript-rtti.org) and all the props go out to these guys ;)._ [See, how to set it up](#setting-up-the-build-the-annoying-stuff-).
 - 🍾 **RPC client** (this is the best part 😄😄😄): Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets** (default, but can be switched to plain HTTP as well): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs.  
 - **🔐 Security first approach**: All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
@@ -43,6 +43,8 @@ Smaller features:
 - **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
 # &lt;Boilerplate cheat sheet - all you need to know&gt;
+
+**Security note:** When using client certificates, you must also read the [CSRF protection chapter](#csrf-protection).
 
 **MyServerSession.ts**
 
@@ -113,13 +115,15 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
     "moduleResolution": "node",
     "experimentalDecorators": true,
     "strict": true,
-    "plugins": [{ "transform": "restfuncs-transformer" }]
-}
+    "sourceMap": true, //optional, recommended
+    "plugins": [{ "transform": "restfuncs-transformer" }]    
+},
+"exclude": ["dist", "client", "web"], // Make sure, to not accidentially transform your client files.
 ````
 **package.json**
 ````json
 "scripts": {
-    "dev": "nodemon -e ts --exec \"clear && tspc --build && ts-node server.js\"",
+    "dev": "...use your beloved and fast tsx/bun/jest/vitest/... runners and just disable all validation via the ServerSessionOptions#devDisableSecurity flag"
     "clean": "tspc --build --clean",
     "build": "tspc --build --force",
     "start": "ts-node server.js"
@@ -130,13 +134,13 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 },
 "devDependencies": {
   "ts-patch": "^3.0.2",
+  "ts-node": "^10.9.1",
   "restfuncs-transformer": "^0.9.6"
 },
 ````
-_Here we compile with `tspc` from the `ts-patch` package, instead of `tsc`, which **allows for our `restfuncs-transformer` plugin** in tsconfig.json. We use / recommend `ts-node` on top of that because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here).  
-You can also run it with the faster `tsx` in development with disabled validations, see the [example](examples/express-and-vite/tsconfig.json)._
+_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package (in live mode, nothing will be patched here), which allows for our `restfuncs-transformer` plugin in tsconfig.json. We use / recommend `ts-node` on top of that, because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here)._
 
-**Security note:** When using client certificates, you must read the [CSRF protection chapter](#csrf-protection).
+
 ## &lt;/Boilerplate cheat sheet&gt;
 
 _Congrats, you've got the concept!  

@@ -8,7 +8,7 @@ import helmet from "helmet";
     const port = 3000
 
     MainframeSession.options = {
-        devDisableSecurity: (process.env.NODE_ENV === 'development')
+        devDisableSecurity: (process.env.DISABLESECURITY === 'true')
     }
 
     const app = restfuncsExpress()
