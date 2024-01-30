@@ -5,12 +5,12 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "dev": "tspc --build && cross-env NODE_ENV=development ts-node server.js",
+    "dev": "tspc --build && cross-env NODE_ENV=development node --enable-source-maps server.js",
     "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev",
 
     "clean": "tspc --build --clean && rm -rf client/dist",
     "build": "tspc --build --force && cd client && vite build",
-    "start": "ts-node server.js"
+    "start": "node --enable-source-maps server.js"
   },
   "dependencies": {
     "express": "^4.17.13",
@@ -23,7 +23,6 @@
   },
   "devDependencies": {
     "tsx": "^4.7.0",
-    "ts-node": "^10.9.1",
     "typescript": "^4.6",
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^0.9.6",

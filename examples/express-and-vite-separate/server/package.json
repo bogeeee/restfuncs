@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "npm run clean && nodemon --exec cross-env NODE_ENV=development DISABLESECURITY=true tsx server.ts",
-    "dev:with_validation": "nodemon -e ts --ignore client --exec \"clear && tspc --build && cross-env NODE_ENV=development ts-node server.js\"",
+    "dev:with_validation": "nodemon -e ts --ignore client --exec \"clear && tspc --build && cross-env NODE_ENV=development node --enable-source-maps server.js\"",
     "clean": "tspc --build --clean && rm -rf ../client/dist",
     "build": "tspc --build --force && npm run build:client",
     "build:client": "cd ../client && vite build",
-    "start": "ts-node server.js"
+    "start": "node --enable-source-maps server.js"
   },
   "dependencies": {
     "express": "^4.17.13",
@@ -20,7 +20,6 @@
   },
   "devDependencies": {
     "tsx": "^4.7.0",
-    "ts-node": "^10.9.1",
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^0.9.6",
     "nodemon": "^2.0.15",

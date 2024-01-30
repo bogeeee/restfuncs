@@ -126,7 +126,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
     "dev": "...use your beloved and fast tsx/bun/jest/vitest/... runners and just disable all validation via the ServerSessionOptions#devDisableSecurity flag"
     "clean": "tspc --build --clean",
     "build": "tspc --build --force",
-    "start": "ts-node server.js"
+    "start": "node --enable-source-maps server.js"
 },
 "dependencies": {
   "restfuncs-server": "^2.0.0",
@@ -134,11 +134,10 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 },
 "devDependencies": {
   "ts-patch": "^3.0.2",
-  "ts-node": "^10.9.1",
   "restfuncs-transformer": "^0.9.6"
 },
 ````
-_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package (in live mode, nothing will be patched here), which allows for our `restfuncs-transformer` plugin in tsconfig.json. We use / recommend `ts-node` on top of that, because it works proper with debugging (recognizes sources maps, hits the breakpoints, outputs proper stracktraces, opposed to plain `node` here)._
+_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package (in live mode, nothing will be patched here), which allows for our `restfuncs-transformer` plugin in tsconfig.json._
 
 
 ## &lt;/Boilerplate cheat sheet&gt;

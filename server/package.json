@@ -44,7 +44,6 @@
     "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
-    "ts-node": "^10.9.1",
     "nodemon": "^2.0.15",
     "restfuncs-transformer": "^0.9.6"
   }
