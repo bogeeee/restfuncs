@@ -19,7 +19,7 @@
     "helmet": "^7.1.0"
   },
   "devDependencies": {
-    "tsx": "^3.12.1",
+    "tsx": "^4.7.0",
     "ts-node": "^10.9.1",
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^0.9.6",
