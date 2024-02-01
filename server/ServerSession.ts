@@ -118,7 +118,7 @@ export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: 
     }
 
     if(errors.length > 0) {
-        throw new CommunicationError(errors.join("; ") + (args.some( arg => diagnosis_hasDeepNullOrUndefined(arg))?`. Note: This is likely due to a bug in typescript-rtti. Please disable argument validation via @remote({validateArguments:false}) until this bug is resolved: https://github.com/typescript-rtti/typescript-rtti/issues/111`:""))
+        throw new CommunicationError(errors.join("; ") + (args.some( arg => diagnosis_hasDeepNullOrUndefined(arg))?`. Note: Because it seems, there's a problem with null/undefined values: Make sure that you enable 'strictNullChecks' or 'strict' in tsconfig.json.`:""))
     }
 }
 
@@ -1549,10 +1549,6 @@ export class ServerSession implements IServerSession {
             throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${remoteMethodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
         }
 
-        if(result === undefined || result === null) {
-            return; // Bug workaround for: https://github.com/typescript-rtti/typescript-rtti/issues/111
-        }
-
         let returnType = reflectedMethod.returnType;
         if(returnType.isPromise()) {
             returnType = returnType.typeParameters[0]; // de-reference it
@@ -1585,7 +1581,7 @@ export class ServerSession implements IServerSession {
                 catch (e) { // Can fail, if we have recursions
 
                 }
-                throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Please make sure, that value matches the actual declared type of ${reflectedMethod.returnType.isPromise()?"(note: Promise<...> was unwrapped)":""}: ${diagnosis_returnTypeString}.${diagnosis_hasDeepNullOrUndefined(result)?" **NOTE**: The result has deep null or undefined values which causes a bug in the validator. Please await the bugfix and disable result validation so long via @remote({validateResult: false})":""}` );
+                throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Please make sure, that value matches the actual declared type of${reflectedMethod.returnType.isPromise()?" (note: Promise<...> was unwrapped)":""}: ${diagnosis_returnTypeString}.${diagnosis_hasDeepNullOrUndefined(result)?" **Note** Because it seems, there's a problem with null/undefined values: Make sure that you enable 'strictNullChecks' or 'strict' in tsconfig.json.":""}` );
             }
             throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Error(s): ${errors.join("; ")}`);
         }
