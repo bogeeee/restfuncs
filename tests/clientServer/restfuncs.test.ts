@@ -96,7 +96,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy()
         expect(options.shapeArguments === undefined).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy()
-        expect(options.apiBrowserOptions.needsAuthorization).toBeFalsy()
+        expect(options.apiBrowserOptions!.needsAuthorization).toBeFalsy()
     })
 
     test("inherited from parent method and parent defaultRemoteMethodOptions", () => {
@@ -132,7 +132,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
+        expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
 
@@ -163,7 +163,7 @@ describe("getRemoteMethodOptions", () => {
             expect(options.validateResult === false).toBeTruthy()
             expect(options.shapeArguments === false).toBeTruthy()
             expect(options.shapeResult === false).toBeTruthy()
-            expect(options.apiBrowserOptions.needsAuthorization).toBeTruthy()
+            expect(options.apiBrowserOptions!.needsAuthorization).toBeTruthy()
         }
     })
 
@@ -192,7 +192,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected
         expect(options.shapeArguments === undefined).toBeTruthy() // Should not be affected
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected
-        expect(options.apiBrowserOptions.needsAuthorization === undefined).toBeTruthy() // Should not be affected
+        expect(options.apiBrowserOptions!.needsAuthorization === undefined).toBeTruthy() // Should not be affected
     })
 
 
@@ -228,7 +228,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
+        expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
     test("Just parent's defaultRemoteMethodOptions", () => {
@@ -262,7 +262,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.shapeArguments === false).toBeTruthy()
         expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
-        expect(options.apiBrowserOptions.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
+        expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 });
 
@@ -770,7 +770,7 @@ test('Result Content-Type', async () => {
         }
 
         async getHtml() {
-            this.call.res.contentType("text/html; charset=utf-8");
+            this.call.res!.contentType("text/html; charset=utf-8");
             return "<html/>";
         }
 
@@ -780,12 +780,12 @@ test('Result Content-Type', async () => {
 
 
         async getTextPlain() {
-            this.call.res.contentType("text/plain; charset=utf-8");
+            this.call.res!.contentType("text/plain; charset=utf-8");
             return "plain text";
         }
 
         async returnNonStringAsHtml() {
-            this.call.res.contentType("text/html; charset=utf-8");
+            this.call.res!.contentType("text/html; charset=utf-8");
             return {};
         }
     }(), async (baseUrl) => {
@@ -824,7 +824,7 @@ test('Http stream and buffer results', async () => {
     await runRawFetchTests(new class extends Service{
         static options: ServerSessionOptions = {allowedOrigins: "all"}
         async readableResult() {
-            this.call.res.contentType("text/plain; charset=utf-8");
+            this.call.res!.contentType("text/plain; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -837,7 +837,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithError() {
-            this.call.res.contentType("text/html; charset=utf-8");
+            this.call.res!.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -851,7 +851,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async readableResultWithEarlyError() {
-            this.call.res.contentType("text/html; charset=utf-8");
+            this.call.res!.contentType("text/html; charset=utf-8");
             const readable = new Readable({
                 read(size: number) {
                 }})
@@ -863,7 +863,7 @@ test('Http stream and buffer results', async () => {
         }
 
         async bufferResult() {
-            this.call.res.contentType("text/plain; charset=utf-8");
+            this.call.res!.contentType("text/plain; charset=utf-8");
             return new Buffer("resultöä", "utf8");
         }
     }(), async (baseUrl) => {
@@ -1003,8 +1003,8 @@ test('this.call', async () => {
                 const serverAPI = new class extends Service {
                     async myMethod() {
                         // test access
-                        expect(this.call.req.path).toContain("/myMethod");
-                        this.call.res.setHeader("myHeader", "123"); // test setting headers before the content is sent.
+                        expect(this.call.req!.path).toContain("/myMethod");
+                        this.call.res!.setHeader("myHeader", "123"); // test setting headers before the content is sent.
                     }
 
                     async leakerMethod() {
@@ -1069,6 +1069,7 @@ test("generateSecret", () => {
     {
         resetGlobalState()
         expect(() => restfuncsExpress({secret: ""})).toThrow("empty string");
+        // @ts-ignore
         expect(() => restfuncsExpress({secret: null})).toThrow("Invalid type");
         //expect(() => restfuncsExpress({secret: "1234567"})).toThrow("too short");
         //expect(() => restfuncsExpress({secret: "12345678"})).toThrow("too short"); // A base64 decoded value of this should still be too short
@@ -1246,7 +1247,7 @@ describe('FAIL ACCEPTED (1) Session fields compatibility - type definitions', ()
 
 test('Session change detection', async () => {
 
-    function expectSame(a: object, b: object) {
+    function expectSame(a: object | undefined, b: object | undefined) {
         function removeInternalFields(session?: Partial<CookieSession>) {
             if(!session) {
                 return session;
@@ -1615,7 +1616,7 @@ describe('CookieSessions', () => {
                     test(`Various read/write with ${JSON.stringify(settings)}`, async () => {
                         class MyService extends Service {
 
-                            counter = 0
+                            counter: number |  null = 0
                             val = null
                             someObject?: { x: string }
                             someUndefined = undefined;
@@ -1629,7 +1630,7 @@ describe('CookieSessions', () => {
                                 expect(this.undefinedProp).toBe(undefined);
 
                                 // Test the proxy's setter / getter:
-                                this.counter = this.counter + 1;
+                                this.counter = this.counter! + 1;
                                 this.counter = this.counter + 1; // Sessions#note1: We don't want to fail here AFTER the first write. See ServerSession.ts -> Sessions#note1
                                 expect(this.counter).toBe(2);
                                 this.counter = null;
@@ -1652,7 +1653,7 @@ describe('CookieSessions', () => {
                             }
 
                             async getSomeObject_x() {
-                                return this.someObject.x;
+                                return this.someObject!.x;
                             }
                         }
 
@@ -1685,7 +1686,7 @@ describe('CookieSessions', () => {
 
 
                     test(`FEATURE TODO: Clearing values with ${JSON.stringify(settings)}`, async () => {
-                        let initialValue = undefined;
+                        let initialValue: string|undefined = undefined;
 
                         class MyService extends Service {
 
@@ -1745,7 +1746,7 @@ describe('CookieSessions', () => {
 
                             @remote({validateResult: false /* RTTI has problems, following types from other modules https://github.com/typescript-rtti/typescript-rtti/issues/113 */})
                             getTheRawCookieSession() {
-                                return this.clazz.getFixedCookieSessionFromRequest(this.call.req);
+                                return this.clazz.getFixedCookieSessionFromRequest(this.call.req!);
                             }
 
                             destroySession() {
@@ -1957,6 +1958,7 @@ test('validateCall security', async () => {
 
     // Malformed method name:
     await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"does not have a @remote() decorator");
+    // @ts-ignore
     await expectAsyncFunctionToThrow(async () => await service.validateCall(null, []),"methodName not set");
     await expectAsyncFunctionToThrow(async () => await service.validateCall("", []),"methodName not set");
     // @ts-ignore
@@ -1965,7 +1967,8 @@ test('validateCall security', async () => {
     await expectAsyncFunctionToThrow(async () => await service.validateCall("nonExistant", []),"does not exist");
 
     // malformed args:
-   await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", null),"not an array");
+   // @ts-ignore
+    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", null),"not an array");
     // @ts-ignore
     await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", ""),"not an array");
     // @ts-ignore
@@ -2304,7 +2307,7 @@ it('should reopen failed ClientSocketConnections', async () => {
         myMethod() {}
 
         failConnection() {
-            this.call.socketConnection.failFatal(new Error("test"));
+            this.call.socketConnection!.failFatal(new Error("test"));
         }
     }
 

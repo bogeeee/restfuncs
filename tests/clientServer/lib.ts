@@ -51,7 +51,7 @@ export async function runClientServerTests<Api extends object>(serverAPI: Api, c
         const service = toServiceClass(serverAPI);
         service.options = {...standardOptions, ...service.options}
 
-        app.use(testOptions.path, service.createExpressHandler());
+        app.use(testOptions.path || "", service.createExpressHandler());
         const server = app.listen();
         // @ts-ignore
         const serverPort = server.address().port;
@@ -84,6 +84,7 @@ function toServiceClass<Api>(serverAPI: Api): typeof ServerSession {
             }
         }
 
+        // @ts-ignore
         extendPropsAndFunctions(AnonymousService.prototype, serverAPI);
 
         if (Object.getPrototypeOf(Object.getPrototypeOf(serverAPI))?.constructor) {
