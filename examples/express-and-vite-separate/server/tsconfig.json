@@ -15,7 +15,7 @@
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
     "experimentalDecorators": true,
-    "strict": true,
+    "strictNullChecks": true,
     "plugins": [{ "transform": "restfuncs-transformer" }]
   }
 }

@@ -114,7 +114,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 "compilerOptions": {
     "moduleResolution": "node",
     "experimentalDecorators": true,
-    "strict": true,
+    "strictNullChecks": true,
     "sourceMap": true, //optional, recommended
     "plugins": [{ "transform": "restfuncs-transformer" }]    
 },
