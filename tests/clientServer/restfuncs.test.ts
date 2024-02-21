@@ -1617,7 +1617,7 @@ describe('CookieSessions', () => {
                         class MyService extends Service {
 
                             counter: number |  null = 0
-                            val = null
+                            val:any = null
                             someObject?: { x: string }
                             someUndefined = undefined;
 
