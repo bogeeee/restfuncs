@@ -10,7 +10,7 @@ _This autoinstalls dependencies for every sub-package / workspace ;)_
 ### Running tests
 
 During coding, you would normally run `test:watch-and-run-tests`,
-or, because the filewatcher loves to crash often, start them manually with `test:compile_and_run_tests`  
+or, because the filewatcher loves to crash often, start them manually with `test:compile_and_run_tests`. _Note: You must run `test:perpare` once first, to build the transformer._
 
 
 ### Test (with) examples
