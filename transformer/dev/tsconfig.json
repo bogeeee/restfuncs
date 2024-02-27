@@ -7,9 +7,15 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "sourceMap": true,
+    //"experimentalDecorators": true,
+    //"emitDecoratorMetadata": true,
     "declarationMap": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "plugins": [{ "transform": "restfuncs-transformer" }]
+    "strictNullChecks": true,
+    "plugins": [
+      { "transform": "restfuncs-transformer" },
+      { "transform": "typia/lib/transform" }
+    ]
   },
 }

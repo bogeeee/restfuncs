@@ -6,6 +6,7 @@
   "scripts": {
     "prepare": "npm run --prefix ../../common build &&  npm run --prefix ../../server build",
     "clean": "npm run --prefix .. clean && tspc --build --clean",
+    "plainTsc": "tsc --build --force",
     "do-the-build": "npm run --prefix .. build &&  tspc --build --force"
   },
   "dependencies": {
