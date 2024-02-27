@@ -2,11 +2,14 @@ import * as ts from 'typescript';
 import { factory} from "typescript"
 import type { TransformerExtras, PluginConfig } from 'ts-patch';
 import typescriptRttiTransformer from "typescript-rtti/dist/transformer";
+import typiaTransformer from "typia/lib/transform"
 
 /** Changes string literal 'before' to 'after' */
-export default function (program: ts.Program, pluginConfig: PluginConfig, { ts: tsInstance }: TransformerExtras): ts.TransformerFactory<any> { // TODO: not the proper signature but makes the example work
+export default function (program: ts.Program, pluginConfig: PluginConfig, extras: TransformerExtras): ts.TransformerFactory<any> { // TODO: not the proper signature but makes the example work
+    const { ts: tsInstance } = extras;
 
     const typescriptRttiTransformerFactory = typescriptRttiTransformer(program); // init
+    const typiaTransformerFactory = typiaTransformer(program, pluginConfig as any, extras);
 
     // Our transformerfactory:
     return (ctx: ts.TransformationContext) => {
@@ -81,6 +84,9 @@ export default function (program: ts.Program, pluginConfig: PluginConfig, { ts: 
 
             // @ts-ignore
             tsInstance.visitNode(sourceFile, hasMarker(tsInstance, ctx));
+
+            let typiaTransformer = typiaTransformerFactory(ctx);
+            sourceFile = typiaTransformer(sourceFile); // run it;
 
             return sourceFile;
         };
