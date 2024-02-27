@@ -22,5 +22,5 @@
     "experimentalDecorators": true,
     "skipLibCheck": true,
   },
-  "exclude": ["dist"]
+  "exclude": ["dev"]
 }

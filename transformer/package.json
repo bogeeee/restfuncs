@@ -12,7 +12,8 @@
   "license": "MIT",
   "scripts": {
     "clean": "tsc --build --clean && rm -rf dist LICENSE",
-    "build": "tsc"
+    "build": "tsc --build",
+    "dev:playgrund": "tsx devPlayground.ts"
   },
   "exports": {
     ".": {
@@ -20,7 +21,8 @@
     }
   },
   "dependencies": {
-    "typescript-rtti": "^0.9.6"
+    "typescript-rtti": "^0.9.6",
+    "typia": "^5.4.13"
   },
   "devDependencies": {
     "typescript": "5.1.x",

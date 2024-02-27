@@ -1,0 +1,21 @@
+{
+  "name": "dev-restfuncs-transformer",
+  "version": "0.9.8",
+  "description": "Example files that get transformed",
+  "license": "MIT",
+  "scripts": {
+    "prepare": "npm run --prefix ../../common build &&  npm run --prefix ../../server build",
+    "clean": "npm run --prefix .. clean && tspc --build --clean",
+    "do-the-build": "npm run --prefix .. build &&  tspc --build --force"
+  },
+  "dependencies": {
+    "restfuncs-server": "../../server",
+    "typia": "^5.4.13"
+  },
+  "devDependencies": {
+    "typescript": "5.1.x",
+    "nodemon": "^2.0.15",
+    "ts-patch": "^3.1.2",
+    "restfunct-transformer": ".."
+  }
+}
