@@ -14,7 +14,7 @@
     "esModuleInterop": true,
     "strictNullChecks": true,
     "plugins": [
-      { "transform": "restfuncs-transformer" },
+      { "transform": "../../index.ts" },
       //{ "transform": "typia/lib/transform" }
     ]
   },

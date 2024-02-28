@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev:fastbuild": "tspc --build",
-    "test:prepare": "npm run --prefix transformer build",
     "test:watch-and-run-tests": "nodemon -e ts --exec npm run test:compile_and_run_tests",
     "test:compile_and_run_tests": "clear && tspc --build && jest --runInBand",
     "test:runSpecificTest": "clear && tspc --build && jest --runInBand restfuncs --testNamePattern=^Test.error$",
@@ -24,6 +23,7 @@
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",
+    "ts-node": "^10.9.2",
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^0.9.6"
   },

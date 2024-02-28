@@ -7,7 +7,7 @@
     "_prepare": "npm run --prefix ../../../common build &&  npm run --prefix ../../../server build && npm install",
     "clean": "npm run --prefix ../.. clean && tspc --build --clean",
     "plainTsc": "tsc --build --force",
-    "do-the-build": "npm run --prefix ../.. build &&  tspc --build --force"
+    "do-the-build": "tspc --build --force"
   },
   "dependencies": {
     "restfuncs-server": "../../../server",
