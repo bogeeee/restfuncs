@@ -18,5 +18,5 @@ export class A {
     }
 }
 
-// A validator that should be replaced by typia:
+// A validator that should be replaced by typia. Uncomment to test it
 //const validator = (obj: unknown) => (typia.validate<B>(obj))
