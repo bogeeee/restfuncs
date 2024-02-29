@@ -7,14 +7,14 @@
     "_prepare": "npm run --prefix ../../../common build &&  npm run --prefix ../../../server build && npm install",
     "clean": "npm run --prefix ../.. clean && tspc --build --clean",
     "plainTsc": "tsc --build --force",
-    "do-the-build": "tspc --build --force"
+    "do-the-build": "tspc"
   },
   "dependencies": {
     "restfuncs-server": "../../../server",
     "typia": "^5.4.13"
   },
   "devDependencies": {
-    "typescript": "5.1.x",
+    "typescript": "^5.3.3",
     "nodemon": "^2.0.15",
     "ts-patch": "^3.1.2",
     "restfunct-transformer": "../.."
