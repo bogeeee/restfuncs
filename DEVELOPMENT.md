@@ -18,7 +18,7 @@ You would want to test your code changes with the examples, or use them as a pla
 ```bash
 npm run build
 ```
-This compiles the /**/dist/mjs which are what's used from the browser/vite packager. Then cd into the examples and `npm run dev` then.    
+This compiles the transformer and the /**/dist/mjs which are what's used from the browser/vite bundler. Then cd into the examples and `npm run dev` then.    
 _eventually remove the /package-lock.json if examples still stick to old packages_
 
 Instead of the super slow `npm run build` from the root package, you could try *dev:fastbuild* (but does not rebuild the client for the browser) or look at `dev:playground`. Just try what works best.

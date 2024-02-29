@@ -4,9 +4,8 @@
   "description": "Example files that get transformed",
   "license": "MIT",
   "scripts": {
-    "_prepare": "npm run --prefix ../../../common build &&  npm run --prefix ../../../server build && npm install",
-    "clean": "npm run --prefix ../.. clean && tspc --build --clean",
-    "plainTsc": "tsc --build --force",
+    "clean": "tspc --build --clean",
+    "plainTscOnly": "tsc --build --force",
     "do-the-build": "tspc"
   },
   "dependencies": {
@@ -17,6 +16,6 @@
     "typescript": "^5.3.3",
     "nodemon": "^2.0.15",
     "ts-patch": "^3.1.2",
-    "restfunct-transformer": "../.."
+    "ts-node": "^10.9.2"
   }
 }
