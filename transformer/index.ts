@@ -80,6 +80,7 @@ export default function transformProgram(
     for (const sourceFile of transformedSource) {
         const { fileName, languageVersion } = sourceFile;
         const updatedSourceFile = tsInstance.createSourceFile(fileName, printFile(sourceFile), languageVersion);
+        updatedSourceFile.version = sourceFile.version;
         compilerHost.fileCache.set(fileName, updatedSourceFile);
     }
 
