@@ -45,6 +45,9 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.15",
-    "restfuncs-transformer": "^0.9.6"
+    "restfuncs-transformer": "^1.0.0"
+  },
+  "optionalDependencies": {
+    "restfuncs-transformer": "^1.0.0"
   }
 }
