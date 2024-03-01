@@ -1,16 +1,6 @@
-import ts, {
-    CompilerHost,
-    CompilerOptions,
-    Program,
-    SyntaxKind,
-    TransformationContext,
-    SourceFile,
-    Node,
-    factory
-} from 'typescript';
-import { PluginConfig, ProgramTransformerExtras } from "ts-patch";
+import ts, {CompilerHost, CompilerOptions, Program, SourceFile} from 'typescript';
+import {PluginConfig, ProgramTransformerExtras} from "ts-patch";
 import {} from 'ts-expose-internals'
-import ex = CSS.ex;
 
 // From: https://github.com/nonara/ts-patch/discussions/29#discussioncomment-325979
 
