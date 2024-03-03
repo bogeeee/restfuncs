@@ -1,9 +1,11 @@
 import ts, {CompilerHost, CompilerOptions, Program, SourceFile} from 'typescript';
 import {PluginConfig, ProgramTransformerExtras} from "ts-patch";
-import {} from 'ts-expose-internals'
+import {AddRemoteMethodsMeta, TransformerFactory,} from "./AddRemoteMethodsMeta";
+import {TransformerFactoryOOP} from "./transformerUtil";
 
 // From: https://github.com/nonara/ts-patch/discussions/29#discussioncomment-325979
 
+export const transformerVersion = {major: 1,  feature: 1 }
 
 /* ****************************************************************************************************************** */
 // region: Helpers
@@ -58,12 +60,14 @@ export default function transformProgram(
     const compilerHost = getPatchedHost(host, tsInstance, compilerOptions);
     const rootFileNames = program.getRootFileNames().map(tsInstance.normalizePath);
 
+    const transformerFactoryOOP = new TransformerFactoryOOP(AddRemoteMethodsMeta);
+
     /* Transform AST */
     const transformedSource = tsInstance.transform(
         /* sourceFiles */ program.getSourceFiles().filter(sourceFile => rootFileNames.includes(sourceFile.fileName)),
-        /* transformers */ [ transformAst.bind(tsInstance) ],
+        /* transformerFactoryOOP */ [ transformerFactoryOOP.asFunction ],
         compilerOptions
-    ).transformed;
+    ).transformed; //.transformed returned all its input files. TODO: Filter those, who were actually modified.
 
     /* Render modified files and create new SourceFiles for them to use in host's cache */
     const { printFile } = tsInstance.createPrinter();
@@ -76,69 +80,6 @@ export default function transformProgram(
 
     /* Re-create Program instance */
     return tsInstance.createProgram(rootFileNames, compilerOptions, compilerHost);
-}
-
-// endregion
-
-
-/* ****************************************************************************************************************** */
-// region: AST Transformer
-/* ****************************************************************************************************************** */
-
-/**
- * Change all 'number' keywords to 'string'
- *
- * @example
- * // before
- * type A = number
- *
- * // after
- * type A = string
- */
-function transformAst(this: typeof ts, context: TransformationContext) {
-    const tsInstance = this;
-
-    /* Transformer Function */
-    return (sourceFile: SourceFile) => {
-        return tsInstance.visitEachChild(sourceFile, visit, context);
-
-        /* Visitor Function */
-        function visit(node: Node): Node {
-            if (node.kind === SyntaxKind.StringLiteral && node.text === "marker") {
-                const factory = context.factory;
-                return factory.createIdentifier("validator"),
-                        undefined,
-                        undefined,
-                        factory.createArrowFunction(
-                            undefined,
-                            undefined,
-                            [factory.createParameterDeclaration(
-                                undefined,
-                                undefined,
-                                factory.createIdentifier("obj"),
-                                undefined,
-                                (factory.createKeywordTypeNode as anyFn)(ts.SyntaxKind.UnknownKeyword),
-                                undefined
-                            )],
-                            undefined,
-                            (factory.createToken as anyFn)(ts.SyntaxKind.EqualsGreaterThanToken),
-                            factory.createParenthesizedExpression(factory.createCallExpression(
-                                factory.createPropertyAccessExpression(
-                                    factory.createIdentifier("typia"),
-                                    factory.createIdentifier("validate")
-                                ),
-                                [factory.createTypeReferenceNode(
-                                    factory.createIdentifier("B"),
-                                    undefined
-                                )],
-                                [factory.createIdentifier("obj")]
-                            ))
-                        )
-            }
-            else
-                return tsInstance.visitEachChild(node, visit, context);
-        }
-    }
 }
 
 // endregion

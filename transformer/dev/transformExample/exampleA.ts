@@ -1,21 +1,29 @@
 import typia from "typia"
-function remote() {
-    return function (...args: any[]) {
-        console.log("decorated")
-    }
-}
+import {remote, ServerSession} from "restfuncs-server";
 type B = {
     id: number,
     name: string;
 }
 
-export class A {
+export class A extends ServerSession {
     propB: string
 
+
+
+
+    /**
+     * myJsDocComment
+     * @param a aaaa
+     * @param b
+     * @param c
+     * @see xy
+     */
     @remote()
-    myMethod(b: B) {
+    myMethod(a: any, b: B, ...c: B[]) {
         "marker"
     }
+
+
 }
 
 // A validator that should be replaced by typia. Uncomment to test it

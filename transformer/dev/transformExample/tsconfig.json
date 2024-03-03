@@ -7,7 +7,7 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "sourceMap": true,
-    //"experimentalDecorators": true,
+    "experimentalDecorators": true,
     //"emitDecoratorMetadata": true,
     "declarationMap": true,
     "allowSyntheticDefaultImports": true,

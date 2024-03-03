@@ -41,7 +41,8 @@
     "@types/busboy": "^1.5.0",
     "engine.io": "^6.5.3",
     "tweetnacl": "^1.0.3",
-    "tweetnacl-util": "^0.15.1"
+    "tweetnacl-util": "^0.15.1",
+    "typia": "^5.4.14"
   },
   "devDependencies": {
     "nodemon": "^2.0.15",
