@@ -282,7 +282,13 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             undefined,
             undefined,
             [],
-            undefined,
+            factory.createParenthesizedType(factory.createTypeQueryNode(
+                factory.createQualifiedName(
+                    factory.createIdentifier("this"),
+                    factory.createIdentifier("type_remoteMethodsMeta")
+                ),
+                undefined
+            )),
             factory.createBlock(
                 [
                     factory.createExpressionStatement(factory.createPropertyAccessExpression(
