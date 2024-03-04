@@ -25,7 +25,9 @@ static getRemoteMethodsMeta() {
                     //TODO
                 },
                 jsDoc: {
-                    
+                    comment: "text with <strong>markup</strong>", 
+                    params: {a: "text..."},
+                    tags: [{name:"returns", comment: "text..."}]
                 }
             }
         }

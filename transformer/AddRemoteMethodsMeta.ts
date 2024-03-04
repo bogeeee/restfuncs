@@ -43,7 +43,7 @@ export class AddRemoteMethodsMeta extends FileTransformerOOP {
                     throw new Error(`@remote methods cannot have multiple/overloaded signatures: ${methodName}`) // TODO: add diagnosis
                 }
 
-                this.currentClass_instanceMethodsMeta![methodName] = this.createMethodMetaExpression(methodName) // create the code:
+                this.currentClass_instanceMethodsMeta![methodName] = this.createMethodMetaExpression(methodDeclaration, methodName) // create the code:
             }
             finally {
                 this.diagnosis_currentClass_instanceMethodsSeen!.add(methodName);
@@ -93,7 +93,7 @@ export class AddRemoteMethodsMeta extends FileTransformerOOP {
      * @param methodName
      * @private
      */
-    createMethodMetaExpression(methodName: string) {
+    createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
         const factory = this.context.factory;
 
         // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
@@ -150,15 +150,110 @@ export class AddRemoteMethodsMeta extends FileTransformerOOP {
                     )
                 ),
                 factory.createPropertyAssignment(
-                    factory.createIdentifier("jsDoc"),
-                    factory.createObjectLiteralExpression(
-                        [],
-                        true
-                    )
+                    factory.createIdentifier("jsDoc"), this.createJsDocExpression(node, methodName)
                 )
             ],
             true
         );
+    }
+
+    /**
+     * Crates the following expression like in readme.md#how-it-works
+     * <code><pre>
+     * {
+     *     comment: "...",
+     *     params: {...},
+     *     ...
+     * }
+     * </pre></code>
+     *
+     * or
+     *
+     * <code><pre>
+     *     undefined
+     * </pre></code>
+     *
+     *
+     * @param methodName
+     * @private
+     */
+    private createJsDocExpression(node: MethodDeclaration, diagnosis_methodName: string) {
+        const factory = this.context.factory;
+
+        if(!node.jsDoc || node.jsDoc.length == 0 ) { // no jsdoc
+            return factory.createIdentifier("undefined");
+        }
+
+        const jsdoc = node.jsDoc[node.jsDoc.length - 1]; // use last jsDoc
+
+        const comment = jsdoc.comment || "";
+        if(typeof comment !== "string") {
+            throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+        }
+
+        // Collect params and tags
+        const params: Record<string, string> = {}
+        const tags: {name:string, comment?: string}[] = []
+        jsdoc.tags?.forEach(tag => {
+            const name = (tag.tagName.escapedText as string).toLowerCase()
+            const comment = tag.comment;
+            if(comment && typeof comment !== "string") {
+                throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+            }
+
+            if(name === "param") {
+                const paramname = (tag as any).name?.escapedText;
+                if(paramname && comment) {
+                    params[paramname] = comment;
+                }
+            }
+            else {
+                const tagName: Node | undefined = (tag as any).name;
+                tags.push({name, comment})
+            }
+        })
+
+        // JSDoc. Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
+        let jsDocExpression = factory.createObjectLiteralExpression(
+            [
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("comment"),
+                    factory.createStringLiteral(comment)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("params"),
+                    factory.createObjectLiteralExpression(
+                        Object.keys(params).map(paramName =>
+                            factory.createPropertyAssignment(
+                            factory.createIdentifier(paramName),
+                            factory.createStringLiteral(params[paramName])
+                        )),
+                        false
+                    )
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("tags"),
+                    factory.createArrayLiteralExpression(
+                         tags.map(tag => factory.createObjectLiteralExpression(
+                            [
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier("name"),
+                                    factory.createStringLiteral(tag.name)
+                                ),
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier("comment"),
+                                    tag.comment !== undefined?factory.createStringLiteral(tag.comment):factory.createIdentifier("undefined")
+                                )
+                            ],
+                            false
+                        )),
+                        false
+                    )
+                )
+            ],
+            true
+        )
+        return jsDocExpression;
     }
 
     /**

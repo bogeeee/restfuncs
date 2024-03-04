@@ -284,6 +284,15 @@ type RemoteMethodsMeta = {
             result: {
                 validate?: (result: unknown) => ReturnType<typeof typia.validate> //TODO: delete the optional "?"
             }
+            jsDoc?: {
+                comment: string,
+                params: Record<string, string>
+                /**
+                 * I.e.
+                 * "@see ..."
+                 */
+                tags: {name:string, comment?: string}[]
+            }
         }
     }
 }

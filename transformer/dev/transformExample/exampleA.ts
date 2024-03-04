@@ -14,9 +14,10 @@ export class A extends ServerSession {
     /**
      * myJsDocComment
      * @param a aaaa
-     * @param b
+     * @param b bb
      * @param c
      * @see xy
+     * @returns bla xy
      */
     @remote()
     myMethod(a: any, b: B, ...c: B[]) {
