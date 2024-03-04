@@ -140,6 +140,7 @@ export class DropConcurrentOperationMap<K, T> {
         const result = []
         for(const promise of this.resultPromises.values()) {
             try {
+                // @ts-ignore TS2345: Don't know why. This comes only when build is run with a ts-patch transformProgram transformer
                 result.push(await promise);
             }
             catch (e) {

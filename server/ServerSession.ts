@@ -476,7 +476,7 @@ export class ServerSession implements IServerSession {
      * @protected
      */
     static get referenceInstance() {
-        if(this.hasOwnProperty("_referenceInstance")) { // Already initialized ?
+        if(this.hasOwnProperty("_referenceInstance") && this._referenceInstance /* note: there's a different behaviour when run with a transformProgram transformer: the compiler will then emit static _reference = undefined (vs. leaving this line away) */) { // Already initialized ?
             return this._referenceInstance!;
         }
 
