@@ -5,7 +5,7 @@
   "type": "module",
   "main": "./server",
   "scripts": {
-    "prepare": "npm run --prefix ../.. build",
+    "prepare:buildRestfuncs": "npm run --prefix ../.. build",
     "dev": "nodemon -e ts --ignore client --exec \"clear && tspc --build && cross-env NODE_ENV=development node --enable-source-maps server.js\"",
     "clean": "tspc --build --clean && rm -rf client/dist"
   },
