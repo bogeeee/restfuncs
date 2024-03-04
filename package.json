@@ -3,7 +3,7 @@
   "description": "Tests and build/publish scripts",
   "type": "module",
   "scripts": {
-    "dev:fastbuild": "tspc --build",
+    "dev:fastbuild": "npm run --prefix transformer clean && tspc --build",
     "test:watch-and-run-tests": "nodemon -e ts --exec npm run test:compile_and_run_tests",
     "test:compile_and_run_tests": "clear && tspc --build && jest --runInBand",
     "test:runSpecificTest": "clear && tspc --build && jest --runInBand restfuncs --testNamePattern=^Test.error$",

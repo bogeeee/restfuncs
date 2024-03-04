@@ -9,7 +9,7 @@
     "debug: *** with a patched tsc, we have better stacktraces with files than in life mode (there we see only EvalMachine).": "",
     "debug:preapre": "ts-patch install",
     "debug:tspatch-uninstall": "ts-patch uninstall",
-    "debug:do-the-build": "tsc"
+    "debug:do-the-build": "npm --prefix ../.. run clean && tsc"
   },
   "dependencies": {
     "restfuncs-server": "../../../server",
