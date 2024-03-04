@@ -42,7 +42,7 @@
     "engine.io": "^6.5.3",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
-    "typia": "^5.4.14"
+    "typia": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.15",

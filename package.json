@@ -17,7 +17,6 @@
   },
   "workspaces": ["transformer", "common", "server", "client", "restfuncs-metapackage", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity", "tests/session-playground"],
   "dependencies": {
-    "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
