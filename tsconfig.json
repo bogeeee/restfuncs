@@ -24,7 +24,11 @@
     "moduleResolution": "node",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "plugins": [{ "transform": "./transformer/index.ts" }], // ts-node must be installed to run it directly
+    "plugins": [
+      { "transform": "./transformer/index.ts" /* ts-node must be installed to run the .ts files directly*/,  "transformProgram": true},
+      { "transform": "typia/lib/transform" },
+      { "transform": "typescript-rtti/dist/transformer" },
+    ],
     "strictNullChecks": true
   }
 }

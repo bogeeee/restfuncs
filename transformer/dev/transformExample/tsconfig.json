@@ -15,8 +15,8 @@
     "strictNullChecks": true,
     "plugins": [
       { "transform": "../../index.ts",  "transformProgram": true},
-      //{ "transform": "typescript-rtti/dist/transformer" }
-      { "transform": "typia/lib/transform" }
+      { "transform": "typia/lib/transform" },
+      { "transform": "typescript-rtti/dist/transformer" },
     ]
   },
 }
