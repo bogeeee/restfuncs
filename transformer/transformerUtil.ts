@@ -1,7 +1,7 @@
 import ts, {Node, SourceFile, SyntaxKind, TransformationContext, TransformerFactory} from "typescript";
 
 type ClassOf<T> = {
-    new(...args: unknown[]): T
+    new(...args: any[]): T
 }
 
 /**

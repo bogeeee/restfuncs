@@ -1,6 +1,6 @@
 import ts, {CompilerHost, CompilerOptions, Program, SourceFile} from 'typescript';
 import {PluginConfig, ProgramTransformerExtras} from "ts-patch";
-import {AddRemoteMethodsMeta, TransformerFactory,} from "./AddRemoteMethodsMeta";
+import {AddRemoteMethodsMeta} from "./AddRemoteMethodsMeta";
 import {TransformerFactoryOOP} from "./transformerUtil";
 
 // From: https://github.com/nonara/ts-patch/discussions/29#discussioncomment-325979
