@@ -30,6 +30,9 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             if(this.getChilds(methodDeclaration).some(n => n.kind == SyntaxKind.StaticKeyword)) { // static ?
                 return node;
             }
+            if(this.getParent().kind !== SyntaxKind.ClassDeclaration) { // Method not under a class (i.e. an anonymous object ?}
+                return node;
+            }
 
             const methodName = (methodDeclaration.name as any).escapedText;
             try {
