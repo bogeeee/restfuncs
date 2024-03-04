@@ -7,13 +7,13 @@ type ClassOf<T> = {
 /**
  * Transformerfactory in a better oop style
  */
-export class TransformerFactoryOOP<FT extends FileTransformerOOP> {
-    producedFileTransformers: FT[] = []
-    fileTransformerClass: ClassOf<FileTransformerOOP>;
+export class TransformerFactoryOOP<FT extends FileTransformRun> {
+    transformRunsDone: FT[] = []
+    fileTransformRunClass: ClassOf<FileTransformRun>;
 
 
-    constructor(fileTransformerClass: ClassOf<FT>) {
-        this.fileTransformerClass = fileTransformerClass;
+    constructor(fileTransformerRunClass: ClassOf<FT>) {
+        this.fileTransformRunClass = fileTransformerRunClass;
     }
 
     /**
@@ -21,25 +21,28 @@ export class TransformerFactoryOOP<FT extends FileTransformerOOP> {
      */
     get asFunction(): TransformerFactory<SourceFile> {
         return (context: TransformationContext) => {
-            const fileTransformer = new this.fileTransformerClass(ts, context);
-            // @ts-ignore
-            this.producedFileTransformers.push(fileTransformer);
-            return fileTransformer.asFunction
+            return (sourceFile: SourceFile): SourceFile => {
+                const fileTransformer = new this.fileTransformRunClass(ts, sourceFile, context);
+                this.transformRunsDone.push(fileTransformer as FT);
+                return ts.visitEachChild(sourceFile, (node) => fileTransformer.visit(node), context);
+            }
         }
     }
 }
 
 /**
- * Transforms one file. One time usage.
+ * Stores the context and result of one run. Don't reuse.
  */
-export abstract class FileTransformerOOP {
+export abstract class FileTransformRun {
     tsInstance: typeof ts;
+    sourceFile: SourceFile
     context: TransformationContext;
     parentNodes: Node[] = []
     used = false;
 
-    constructor(tsInstance: typeof ts, context: TransformationContext) {
+    constructor(tsInstance: typeof ts, sourceFile: SourceFile, context: TransformationContext) {
         this.tsInstance = tsInstance;
+        this.sourceFile = sourceFile;
         this.context = context;
     }
 
@@ -47,19 +50,6 @@ export abstract class FileTransformerOOP {
     getParent = () => {
         return this.parentNodes[this.parentNodes.length - 1];
     };
-
-    /* Transformer Function (for the ts api) */
-    get asFunction() {
-        return (sourceFile: SourceFile): SourceFile => {
-            // Safety check:
-            if (this.used) {
-                throw new Error("Can only use ServerSessionFileASTTransformer for one run.")
-            }
-            this.used = true
-
-            return this.tsInstance.visitEachChild(sourceFile, (node) => this.visit(node), this.context);
-        }
-    }
 
     /**
      * Vistor function

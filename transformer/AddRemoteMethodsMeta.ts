@@ -6,7 +6,7 @@ import ts, {
     ObjectLiteralExpression,
     SyntaxKind
 } from 'typescript';
-import {FileTransformerOOP} from "./transformerUtil";
+import {FileTransformRun} from "./transformerUtil";
 import {transformerVersion} from "./index";
 
 
@@ -18,7 +18,7 @@ import {transformerVersion} from "./index";
  * }
  * </pre></code>
  */
-export class AddRemoteMethodsMeta extends FileTransformerOOP {
+export class AddRemoteMethodsMeta extends FileTransformRun {
 
     diagnosis_currentClass_instanceMethodsSeen?: Set<string>;
     currentClass_instanceMethodsMeta?: Record<string, ObjectLiteralExpression>; // The {...} that should be added below... see example in readme.md
