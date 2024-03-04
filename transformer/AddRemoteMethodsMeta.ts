@@ -1,11 +1,4 @@
-import ts, {
-    ClassDeclaration,
-    Decorator,
-    MethodDeclaration,
-    Node,
-    ObjectLiteralExpression,
-    SyntaxKind
-} from 'typescript';
+import ts, {ClassDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, SyntaxKind} from 'typescript';
 import {FileTransformRun} from "./transformerUtil";
 import {transformerVersion} from "./index";
 
@@ -276,7 +269,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
         let instanceMethods = factory.createObjectLiteralExpression(
             Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => factory.createPropertyAssignment(
-                factory.createStringLiteral("myMethod"), this.currentClass_instanceMethodsMeta![methodName]
+                factory.createStringLiteral(methodName), this.currentClass_instanceMethodsMeta![methodName]
             )),
             true
         );
