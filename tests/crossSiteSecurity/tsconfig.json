@@ -16,7 +16,11 @@
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
     "experimentalDecorators": true,
-    "plugins": [{ "transform": "restfuncs-transformer" }],
+    "plugins": [
+      { "transform": "restfuncs-transformer",  "transformProgram": true},
+      { "transform": "typia/lib/transform" },
+      { "transform": "typescript-rtti/dist/transformer" }
+    ],
     "strict": true
   }
 }

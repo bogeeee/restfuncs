@@ -247,7 +247,7 @@ type ObjectWithStringIndex = {[index: string]: unknown};
  * Values that are allowed to be set as meta parameters via header / query params / request body params.
  */
 export const metaParameterNames = new Set<string>(["csrfProtectionMode", "corsReadToken", "csrfToken"])
-export const DOCS_BASEURL = "https://github.com/bogeeee/restfuncs/tree/2.x"
+export const DOCS_BASEURL = "https://github.com/bogeeee/restfuncs/tree/3.x"
 export const DOCS_READMEURL = `${DOCS_BASEURL}/readme.md`
 
 export type SecurityRelevantSessionFields = {

@@ -24,7 +24,7 @@
     "@types/jest": "^29.2.2",
     "ts-node": "^10.9.2",
     "ts-patch": "^3.0.2",
-    "restfuncs-transformer": "^1.0.0"
+    "restfuncs-transformer": ">=1"
   },
   "keywords": [],
   "author": "Boris Gingold <bogeee@bogitech.de>",

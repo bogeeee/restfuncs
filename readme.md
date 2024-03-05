@@ -116,7 +116,10 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
     "experimentalDecorators": true,
     "strictNullChecks": true,
     "sourceMap": true, //optional, recommended
-    "plugins": [{ "transform": "restfuncs-transformer" }]    
+    "plugins": [
+        { "transform": "restfuncs-transformer",  "transformProgram": true},
+        { "transform": "typia/lib/transform" },
+        { "transform": "typescript-rtti/dist/transformer" } ],
 },
 "exclude": ["dist", "client", "web"], // Make sure, to not accidentially transform your client files.
 ````
@@ -129,12 +132,12 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
     "start": "node --enable-source-maps server.js"
 },
 "dependencies": {
-  "restfuncs-server": "^2.0.0",
+  "restfuncs-server": "^3.0.0",
   "restfuncs-client": "^2.0.0"
 },
 "devDependencies": {
   "ts-patch": "^3.0.2",
-  "restfuncs-transformer": "^0.9.6"
+  "restfuncs-transformer": "^1.0.0"
 },
 ````
 _Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package (in live mode, nothing will be patched here), which allows for our `restfuncs-transformer` plugin in tsconfig.json._
