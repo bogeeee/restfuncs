@@ -27,5 +27,7 @@ export class A extends ServerSession {
 
 }
 
+throw new Error("test to see if line numbers are correct");
+
 // A validator that should be replaced by typia. Uncomment to test it
 //const validator = (obj: unknown) => (typia.validate<B>(obj))

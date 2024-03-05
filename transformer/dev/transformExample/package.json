@@ -3,13 +3,15 @@
   "version": "0.9.8",
   "description": "Example files that get transformed",
   "license": "MIT",
+  "type": "module",
   "scripts": {
     "clean": "tspc --build --clean",
     "do-the-build": "tspc",
     "debug: *** with a patched tsc, we have better stacktraces with files than in life mode (there we see only EvalMachine).": "",
     "debug:preapre": "ts-patch install",
     "debug:tspatch-uninstall": "ts-patch uninstall",
-    "debug:do-the-build": "npm --prefix ../.. run clean && tsc"
+    "debug:do-the-build": "npm --prefix ../.. run clean && tsc",
+    "debug:runResult": "node --enable-source-maps exampleA.js"
   },
   "dependencies": {
     "restfuncs-server": "../../../server",
