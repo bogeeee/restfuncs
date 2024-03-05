@@ -2260,7 +2260,7 @@ export class ServerSession implements IServerSession {
     }
 
     static _diagnosisWhyIsRTTINotAvailable() {
-        return `Please see ${DOCS_READMEURL}#setting-up-the-build-the-annoying-stuff- .`
+        return `Please see ${DOCS_READMEURL}#setting-up-the-build-here-it-gets-a-bit-nasty- .`
     }
 
 

@@ -17,7 +17,7 @@ greet(name: string) {
 See, it uses natural parameters and natual `return` and `throw` flow, instead of dealing with `req` and `res` and Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
 - 🔌 **Automatic [REST interface](#rest-interface)**, that comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them.
-- 🛡️ **Automatic arguments validation** from native typescript types: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will validate that automatically at runtime.  _No need to repeat yourself in any inconvenient declaration language, no need to learn ZOD._ How does it work ? As we know, typescript usually erases all types at runtime. Therefore, Restfuncs needs a [tsc compiler plugin](https://www.npmjs.com/package/restfuncs-transformer), to add that type information. _It's currently just a wrapper for [typescript-rtti](https://typescript-rtti.org) and all the props go out to these guys ;)._ [See, how to set it up](#setting-up-the-build-the-annoying-stuff-).
+- 🛡️ **Automatic arguments validation** from native typescript types: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will validate that automatically at runtime.  _No need to repeat yourself in any inconvenient declaration language, no need to learn ZOD._ How does it work ? As we know, typescript usually erases all types at runtime. Therefore, Restfuncs needs a [tsc compiler plugin](https://www.npmjs.com/package/restfuncs-transformer), to add that type information. _It's currently just a wrapper for [typescript-rtti](https://typescript-rtti.org) and all the props go out to these guys ;)._ [See, how to set it up](#setting-up-the-build-here-it-gets-a-bit-nasty-).
 - 🍾 **RPC client** (this is the best part 😄😄😄): Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets** (default, but can be switched to plain HTTP as well): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs.  
 - **🔐 Security first approach**: All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
@@ -107,7 +107,7 @@ const myDomFile = document.querySelector("#myFileInput").files[0]; // Retrieve y
 await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myDomFile as UploadFile /* The trick is, to just cast it. */)
 ````
 
-### Setting up the build (the annoying stuff 😈)
+### Setting up the build (here, it gets a bit nasty 😈)
 
 **tsconfig.json**
 ````json
@@ -140,8 +140,8 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "restfuncs-transformer": "^1.0.0"
 },
 ````
-_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package (in live mode, nothing will be patched here), which allows for our `restfuncs-transformer` plugin in tsconfig.json._
-
+_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our transformer plugins (No worries. Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here)._  
+See, [how the transformer chain works](https://github.com/bogeeee/restfuncs/tree/3.x/transformer/readme.md#how-the-transformer-chain-works).
 
 ## &lt;/Boilerplate cheat sheet&gt;
 

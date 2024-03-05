@@ -1,11 +1,13 @@
-Enhances your classes with [typescript-rtti](), to make them usable with [restfuncs-server](https://www.npmjs.com/package/restfuncs-server). 
-Meaning Restfuncs is able to validate the arguments to your remote methods at runtime.
+# restfuncs-transformer
+This transformer prepares `ServerSession` subclasses for Typia and adds jsDoc info for the (upcoming) API browser.
+
 ## Usage
-[Here's how to use it](https://github.com/bogeeee/restfuncs#setting-up-the-build-the-annoying-stuff-)
+[Here's how to use it](https://github.com/bogeeee/restfuncs/tree/3.x/readme.md#setting-up-the-build-here-it-gets-a-bit-nasty-)
 
 
-## How it works
-In the first stage, this transformer, scans for all `@remote` methods and, at the bottom of inside their class, it adds the following code (here for "myMethod"): 
+## How the transformer chain works
+Here is, how the restfuncs-transformer, typia transformer and typescript-rtti work together: 
+1. The `restfuncs-transformer` scans for all `@remote` methods and, at the bottom of inside their class, it adds the following code (here for "myMethod"): 
 ````typescript
 
 /**
@@ -35,5 +37,5 @@ static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
 }
 ````
 
-In the next stage, the TYPIA transformer will replace all
-`typia.validate<T>` expressions with the actual validation code body. Typia calls this "ahead of time validation"
+2. The [Typia transformer](https://typia.io/) will then replace all `typia.validate<T>` expressions with the actual validation code body. Typia calls this "ahead of time validation". At runtime this is used to validate evil input and serialize/deserialize from json/protobuf in an ultra fast way (future).
+3. The [typescript-rtti transformer](https://typescript-rtti.org/) adds type-info decorations for all compiled symbols (that's all this `__RΦ` stuff in the .js). At runtime, this allows restfuncs to easily navigate through- and inspect all the type hierarchy. I.e when mapping REST parameter names to the remote methods arguments, for better error diagnosis, or for the upcoming API browser.
