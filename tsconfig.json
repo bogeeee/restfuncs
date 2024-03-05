@@ -1,7 +1,9 @@
 // A tsconfig file must be present, or tsc complains
 {
-  "exclude": [
-    "examples", "tests/crossSiteSecurity"
+  "include": [
+    // This root project build is only for building the tests (and running them comfortably as a whole and have a common file watcher on them).
+    // TODO: This setup might be a bit confusing and not so necessary, so the tests could be built and started from the sub packages as well. (mind that there might also be some trouble with jest then. There were some issues to it has to be build from the root package but i don't remember them exactly anymore)
+    "common","server", "client", "tests/clientServer"
   ],
   "references": [
     {
@@ -22,7 +24,11 @@
     "moduleResolution": "node",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "plugins": [{ "transform": "typescript-rtti/dist/transformer" }],
+    "plugins": [
+      { "transform": "./transformer/index.ts" /* ts-node must be installed to run the .ts files directly*/,  "transformProgram": true},
+      { "transform": "typia/lib/transform" },
+      { "transform": "typescript-rtti/dist/transformer" },
+    ],
     "strictNullChecks": true
   }
 }

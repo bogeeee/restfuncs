@@ -41,10 +41,14 @@
     "@types/busboy": "^1.5.0",
     "engine.io": "^6.5.3",
     "tweetnacl": "^1.0.3",
-    "tweetnacl-util": "^0.15.1"
+    "tweetnacl-util": "^0.15.1",
+    "typia": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.15",
-    "restfuncs-transformer": "^0.9.6"
+    "restfuncs-transformer": "^1.0.0"
+  },
+  "optionalDependencies": {
+    "restfuncs-transformer": "^1.0.0"
   }
 }

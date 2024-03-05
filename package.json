@@ -3,8 +3,8 @@
   "description": "Tests and build/publish scripts",
   "type": "module",
   "scripts": {
-    "dev:fastbuild": "tspc --build",
-    "test:watch-and-run-tests": "nodemon -e ts --exec npm run dev:compile_and_run_tests",
+    "dev:fastbuild": "npm run --prefix transformer clean && tspc --build",
+    "test:watch-and-run-tests": "nodemon -e ts --exec npm run test:compile_and_run_tests",
     "test:compile_and_run_tests": "clear && tspc --build && jest --runInBand",
     "test:runSpecificTest": "clear && tspc --build && jest --runInBand restfuncs --testNamePattern=^Test.error$",
     "dev:playground": "tsx devPlayground.ts",
@@ -17,14 +17,14 @@
   },
   "workspaces": ["transformer", "common", "server", "client", "restfuncs-metapackage", "examples/express-and-vite", "examples/express-and-vite-separate/server", "examples/express-and-vite-separate/client", "examples/express-and-vite-with-authentication", "tests/crossSiteSecurity", "tests/session-playground"],
   "dependencies": {
-    "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13"
   },
   "devDependencies": {
     "ts-jest": "^29.0.3",
     "@types/jest": "^29.2.2",
+    "ts-node": "^10.9.2",
     "ts-patch": "^3.0.2",
-    "restfuncs-transformer": "^0.9.6"
+    "restfuncs-transformer": "^1.0.0"
   },
   "keywords": [],
   "author": "Boris Gingold <bogeee@bogitech.de>",

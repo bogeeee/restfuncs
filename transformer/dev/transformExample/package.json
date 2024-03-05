@@ -1,0 +1,24 @@
+{
+  "name": "restfuncs-transformer-example",
+  "version": "0.9.8",
+  "description": "Example files that get transformed",
+  "license": "MIT",
+  "scripts": {
+    "clean": "tspc --build --clean",
+    "do-the-build": "tspc",
+    "debug: *** with a patched tsc, we have better stacktraces with files than in life mode (there we see only EvalMachine).": "",
+    "debug:preapre": "ts-patch install",
+    "debug:tspatch-uninstall": "ts-patch uninstall",
+    "debug:do-the-build": "npm --prefix ../.. run clean && tsc"
+  },
+  "dependencies": {
+    "restfuncs-server": "../../../server",
+    "typescript-rtti": "^0.9.6"
+  },
+  "devDependencies": {
+    "restfuncs-transformer": "../..",
+    "nodemon": "^2.0.15",
+    "ts-patch": "^3.1.2",
+    "ts-node": "^10.9.2"
+  }
+}
