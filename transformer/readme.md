@@ -21,10 +21,12 @@ static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
         instanceMethods: {
             "myMethod": {
                 arguments: {
-                    validate: (args: unknown) => typia.validate<Parameters<typeof this.prototype["myMethod"]>>(args)
+                    validateEquals: (args: unknown) => typia.validate<Parameters<typeof this.prototype["myMethod"]>>(args),
+                    ...
                 },
                 result: {
-                    //TODO
+                    validateEquals: ...,
+                    ...
                 },
                 jsDoc: {
                     comment: "text with <strong>markup</strong>", 

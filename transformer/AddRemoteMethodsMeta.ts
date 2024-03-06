@@ -1,4 +1,11 @@
-import ts, {ClassDeclaration, MethodDeclaration, Node, ObjectLiteralExpression, SyntaxKind} from 'typescript';
+import ts, {
+    ClassDeclaration,
+    MethodDeclaration,
+    Node,
+    ObjectLiteralExpression,
+    PropertyAccessExpression,
+    SyntaxKind
+} from 'typescript';
 import {FileTransformRun} from "./transformerUtil";
 import {transformerVersion} from "./index";
 
@@ -92,14 +99,30 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
         const factory = this.context.factory;
 
+        const typiaFuncs:Record<string, PropertyAccessExpression> = {
+            /**
+             * typia.validateEquals
+             */
+            validateEquals: factory.createPropertyAccessExpression(
+                factory.createIdentifier("typia"),
+                factory.createIdentifier("validateEquals")
+            ),
+            "validatePrune": factory.createPropertyAccessExpression(factory.createPropertyAccessExpression(
+                factory.createIdentifier("typia"),
+                factory.createIdentifier("misc")
+            ), factory.createIdentifier("validatePrune"))
+        }
+
         // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
+        // @ts-ignore
         return factory.createObjectLiteralExpression(
             [
                 factory.createPropertyAssignment(
                     factory.createIdentifier("arguments"),
                     factory.createObjectLiteralExpression(
-                        [factory.createPropertyAssignment(
-                            factory.createIdentifier("validate"),
+                        Object.keys(typiaFuncs).map((typiaFnName) =>
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier(typiaFnName),
                             factory.createArrowFunction(
                                 undefined,
                                 undefined,
@@ -113,11 +136,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 )],
                                 undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                factory.createCallExpression(
-                                    factory.createPropertyAccessExpression(
-                                        factory.createIdentifier("typia"),
-                                        factory.createIdentifier("validate")
-                                    ),
+                                factory.createCallExpression(typiaFuncs[typiaFnName],
                                     [factory.createTypeReferenceNode(
                                         factory.createIdentifier("Parameters"),
                                         [factory.createIndexedAccessTypeNode(
@@ -134,7 +153,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                     [factory.createIdentifier("args")]
                                 )
                             )
-                        )],
+                        )),
                         true
                     )
                 ),

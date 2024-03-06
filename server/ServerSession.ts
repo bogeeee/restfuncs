@@ -51,7 +51,7 @@ import {
 import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
-import typia from "typia"
+import typia, {IValidation} from "typia"
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
@@ -211,10 +211,12 @@ type RemoteMethodsMeta = {
     instanceMethods: {
         [methodName: string]: {
             arguments: {
-                validate: (args: unknown[]) => ReturnType<typeof typia.validate>
+                validateEquals: (args: unknown[]) => IValidation<unknown[]>
+                validatePrune:  (args: unknown[]) => IValidation<unknown[]>
             }
             result: {
-                validate?: (result: unknown) => ReturnType<typeof typia.validate> //TODO: delete the optional "?"
+                validateEquals?: (result: unknown) => IValidation<unknown> //TODO: delete the optional "?"
+                validatePrune?:  (result: unknown) => IValidation<unknown> //TODO: delete the optional "?"
             }
             jsDoc?: {
                 comment: string,
@@ -1473,7 +1475,7 @@ export class ServerSession implements IServerSession {
      * @param args
      */
     protected static validateMethodArguments(methodName: string, args: unknown[]) {
-        const validationResult= this.getRemoteMethodMeta(methodName).arguments.validate(args);
+        const validationResult= this.getRemoteMethodMeta(methodName).arguments.validateEquals(args);
         if(validationResult.success) {
             return;
         }
