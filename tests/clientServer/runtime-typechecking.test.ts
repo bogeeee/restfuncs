@@ -144,10 +144,11 @@ test('BUG_IN_RTTI: Test arguments with deep undefined', async () => {
     );
 })
 
-test('FEATURE TODO: Test arguments - extra properties value', async () => {
+test('Test arguments - extra properties value / shape arguments', async () => {
     class ServerAPI extends ServerSession{
         @remote()
-        params1(x: string, y: number, z: {}) {
+        params1(x: string, y: number, z: {}): any {
+            return z;
         }
 
         @remote({shapeArguments: false})
@@ -157,7 +158,7 @@ test('FEATURE TODO: Test arguments - extra properties value', async () => {
 
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
-            await apiProxy.params1("ok", 123, {someExtraProperty: true});
+            expect( (await apiProxy.params1("ok", 123, {someExtraProperty: true})).someExtraProperty).toBeUndefined();
             await expectAsyncFunctionToThrow( async () => {await apiProxy.params2("ok", 123, {someExtraProperty: true});}, INVALID_ARGUMENTS_MESSAGE);
 
         }
@@ -187,7 +188,7 @@ test('Test BigInt', async () => {
  */
 test('Test additional properties / overstrict checks', async () => {
     class ServerAPI extends TypecheckingService {
-        @remote()
+        @remote({shapeArguments: false})
         setObjWithValues(z: {prop1: boolean}) {
         }
 

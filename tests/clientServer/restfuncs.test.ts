@@ -675,6 +675,11 @@ test('various call styles', async () => {
             return [name, authorFilter];
         }
 
+        @remote({shapeArguments: true, validateResult: false})
+        getBook_shapeArguments(name?: string, authorFilter?: string) {
+            return [name, authorFilter];
+        }
+
         get3args(a: string, b: string, c: string) {
             return [a,b,c];
         }
@@ -756,8 +761,12 @@ test('various call styles', async () => {
 
         // Invalid parameters
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
-        await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/getBook?invalidName=test`, {method: "GET"})}, "does not have a parameter");
         await expectAsyncFunctionToThrow(async () => {await fetchJson(`${baseUrl}/mixed/a?b=b&c=c`, {method: "GET"})},/Cannot set .* through named/);
+
+
+        // Invalid parameters but with shapeArguments:
+        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?invalidName=test`, {method: "GET"})).toStrictEqual([undefined, undefined]);
+        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?name=myBook&invalidName=test`, {method: "GET"})).toStrictEqual(["myBook", undefined]);
     }, "/api");
 })
 
