@@ -103,7 +103,7 @@ test('Test arguments', async () => {
 
             // To few arguments:
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.params1(), );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1(), INVALID_ARGUMENTS_MESSAGE);
 
             // With objects:
             await apiProxy.params2("ok", 123, {});
@@ -111,10 +111,10 @@ test('Test arguments', async () => {
             await apiProxy.setObjWithValues({prop1: true});
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: 123}) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: 123}), INVALID_ARGUMENTS_MESSAGE );
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}), INVALID_ARGUMENTS_MESSAGE );
 
             await apiProxy.withOptionalArgument()
         }
@@ -158,7 +158,7 @@ test('FEATURE TODO: Test arguments - extra properties value', async () => {
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
             await apiProxy.params1("ok", 123, {someExtraProperty: true});
-            await expectAsyncFunctionToThrow( async () => {await apiProxy.params2("ok", 123, {someExtraProperty: true});});
+            await expectAsyncFunctionToThrow( async () => {await apiProxy.params2("ok", 123, {someExtraProperty: true});}, INVALID_ARGUMENTS_MESSAGE);
 
         }
     );
@@ -216,25 +216,25 @@ test('Test rest arguments', async () => {
             await apiProxy.restParams("x", 1,2,3);
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, {}) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, {}), INVALID_ARGUMENTS_MESSAGE );
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, undefined) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,2,3, undefined), INVALID_ARGUMENTS_MESSAGE );
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,undefined,3) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", 1,undefined,3), INVALID_ARGUMENTS_MESSAGE );
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []), INVALID_ARGUMENTS_MESSAGE );
 
             const variousInvalidRestParams = ["", null, undefined, true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3], "null", "undefined", "0", "true", "false", "[]", "{}", "''"]
             for(let p of variousInvalidRestParams) {
                 // @ts-ignore
-                await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", p) );
+                await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", p), INVALID_ARGUMENTS_MESSAGE );
             }
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.restParams("x", []), INVALID_ARGUMENTS_MESSAGE );
 
         }
     );
@@ -304,22 +304,21 @@ test('Test result validation', async () => {
                     await apiProxy.returnsStringImplicitlyViaPromise(value)
                 }
                 else {
-                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(value));
-                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringViaPromise(value));
-                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value));
-                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value));
+                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(value), INVALID_RETURN_MESSAGE);
+                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringViaPromise(value), INVALID_RETURN_MESSAGE);
+                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value), INVALID_RETURN_MESSAGE);
+                    await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value), INVALID_RETURN_MESSAGE);
                 }
             }
 
             expect(await apiProxy.returnsOptionalString(undefined)).toBe(undefined);
 
-            await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue());
+            await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue(), INVALID_RETURN_MESSAGE);
             await apiProxy.returnsIllegalValuesVithoutValidation();
 
         }
     );
 })
-
 /**
  * See https://github.com/typescript-rtti/typescript-rtti/issues/92
  */
@@ -376,15 +375,15 @@ test('BUG_IN_RTTI Test result validation with null and undefined', async () => {
         async (apiProxy) => {
             const variousValues = [null, undefined]
             for(const value of variousValues) {
-                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(value));
-                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringViaPromise(value));
-                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value));
-                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value));
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(value), INVALID_RETURN_MESSAGE);
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringViaPromise(value), INVALID_RETURN_MESSAGE);
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitly(value), INVALID_RETURN_MESSAGE);
+                await expectAsyncFunctionToThrow(async () => await apiProxy.returnsStringImplicitlyViaPromise(value), INVALID_RETURN_MESSAGE);
             }
 
             expect(await apiProxy.returnsOptionalString(undefined)).toBe(undefined);
 
-            await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue());
+            await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue(), INVALID_RETURN_MESSAGE);
             await apiProxy.returnsIllegalValuesVithoutValidation();
 
         }
