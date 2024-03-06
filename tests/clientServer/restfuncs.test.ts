@@ -705,9 +705,9 @@ test('various call styles', async () => {
 
     await runRawFetchTests(new TheService(), async (baseUrl) => {
 
-        async function fetchJson(input: RequestInfo, init?: RequestInit) {
+        async function fetchJson(input: RequestInfo, init?: RequestInit, additionalHeaders: object = {}) {
             const response = await fetch(input, {
-                headers: {"Content-Type": ""}, // Default to unset
+                headers: {"Content-Type": "", ...additionalHeaders}, // Default to unset
                 ...init
             });
             // Error handling:
@@ -765,8 +765,8 @@ test('various call styles', async () => {
 
 
         // Invalid parameters but with shapeArguments:
-        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?invalidName=test`, {method: "GET"})).toStrictEqual([undefined, undefined]);
-        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?name=myBook&invalidName=test`, {method: "GET"})).toStrictEqual(["myBook", undefined]);
+        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?invalidName=test`, {method: "GET"}, {"shapeArguments": "true"})).toStrictEqual([undefined, undefined]);
+        expect(await fetchJson(`${baseUrl}/getBook_shapeArguments?name=myBook&invalidName=test`, {method: "GET"}, {"shapeArguments": "true"})).toStrictEqual(["myBook", undefined]);
     }, "/api");
 })
 
@@ -1957,7 +1957,7 @@ test('validateCall security', async () => {
 
        // Make public
        public validateCall(evil_methodName: string, evil_args: any[]){
-           return super.validateCall(evil_methodName, evil_args);
+           return super.validateCall(evil_methodName, evil_args, false);
        }
    }
 

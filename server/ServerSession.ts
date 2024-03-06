@@ -178,7 +178,7 @@ type ObjectWithStringIndex = {[index: string]: unknown};
 /**
  * Values that are allowed to be set as meta parameters via header / query params / request body params.
  */
-export const metaParameterNames = new Set<string>(["csrfProtectionMode", "corsReadToken", "csrfToken"])
+export const metaParameterNames = new Set<string>(["csrfProtectionMode", "corsReadToken", "csrfToken", "shapeArguments"])
 export const DOCS_BASEURL = "https://github.com/bogeeee/restfuncs/tree/3.x"
 export const DOCS_READMEURL = `${DOCS_BASEURL}/readme.md`
 
@@ -645,7 +645,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Do the call:
-                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, {req, res, securityProps: securityPropertiesOfRequest}, {
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, {req, res, securityProps: securityPropertiesOfRequest}, metaParams["shapeArguments"] === "true",{
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -820,11 +820,12 @@ export class ServerSession implements IServerSession {
      * @param remoteMethodName
      * @param methodArguments
      * @param call the properties that should be made available for the user during call time. like req, res, ...
+     * @param shapeArguments_clientPreference does the client prefer to shape the arguments (=trim extra properties) ?
      * @param diagnosis
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], shapeArguments_clientPreference: boolean, diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
         {
@@ -835,11 +836,13 @@ export class ServerSession implements IServerSession {
             });
         }
 
+        const remoteMethodOptions = this.getRemoteMethodOptions(remoteMethodName);
+
         // Instantiate a serverSession:
         const referenceInstance = this.referenceInstance; // Make sure that lazy field is initialized before creating the instance. At least this is needed for the testcases
         let serverSession: ServerSession = new this();
 
-        serverSession.validateCall(remoteMethodName, methodArguments);
+        serverSession.validateCall(remoteMethodName, methodArguments, remoteMethodOptions.shapeArguments !== undefined?remoteMethodOptions.shapeArguments:shapeArguments_clientPreference);
 
         {
             // *** Prepare serverSession for change tracking **
@@ -869,7 +872,7 @@ export class ServerSession implements IServerSession {
             }, remoteMethodName);
 
             // Validate the result:
-            if(this.getRemoteMethodOptions(remoteMethodName).validateResult !== false) {
+            if(remoteMethodOptions.validateResult !== false) {
                 serverSession.validateResult(result, remoteMethodName);
             }
         }
@@ -1320,15 +1323,23 @@ export class ServerSession implements IServerSession {
              * Adds the paramsMap to the targetParams array into the appropriate slots and auto converts them.
              */
             const addParamsMap = (paramsMap: Record<string, unknown>) => {
+                // Add meta parameters first (cause they are needed in the next loop):
                 for(const name in paramsMap) {
                     const value = paramsMap[name];
-                    if(metaParameterNames.has(name)) {
-                        if(typeof value !== "string") {
+                    if (metaParameterNames.has(name)) {
+                        if (typeof value !== "string") {
                             throw new Error("Meta parameter value is not a string: " + value);
                         }
                         result.metaParams[name] = value;
-                        continue
                     }
+                }
+
+                for(const name in paramsMap) {
+                    if(metaParameterNames.has(name)) {
+                        continue // already handled
+                    }
+
+                    const value = paramsMap[name];
 
                     if(!reflectedMethod) {
                         throw new CommunicationError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosis_HowToSetUpTheBuild()}`)
@@ -1336,7 +1347,10 @@ export class ServerSession implements IServerSession {
 
                     const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
                     if(!parameter) {
-                        throw new CommunicationError(`Method ${methodName} does not have a parameter named '${name}'`)
+                        if(result.metaParams["shapeArguments"] === "true") {
+                            continue;
+                        }
+                        throw new CommunicationError(`Method ${methodName} does not have a parameter named '${name}'. Hint: If you want to just ignore such non-matching parameter names, you can set the http header (or also a normal parameter) "shapeArguments" to true. Or you can control this via RemoteMethodOptions#shapeArguments.`)
                     }
                     if(parameter.isRest) {
                         throw new CommunicationError(`Cannot set ...${name} through named parameter`)
@@ -1420,7 +1434,11 @@ export class ServerSession implements IServerSession {
                         convertAndAddParams(rawBodyText, null); // no conversion
                         // Do a full check to provoke error for, see catch
                         if (reflectedMethod) {
-                            this.validateMethodArguments(methodName, result.methodArguments);
+                            // Obtain trimExtraProperties like in the original logic:
+                            const options = this.getRemoteMethodOptions(methodName);
+                            const trimExtraProperties = options.shapeArguments !== undefined?options.shapeArguments:result.metaParams["shapeArguments"] === "true";
+
+                            this.validateMethodArguments(methodName, result.methodArguments, trimExtraProperties);
                         }
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
@@ -1474,8 +1492,9 @@ export class ServerSession implements IServerSession {
      * @param reflectedMethod
      * @param args
      */
-    protected static validateMethodArguments(methodName: string, args: unknown[]) {
-        const validationResult= this.getRemoteMethodMeta(methodName).arguments.validateEquals(args);
+    protected static validateMethodArguments(methodName: string, args: unknown[], trimExtraproperties: boolean) {
+        const meta = this.getRemoteMethodMeta(methodName);
+        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args):meta.arguments.validateEquals(args);
         if(validationResult.success) {
             return;
         }
@@ -1499,7 +1518,7 @@ export class ServerSession implements IServerSession {
      * @param evil_methodName
      * @param evil_args
      */
-    protected validateCall(evil_methodName: string, evil_args: unknown[]) {
+    protected validateCall(evil_methodName: string, evil_args: unknown[], trimExtraProperites: boolean) {
         const options = this.clazz.options;
 
         // types were only for the caller. We go back to "unknown" so must check again:
@@ -1535,7 +1554,7 @@ export class ServerSession implements IServerSession {
         }
 
         if(remoteMethodOptions.validateArguments !== false) {
-            this.clazz.validateMethodArguments(methodName, args);
+            this.clazz.validateMethodArguments(methodName, args, trimExtraProperites);
         }
     }
 
@@ -2464,13 +2483,36 @@ export type RemoteMethodOptions = {
     validateArguments?: boolean
 
     /**
-     * Default: Value from <b>super method</b>'s @remote options || value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || value from <b>super class</b>'s {@link #defaultRemoteMethodOptions} || the <b>client</b>'s "shapeArguments" http header || <b>false</b>
+     * Makes restfuncs trim away any extra properties and arguments that are not allowed otherwise.
+     * <br/>
+     * Example:
+     * <pre><code>
+     *     type User {
+     *         name: string
+     *     }
+     *
+     *     @remote({shapeArguments: true})
+     *     myRemoteMethod(param1: User) {
+     *         console.log(param1); // Outputs {name: "Pauline"}
+     *     }
+     *
+     *     // On the client:
+     *     // @ts-ignore (pretend that typescript does not complain already)
+     *     myClient.myRemoteMethod({name: "Pauline", someExtraProperty: "xyz"}, "someExtraArgument"); // this call will pass.
+     * </code></pre>
+     *
+     * Default: <br/>
+     * Value from <b>super method</b>'s @remote options || <br/>
+     * value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <br/>
+     * value from <b>super class</b>'s {@link #defaultRemoteMethodOptions} || <br/>
+     * value from the <b>client</b>'s "shapeArguments" http header (<b>the restfuncs-client always enables this</b>) || <br/>
+     * <b>false</b>
      */
     shapeArguments?: boolean
 
     /**
      * Performs a check at runtime, to ensure, that the returned value matches the type that is declared by the method (explicitly or implicitly).
-     * <i>Prevent values that were formed illegally with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
+     * <i>This prevents values that were formed somehow illegally with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
      *
      * <p>
      *     Example:
@@ -2482,9 +2524,6 @@ export type RemoteMethodOptions = {
      *      return 123 // will fail
      *  }
      * </pre>
-     * <p>
-     *     Disable, to improve performance. Like you usually know, what your remote method returns.
-     * </p>
      *
      * <p>
      * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
@@ -2493,6 +2532,7 @@ export type RemoteMethodOptions = {
     validateResult?: boolean
 
     /**
+     * Like {@link #shapeArguments}, but for the result.
      * <p>
      * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
      * </p>

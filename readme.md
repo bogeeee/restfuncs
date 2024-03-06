@@ -300,10 +300,6 @@ Feel free,to benchmark it and contribute to optimizations.
 Also in general: You should never talk about performance in theory without having actually profiled your application. I.e. one single simple sql call to a database server (in dimensions of around 100µs on an average cpu) will probably overshadow all the call time of all your communication library.
 But it's no excuse to not take it sportive ;)... i will focus on this topic later.
 
-### Skip shaping and validation passes
-For a performance-critical method, or for all methods (via `static defaultRemoteMethodOptions: RemoteMethodOptions = {...}` in your ServerSession class), do the following:
- - Disable `shapeArguments`, `shapeResult` and `validateResult` (but mind security here).
- - _If the server is trusted and authenticated (server 2 server), you would even disable `validateInput`._ 
 
 ### Further performance options
 - Read JSDoc and disable `ServerOptions#socket_requireAccessProofForIndividualServerSession`

@@ -44,6 +44,11 @@ export class ServerSocketConnection {
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
     /**
+     * TODO: Let the client set this in a hello message (there is no such thing currently)
+     */
+    public shapeArguments_clientPreference = true;
+
+    /**
      * Whether to use the security group or the ServerSession class to associate security state
      */
     get useSecurityGroups() {
@@ -232,7 +237,7 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, {})
+                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, this.shapeArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {
