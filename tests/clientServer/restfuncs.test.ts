@@ -707,7 +707,7 @@ test('various call styles', async () => {
 
         async function fetchJson(input: RequestInfo, init?: RequestInit, additionalHeaders: object = {}) {
             const response = await fetch(input, {
-                headers: {"Content-Type": "", ...additionalHeaders}, // Default to unset
+                headers: {"Content-Type": "", "accept": "application/brillout-json", ...additionalHeaders}, // Default to unset
                 ...init
             });
             // Error handling:
@@ -715,22 +715,22 @@ test('various call styles', async () => {
                 throw new Error("server error: " + await response.text())
             }
 
-            return JSON.parse(await response.text());
+            return brilloutJsonParse(await response.text());
         }
 
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "GET"})).toStrictEqual([null, null]);
-        expect(await fetchJson(`${baseUrl}/getBook/a`, {method: "GET"})).toStrictEqual(["a", null]); // list arguments in the path
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "GET"})).toStrictEqual([undefined, undefined]);
+        expect(await fetchJson(`${baseUrl}/getBook/a`, {method: "GET"})).toStrictEqual(["a", undefined]); // list arguments in the path
         expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]); // Arguments (named) in the qerystring
         expect(await fetchJson(`${baseUrl}/getBook?name=a&authorFilter=b&csrfProtectionMode=preflight`, {method: "GET"})).toStrictEqual(["a", "b"]); // ... + a meta parameter
         expect(await fetchJson(`${baseUrl}/getBook?a,b`, {method: "GET"})).toStrictEqual(["a", "b"]); // List the arguments (unnamed) in the querystring
         expect(await fetchJson(`${baseUrl}/book/a?authorFilter=b`, {method: "GET"})).toStrictEqual(["a", "b"]);
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST"})).toStrictEqual([null, null]); //
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", null]); //
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a", "csrfProtectionMode": "preflight"}'})).toStrictEqual(["a", null]); // ... + a meta parameter
-        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '["a"]'})).toStrictEqual(["a", null]); //
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST"})).toStrictEqual([undefined, undefined]); //
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", undefined]); //
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a", "csrfProtectionMode": "preflight"}'})).toStrictEqual(["a", undefined]); // ... + a meta parameter
+        expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '["a"]'})).toStrictEqual(["a", undefined]); //
 
 
-        //expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", null]); //
+        //expect(await fetchJson(`${baseUrl}/getBook`, {method: "POST", body: '{"name": "a"}'})).toStrictEqual(["a", undefined]); //
 
         // Combination of the above:
         expect(await fetchJson(`${baseUrl}/getBook?name=fromQuery&authorFilter=b`, {method: "POST", body: '["fromBody"]'})).toStrictEqual(["fromBody", "b"]); //
