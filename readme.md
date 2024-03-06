@@ -307,8 +307,26 @@ But it's no excuse to not take it sportive ;)... i will focus on this topic late
 ### Writes to the session fields have some overhead
 It costs an additional http roundtrip + 1 websocket roundtrip + (auto.) resend of unprocessed websocket calls. This is to ensure fail-safe commits to the http cookie and to ensure security. So keep that in mind.
 
-### Multi server environment
+# Multi server environment
 When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling as a first, failsafe approach. You might try to also change that.  
+
+# Tips & tricks
+### Validate stuff on the inside
+Now that you've gone all the long way of setting up the build, you have [Typia](https://typia.io) at hand and can use it to validate your objects, i.e. before they get stored the db.
+Example:
+````typescript
+import typia, { tags } from "typia"
+
+type User = {
+  name: string & tags.MaxLength<255>
+}
+
+if(process.env.NODE_ENV === 'production') { // cause in dev, you usually run without transformed code
+  typia.assertEquals<User>(myUser) // Validate myUser before storing it in the db
+}
+db.store(myUser)
+````
+[Also you can inspect all your types at runtime](https://typescript-rtti.org/) 
 
 # That's it !
 
