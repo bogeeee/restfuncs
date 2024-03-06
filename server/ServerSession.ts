@@ -1996,20 +1996,32 @@ export class ServerSession implements IServerSession {
 
 
     /**
+     *
+     * @param methodName
+     * @protected
+     * @returns the sub-most class that implemented the specified method.
+     */
+    protected static getDeclaringClass(methodName: string) {
+        let declaringClazz: typeof ServerSession = this;
+        while (declaringClazz && !declaringClazz.prototype?.hasOwnProperty(methodName)) {
+            declaringClazz = (declaringClazz.superClass as typeof ServerSession);
+        }
+
+        if (!declaringClazz) {
+            throw new Error(`Method not found: ${methodName}`)
+        }
+        return declaringClazz;
+    }
+
+
+    /**
      * You can override this as part of the Restfuncs API.
      * @see checkIfMethodHasRemoteDecorator
      * @param methodName
      * @returns
      */
     protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
-        let declaringClazz: typeof ServerSession = this;
-        while(declaringClazz && !declaringClazz.prototype?.hasOwnProperty(methodName)) {
-            declaringClazz = (declaringClazz.superClass as typeof ServerSession);
-        }
-
-        if(!declaringClazz) {
-            throw new Error(`Method not found: ${methodName}`)
-        }
+        let declaringClazz = this.getDeclaringClass(methodName);
 
         return declaringClazz.getRemoteMethodOptions_inner(methodName);
     }
