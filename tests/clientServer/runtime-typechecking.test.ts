@@ -11,6 +11,8 @@ import {runClientServerTests, standardOptions} from "./lib";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
+const INVALID_ARGUMENTS_MESSAGE = /Invalid arguments/;
+const INVALID_RETURN_MESSAGE = /returned an invalid value/;
 
 
 beforeEach(() => {
@@ -185,6 +187,7 @@ test('Test BigInt', async () => {
  */
 test('Test additional properties / overstrict checks', async () => {
     class ServerAPI extends TypecheckingService {
+        @remote()
         setObjWithValues(z: {prop1: boolean}) {
         }
 
@@ -193,7 +196,7 @@ test('Test additional properties / overstrict checks', async () => {
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: true, poisonedProp: true}) );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: true, poisonedProp: true}), INVALID_ARGUMENTS_MESSAGE );
         }
     );
 })
