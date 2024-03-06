@@ -7,7 +7,7 @@ import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
-import {runClientServerTests, Service} from "./lib";
+import {runClientServerTests, standardOptions} from "./lib";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -17,8 +17,8 @@ beforeEach(() => {
     develop_resetGlobals();
 });
 
-class TypecheckingService extends Service {
-    static options: ServerSessionOptions = {devDisableSecurity: false, logErrors: false, exposeErrors: true }
+class TypecheckingService extends ServerSession {
+    static options: ServerSessionOptions = {...standardOptions, devDisableSecurity: false, logErrors: false, exposeErrors: true }
 }
 
 
@@ -60,20 +60,28 @@ test('Test if if rtti is available', async () => {
 
 test('Test arguments', async () => {
     class ServerAPI extends TypecheckingService{
+        @remote()
         myVoidMethod() {
         }
+
+        @remote()
         params1(x: string) {
         }
+
+        @remote()
         params2(x: string, y: number, z: {}) {
         }
 
+        @remote()
         setObjWithValues(z: {prop1: boolean}) {
         }
 
+        @remote()
         withOptionalArgument(my?: string) {
 
         }
 
+        @remote()
         withUndefined(my: string | undefined) {
 
         }
@@ -113,10 +121,12 @@ test('Test arguments', async () => {
 
 test('BUG_IN_RTTI: Test arguments with deep undefined', async () => {
     class ServerAPI extends TypecheckingService{
+        @remote()
         withDeepUndefined(my: {deep: string | undefined}) {
 
         }
 
+        @remote()
         withDeepOptional(my: {deep?: string}) {
 
         }
@@ -191,6 +201,7 @@ test('Test additional properties / overstrict checks', async () => {
 
 test('Test rest arguments', async () => {
     class ServerAPI extends TypecheckingService {
+        @remote()
         restParams(x: string, ...y: number[]) {
 
         }
@@ -232,26 +243,31 @@ test('Test rest arguments', async () => {
 test('Test result validation', async () => {
     class ServerAPI extends TypecheckingService {
 
+        @remote()
         returnsString(value: any): string {
             return value
         }
 
+        @remote()
         async returnsStringViaPromise(value: any): Promise<string> {
             return value
         }
 
+        @remote()
         returnsStringImplicitly(value: any) {
             let myString: string;
             myString = value;
             return myString
         }
 
+        @remote()
         async returnsStringImplicitlyViaPromise(value: any) {
             let myString: string;
             myString = value;
             return myString
         }
 
+        @remote()
         voidMethodReturnsIllegalValue(): void {
             // @ts-ignore
             return "test";
@@ -263,10 +279,12 @@ test('Test result validation', async () => {
             return {}
         }
 
+        @remote()
         returnsOptionalString(value: any): string | undefined {
             return value;
         }
 
+        @remote()
         returnsImplicitOptionalString(value: string | undefined) {
             return value;
         }
@@ -304,27 +322,31 @@ test('Test result validation', async () => {
  */
 test('BUG_IN_RTTI Test result validation with null and undefined', async () => {
     class ServerAPI extends TypecheckingService {
-
+        @remote()
         returnsString(value: any): string {
             return value
         }
 
+        @remote()
         async returnsStringViaPromise(value: any): Promise<string> {
             return value
         }
 
+        @remote()
         returnsStringImplicitly(value: any) {
             let myString: string;
             myString = value;
             return myString
         }
 
+        @remote()
         async returnsStringImplicitlyViaPromise(value: any) {
             let myString: string;
             myString = value;
             return myString
         }
 
+        @remote()
         voidMethodReturnsIllegalValue(): void {
             // @ts-ignore
             return "test";
@@ -336,10 +358,12 @@ test('BUG_IN_RTTI Test result validation with null and undefined', async () => {
             return {}
         }
 
+        @remote()
         returnsOptionalString(value: any): string | undefined {
             return value;
         }
 
+        @remote()
         returnsImplicitOptionalString(value: string | undefined) {
             return value;
         }
@@ -389,6 +413,8 @@ test('Test destructuring arguments', async () => {
 });
 */
 
+/*
+// Anonymous classes can't have @remote decorators, so its meaningless to test them
 test('Test with anonymous class', async () => {
 
     await runClientServerTests(new class extends TypecheckingService{
@@ -403,6 +429,7 @@ test('Test with anonymous class', async () => {
         }
     );
 })
+*/
 
 /*
 // This one fails with current typescript-rtti. But that's not a showstopper.

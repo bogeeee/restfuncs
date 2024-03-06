@@ -13,12 +13,18 @@ export function resetGlobalState() {
 
 export const standardOptions = {logErrors: false, exposeErrors: true}
 
+/**
+ * Anonymous service class, created with new class extends Service {...}
+ */
 export class Service extends ServerSession {
     static options: ServerSessionOptions = standardOptions;
 
-    // Hack: To lazy to mark all methods with @remote().
     protected static checkIfMethodHasRemoteDecorator() {
 
+    }
+
+    protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+        return {validateArguments: false, validateResult: false} // Disable everything that needs Typia, because without @remote() decorators there's no restuncs-meta -> no Typia
     }
 }
 
