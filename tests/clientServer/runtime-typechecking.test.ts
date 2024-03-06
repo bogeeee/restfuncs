@@ -83,13 +83,13 @@ test('Test arguments', async () => {
         async (apiProxy) => {
             await apiProxy.myVoidMethod();
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.myVoidMethod("illegalParam"), "Too many arguments");
+            await expectAsyncFunctionToThrow( async () => await apiProxy.myVoidMethod("illegalParam"), /Too many arguments|invalid number of arguments/);
 
             await apiProxy.params1("ok");
 
             // Too many arguments:
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), "Too many arguments");
+            await expectAsyncFunctionToThrow( async () => await apiProxy.params1("ok", "illegal"), /Too many arguments|invalid number of arguments/);
 
             // To few arguments:
             // @ts-ignore

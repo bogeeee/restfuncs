@@ -55,74 +55,6 @@ import typia from "typia"
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
-
-/**
- * Throws an exception if args does not match the parameters of reflectedMethod
- * @param reflectedMethod
- * @param args
- */
-export function validateMethodArguments(reflectedMethod: ReflectedMethod, args: Readonly<unknown[]>) {
-    // Make a stack out of args so we can pull out the first till the last. This wqy we can deal with ...rest params
-    let argsStack = [...args]; // shallow clone
-    argsStack.reverse();
-
-    const errors: string[] = [];
-    function validateAndCollectErrors(parameter: ReflectedMethodParameter, arg: unknown) {
-        const collectedErrorsForThisParam: Error[] = [];
-        const ok = parameter.type.matchesValue(arg,  {errors: collectedErrorsForThisParam, allowExtraProperties: false} ); // Check value
-        if (!ok || collectedErrorsForThisParam.length > 0) {
-            errors.push(`Invalid value for parameter ${parameter.name}: ${diagnisis_shortenValue(arg)}${collectedErrorsForThisParam.length > 0?`. Reason: ${collectedErrorsForThisParam.map(e => e.message).join(", ")}`:""}`);
-        }
-    }
-
-    for(const i in reflectedMethod.parameters) {
-        const parameter = reflectedMethod.parameters[i];
-        if(parameter.isOmitted) {
-            throw new CommunicationError("Omitted arguments not supported")
-        }
-        if(parameter.isRest) {
-            argsStack.reverse();
-
-            validateAndCollectErrors(parameter, argsStack);
-
-            argsStack = [];
-            continue;
-        }
-        if(parameter.isBinding) {
-            throw new CommunicationError(`Runtime typechecking of destructuring arguments is not yet supported`)
-        }
-
-        const arg =  argsStack.length > 0?argsStack.pop():undefined;
-
-        // Allow undefined for optional parameter:
-        if(parameter.isOptional && arg === undefined) {
-            continue;
-        }
-
-        // Bug workaround: Buffer causes a validation error:
-        if(arg instanceof Buffer) {
-            // Obtain type (class) of parameter:
-            const typeRef = (parameter.type as any)?.ref;
-            if(typeRef === undefined) {
-                throw new Error("Cannot obtain typeRef. This may be due to nasty unsupported API usage of typescript-rtti by restfuncs and the API has may be changed. Report this as a bug to the restfuncs devs and try to go back to a bit older (minor) version of 'typescript-rtti'.")
-            }
-            if(typeRef === Buffer) {
-                continue; // Skip validation of fields
-            }
-        }
-
-        validateAndCollectErrors(parameter, arg);
-    }
-
-    if(argsStack.length > 0) {
-        throw new CommunicationError(`Too many arguments. Expected ${reflectedMethod.parameters.length}, got ${args.length}`)
-    }
-
-    if(errors.length > 0) {
-        throw new CommunicationError(errors.join("; ") + (args.some( arg => diagnosis_hasDeepNullOrUndefined(arg))?`. Note: Because it seems, there's a problem with null/undefined values: Make sure that you enable 'strictNullChecks' or 'strict' in tsconfig.json.`:""))
-    }
-}
-
 export type ClientCallback = ((...args: unknown[]) => void) & {};
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -479,8 +411,10 @@ export class ServerSession implements IServerSession {
         checkAllowedOrigins();
 
         // Check that type info is available
-        if(!this.options.devDisableSecurity && !isTypeInfoAvailable(new this)) {
-            throw new CommunicationError("Runtime type information is not available.\n" +  this._diagnosisWhyIsRTTINotAvailable())
+        if(!this.options.devDisableSecurity) {
+            if(!isTypeInfoAvailable(new this)) {
+                throw new CommunicationError("Runtime type information is not available.\n" + this._diagnosis_HowToSetUpTheBuild())
+            }
         }
     }
 
@@ -1395,7 +1329,7 @@ export class ServerSession implements IServerSession {
                     }
 
                     if(!reflectedMethod) {
-                        throw new CommunicationError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosisWhyIsRTTINotAvailable()}`)
+                        throw new CommunicationError(`Cannot associate the named parameter: ${name} to the method cause runtime type information is not available.\n${ServerSession._diagnosis_HowToSetUpTheBuild()}`)
                     }
 
                     const parameter: ReflectedMethodParameter|undefined = reflectedMethod.getParameter(name);
@@ -1484,7 +1418,7 @@ export class ServerSession implements IServerSession {
                         convertAndAddParams(rawBodyText, null); // no conversion
                         // Do a full check to provoke error for, see catch
                         if (reflectedMethod) {
-                            validateMethodArguments(reflectedMethod, result.methodArguments);
+                            this.validateMethodArguments(methodName, result.methodArguments);
                         }
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
@@ -1531,6 +1465,33 @@ export class ServerSession implements IServerSession {
     }
 
     /**
+     * Throws a (good readable) CommunicationError if args does not match the parameters of reflectedMethod.
+     * <p>
+     * Internal / not part of the API (for now, may be later). Do not override
+     * </p>
+     * @param reflectedMethod
+     * @param args
+     */
+    protected static validateMethodArguments(methodName: string, args: unknown[]) {
+        const validationResult= this.getRemoteMethodMeta(methodName).arguments.validate(args);
+        if(validationResult.success) {
+            return;
+        }
+
+        const prefix = `Invalid arguments for method ${methodName}`;
+
+
+        const errors = validationResult.errors;
+        if(errors.length == 1 && errors[0].path === "$input") {
+            throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
+        }
+
+        const separateLines = errors.length > 1;
+        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${errors.join("\n")}`);
+    }
+
+
+    /**
      * Security checks the method name and args.
      * <p>Internal. API may change</p>
      * @param evil_methodName
@@ -1572,18 +1533,7 @@ export class ServerSession implements IServerSession {
         }
 
         if(remoteMethodOptions.validateArguments !== false) {
-            // obtain reflectedMethod:
-            if (!isTypeInfoAvailable(this)) {
-                throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
-            }
-            let reflectedClass = reflect(this);
-            const reflectedMethod = reflectedClass.getMethod(methodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
-            // Check if full type info is available:
-            if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
-                throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${methodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
-            }
-
-            validateMethodArguments(reflectedMethod, args);
+            this.clazz.validateMethodArguments(methodName, args);
         }
     }
 
@@ -1601,13 +1551,13 @@ export class ServerSession implements IServerSession {
 
         // obtain reflectedMethod:
         if (!isTypeInfoAvailable(this)) {
-            throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            throw new Error(`No runtime type information available for class '${this.clazz.name}'. Please make sure, that it is enhanced with the restfuncs-transformer: ${ServerSession._diagnosis_HowToSetUpTheBuild()}`);
         }
         let reflectedClass = reflect(this);
         const reflectedMethod = reflectedClass.getMethod(remoteMethodName); // we could also use reflect(method) but this doesn't give use params for anonymous classes - strangely'
         // Check if full type info is available:
         if (!(reflectedMethod.class?.class && isTypeInfoAvailable(reflectedMethod.class.class))) { // not available for the actual declaring superclass ?
-            throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${remoteMethodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosisWhyIsRTTINotAvailable()}`);
+            throw new Error(`No runtime type information available for class '${reflectedMethod.class?.class?.name}' which declared the method '${remoteMethodName}'. Please make sure, that also that file is enhanced with the restfuncs-transformer: ${ServerSession._diagnosis_HowToSetUpTheBuild()}`);
         }
 
         let returnType = reflectedMethod.returnType;
@@ -1994,6 +1944,20 @@ export class ServerSession implements IServerSession {
 
     }
 
+    protected static getRemoteMethodMeta(methodName: string) {
+        const declaringClass = this.getDeclaringClass(methodName);
+        if(!(declaringClass as object).hasOwnProperty("getRemoteMethodsMeta")) {
+            throw new Error(`Class ${declaringClass.name} was not transformed with the restfuncs-transformer. ${this._diagnosis_HowToSetUpTheBuild()}`)
+        }
+        const result = declaringClass.getRemoteMethodsMeta().instanceMethods[methodName];
+
+        // Plausibility check:
+        if(result === undefined) {
+            throw new Error(`Illegal state: method ${methodName} is not listed in instanceMethods. Please report this as a bug.`)
+        }
+
+        return result;
+    }
 
     /**
      *
@@ -2271,7 +2235,7 @@ export class ServerSession implements IServerSession {
         }) !== undefined;
     }
 
-    static _diagnosisWhyIsRTTINotAvailable() {
+    static _diagnosis_HowToSetUpTheBuild() {
         return `Please see ${DOCS_READMEURL}#setting-up-the-build-here-it-gets-a-bit-nasty- .`
     }
 
