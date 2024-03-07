@@ -121,7 +121,7 @@ test('Test arguments', async () => {
     );
 })
 
-test('BUG_IN_RTTI: Test arguments with deep undefined', async () => {
+test('Test arguments with deep undefined', async () => {
     class ServerAPI extends TypecheckingService{
         @remote()
         withDeepUndefined(my: {deep: string | undefined}) {
@@ -320,10 +320,8 @@ test('Test result validation', async () => {
         }
     );
 })
-/**
- * See https://github.com/typescript-rtti/typescript-rtti/issues/92
- */
-test('BUG_IN_RTTI Test result validation with null and undefined', async () => {
+
+test('Test result validation with null and undefined', async () => {
     class ServerAPI extends TypecheckingService {
         @remote()
         returnsString(value: any): string {
