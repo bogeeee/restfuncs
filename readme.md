@@ -1,7 +1,3 @@
-### - Warning: Not yet secure for production -
-A Restfuncs dependency: typescript-rtti [still has some flaws and lacks regression tests](https://github.com/typescript-rtti/typescript-rtti/issues/112), and i can't give green light here. 
-I'm keeping track of that and will also try to switch the validators to [TYPIA](https://typia.io/docs/) but this might not be before march 2024.
-
 # Restfuncs 2.0 - HTTP API done proper
 
 ## Intro + features
@@ -18,6 +14,7 @@ See, it uses natural parameters and natual `return` and `throw` flow, instead of
 That is (features):
 - 🔌 **Automatic [REST interface](#rest-interface)**, that comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them.
 - 🛡️ **Automatic arguments validation** from native typescript types: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will validate that automatically at runtime.  _No need to repeat yourself in any inconvenient declaration language, no need to learn ZOD._ How does it work ? As we know, typescript usually erases all types at runtime. Therefore, Restfuncs needs a [tsc compiler plugin](https://www.npmjs.com/package/restfuncs-transformer), to add that type information. _It's currently just a wrapper for [typescript-rtti](https://typescript-rtti.org) and all the props go out to these guys ;)._ [See, how to set it up](#setting-up-the-build-here-it-gets-a-bit-nasty-).
+- **Argments and result shaping**: Automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form). 
 - 🍾 **RPC client** (this is the best part 😄😄😄): Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets** (default, but can be switched to plain HTTP as well): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs.  
 - **🔐 Security first approach**: All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
@@ -29,10 +26,9 @@ That is (features):
 - COMING SOON: **Callback functions** as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
 - COMING SOON: Simple **file uploads**: You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
-- COMING SOON: **Argments and result shaping**: Means just: Removing **extra** properties automatically whose would otherwise cause an invalid parameter / result. 
 - COMING SOON: **Basic auth** handler. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication)
-- FUTURE 2.x: **API browser** Zero conf and automatically hosted. Just give your partners an URL and they've got all the information and examples they need to call your methods from other programming languages...
-  - FUTURE 2.x:  ... + can also download the **OpenAPI spec** from there.
+- FUTURE 3.x: **API browser** Zero conf and automatically hosted. Just give your partners an URL and they've got all the information and examples they need to call your methods from other programming languages...
+  - FUTURE 3.x:  ... + can also download the **OpenAPI spec** from there.
 
 Smaller features:
 - **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. COMING SOON: Support for shaping, so you can use some typescript tricks like `Pick` and `Omit` to shape your result into the desired form. 
@@ -83,7 +79,7 @@ export class MyServerSession extends ServerSession {
 import {restfuncsExpress} from "restfuncs-server";
 import {MyServerSession} from "./MyServerSession.js";
 
-const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express. Installs a jwt session cookie middleware and the websockets listener. Recommended.
+const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). Installs a jwt session cookie middleware and the websockets listener. Recommended.
 
 app.use("/myAPI", MyServerSession.createExpressHandler())
 // ... app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
@@ -98,7 +94,7 @@ import {UploadFile} from "restfuncs-common";
 import {RestfuncsClient} from "restfuncs-client";
 import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Gives us the full end2end type support
 
-const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* options */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
+const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* RestfuncsClientOptions */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
 
 console.log( await myRemoteSession.myRemoteMethod({name: "Hans"}) ); // finally, call your remote method over the wire :)
 
@@ -311,6 +307,30 @@ It costs an additional http roundtrip + 1 websocket roundtrip + (auto.) resend o
 When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling as a first, failsafe approach. You might try to also change that.  
 
 # Tips & tricks
+### Using typescript to automatically trim the output into the desired form
+By default, restfuncs shapes the result of your remote methods into the exact declared typescript type. Meaning, it trims off all extra properties. 
+You can make use of this in combination with these two handy typescript utility types: [Pick<Type, Keys>](using Pick and Omit) and [Omit<Type, Keys>](https://www.typescriptlang.org/docs/handbook/utility-types.html#omittype-keys) 
+Example:
+````typescript
+type IUser=  {
+  name: string,
+  age: number,
+  password: string,
+}
+
+@remote()
+returnsPublicUser(): Pick<IUser, "name" | "age"> { // This will return the user without password
+    const user = {name: "Franz", age: 45, password: "geheim!"} // got it from the db somewhere
+    return user;
+}
+
+@remote()
+returnsPublicUser(): Omit<IUser, "password">{  // Also this will return the user without password
+   ...
+}
+````
+or you could also create a new type and go with `returnsSafeUser(): SanitizedUser {...}`. Etc. etc. you've got all the world of typescript here ;)
+
 ### Validate stuff on the inside
 Now that you've gone all the long way of setting up the build, you have [Typia](https://typia.io) at hand and can use it to validate your objects, i.e. before they get stored the db.
 Example:
@@ -327,6 +347,10 @@ if(process.env.NODE_ENV === 'production') { // cause in dev, you usually run wit
 db.store(myUser)
 ````
 [Also you can inspect all your types at runtime](https://typescript-rtti.org/) 
+
+# Migration from 2.x
+- The [Build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) has changed
+- TODO: Security is now specified through the NODE_ENV environment variable.
 
 # That's it !
 
