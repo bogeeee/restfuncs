@@ -177,6 +177,9 @@ test('shape result', async () => {
         name: string,
         age: number,
         password: string,
+        sub?: {
+            subExtra: string
+        }
     }
 
     class ServerAPI extends ServerSession {
@@ -213,6 +216,12 @@ test('shape result', async () => {
             return user;
         }
 
+        @remote()
+        shapeResultWithOmitWithSub(): Omit<IUser, "password" | "sub"> & {sub: Omit<IUser["sub"], "extra">} {
+            const user = {name: "Franz", age: 45, password: "geheim!", sub: {subExtra: "extra"}}
+            return user;
+        }
+
 
     };
 
@@ -224,6 +233,7 @@ test('shape result', async () => {
             expect(await apiProxy.shapeResultImplicit()).toStrictEqual({});
             expect(await apiProxy.shapeResultWithPick()).toStrictEqual({name: "Franz", age: 45});
             expect(await apiProxy.shapeResultWithOmit()).toStrictEqual({name: "Franz", age: 45});
+            expect(await apiProxy.shapeResultWithOmitWithSub()).toStrictEqual({name: "Franz", age: 45, sub: {}});
 
         }
     );

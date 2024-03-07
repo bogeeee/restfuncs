@@ -215,8 +215,8 @@ type RemoteMethodsMeta = {
                 validatePrune:  (args: unknown[]) => IValidation<unknown[]>
             }
             result: {
-                validateEquals?: (result: unknown) => IValidation<unknown> //TODO: delete the optional "?"
-                validatePrune?:  (result: unknown) => IValidation<unknown> //TODO: delete the optional "?"
+                validateEquals: (result: unknown) => IValidation<unknown>
+                validatePrune:  (result: unknown) => IValidation<unknown>
             }
             jsDoc?: {
                 comment: string,
@@ -873,7 +873,7 @@ export class ServerSession implements IServerSession {
 
             // Validate the result:
             if(remoteMethodOptions.validateResult !== false) {
-                serverSession.validateResult(result, remoteMethodName);
+                serverSession.validateAndShapeResult(result, remoteMethodName);
             }
         }
         catch (e) {
@@ -1581,12 +1581,13 @@ export class ServerSession implements IServerSession {
 
     /**
      * Validates the result of a remote method call.
+     * Also shapes it, if set by in the options.
      * <p>Internal. API may change</p>
-     * @param result
+     * @param result the awaited result
      * @param remoteMethodName
      * @protected
      */
-    protected validateResult(result: unknown, remoteMethodName: string) {
+    protected validateAndShapeResult(result: unknown, remoteMethodName: string) {
         if(this.clazz.options.devDisableSecurity) {
             return;
         }
@@ -1621,23 +1622,26 @@ export class ServerSession implements IServerSession {
 
         // Validate:
         const errors: Error[] = []
-        const validationResult = returnType.matchesValue(result, {allowExtraProperties: false, errors});
 
-        if(!validationResult || errors.length > 0) {
-            // Throw error:
-            if(errors.length === 0) {
-                // Try to give the user a better hint:
-                let diagnosis_returnTypeString = "[error obtaining return type]";
-                try {
-                    diagnosis_returnTypeString = returnType.toString();
-                }
-                catch (e) { // Can fail, if we have recursions
-
-                }
-                throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Please make sure, that value matches the actual declared type of${reflectedMethod.returnType.isPromise()?" (note: Promise<...> was unwrapped)":""}: ${diagnosis_returnTypeString}.${diagnosis_hasDeepNullOrUndefined(result)?" **Note** Because it seems, there's a problem with null/undefined values: Make sure that you enable 'strictNullChecks' or 'strict' in tsconfig.json.":""}` );
-            }
-            throw new Error(`${remoteMethodName} returned an invalid value: ${diagnisis_shortenValue(result)}. Error(s): ${errors.join("; ")}`);
+        const meta = this.clazz.getRemoteMethodMeta(remoteMethodName);
+        const shouldShapeResult = this.clazz.getRemoteMethodOptions(remoteMethodName).shapeResult !== false;
+        const validationResult = shouldShapeResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
+        if(validationResult.success) {
+            return;
         }
+
+        // *** Compose error message and throw it ***:
+
+        const prefix = `${remoteMethodName} returned an invalid value`
+
+        // Compose errors into readable messages:
+        const readableErrors: string[] = validationResult.errors.map(error => {
+            const improvedPath = error.path.replace(/^\$input/,"<result>")
+            return `${improvedPath !== "<result>"?`${improvedPath}: `: ""}expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+        })
+
+        const separateLines = readableErrors.length > 1;
+        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
     }
     
     /**
@@ -2024,7 +2028,7 @@ export class ServerSession implements IServerSession {
      * You can override this as part of the Restfuncs API.
      * @see checkIfMethodHasRemoteDecorator
      * @param methodName
-     * @returns
+     * @returns The actual options where the defaults were resolved (see the jsdoc of each property) - except the last default because that's what the caller has to decide.
      */
     protected static getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
         let declaringClazz = this.getDeclaringClass(methodName);
@@ -2504,7 +2508,7 @@ export type RemoteMethodOptions = {
     validateArguments?: boolean
 
     /**
-     * Makes restfuncs trim away any extra properties and arguments that are not allowed otherwise.
+     * Trims away any extra properties and arguments that are not allowed otherwise.
      * <br/>
      * Example:
      * <pre><code>
@@ -2528,12 +2532,16 @@ export type RemoteMethodOptions = {
      * value from <b>super class</b>'s {@link #defaultRemoteMethodOptions} || <br/>
      * value from the <b>client</b>'s "shapeArguments" http header (<b>the restfuncs-client always enables this</b>) || <br/>
      * <b>false</b>
+     *
+     * <p>
+     * <i>Note: shapeArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
+     * </p>
      */
     shapeArguments?: boolean
 
     /**
      * Performs a check at runtime, to ensure, that the returned value matches the type that is declared by the method (explicitly or implicitly).
-     * <i>This prevents values that were formed somehow illegally with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
+     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
      *
      * <p>
      *     Example:
@@ -2556,6 +2564,10 @@ export type RemoteMethodOptions = {
      * Like {@link #shapeArguments}, but for the result.
      * <p>
      * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
+     *
+     * <p>
+     * <i>Note: shapeResult doesn't work / make sense if you disable {@link #validateResult}.</p>
      * </p>
      */
     shapeResult?: boolean

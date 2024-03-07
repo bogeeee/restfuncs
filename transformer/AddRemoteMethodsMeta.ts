@@ -99,7 +99,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
         const factory = this.context.factory;
 
-        const typiaFuncs:Record<string, PropertyAccessExpression> = {
+        const arguments_typiaFuncs:Record<string, PropertyAccessExpression> = {
             /**
              * typia.validateEquals
              */
@@ -112,15 +112,17 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 factory.createIdentifier("misc")
             ), factory.createIdentifier("validatePrune"))
         }
+        const result_typiaFuncs = {...arguments_typiaFuncs};
 
         // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
         // @ts-ignore
         return factory.createObjectLiteralExpression(
             [
+                // arguments: {...}
                 factory.createPropertyAssignment(
                     factory.createIdentifier("arguments"),
                     factory.createObjectLiteralExpression(
-                        Object.keys(typiaFuncs).map((typiaFnName) =>
+                        Object.keys(arguments_typiaFuncs).map((typiaFnName) =>
                         factory.createPropertyAssignment(
                             factory.createIdentifier(typiaFnName),
                             factory.createArrowFunction(
@@ -136,7 +138,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 )],
                                 undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                factory.createCallExpression(typiaFuncs[typiaFnName],
+                                factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
                                     [factory.createTypeReferenceNode(
                                         factory.createIdentifier("Parameters"),
                                         [factory.createIndexedAccessTypeNode(
@@ -157,10 +159,46 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                         true
                     )
                 ),
+                // result: {...}
                 factory.createPropertyAssignment(
                     factory.createIdentifier("result"),
                     factory.createObjectLiteralExpression(
-                        [],
+                        Object.keys(result_typiaFuncs).map((typiaFnName) =>
+                            factory.createPropertyAssignment(
+                                factory.createIdentifier(typiaFnName),
+                                factory.createArrowFunction(
+                                    undefined,
+                                    undefined,
+                                    [factory.createParameterDeclaration(
+                                        undefined,
+                                        undefined,
+                                        factory.createIdentifier("value"),
+                                        undefined,
+                                        factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+                                        undefined
+                                    )],
+                                    undefined,
+                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                    factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
+                                        [factory.createTypeReferenceNode(
+                                            factory.createIdentifier("Awaited"), [factory.createTypeReferenceNode(
+                                                factory.createIdentifier("ReturnType"),
+                                                [factory.createIndexedAccessTypeNode(
+                                                    factory.createTypeQueryNode(
+                                                        factory.createQualifiedName(
+                                                            factory.createIdentifier("this"),
+                                                            factory.createIdentifier("prototype")
+                                                        ),
+                                                        undefined
+                                                    ),
+                                                    factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
+                                                )]
+                                            )]
+                                        )],
+                                        [factory.createIdentifier("value")]
+                                    )
+                                )
+                            )),
                         true
                     )
                 ),
