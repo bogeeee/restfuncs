@@ -1499,16 +1499,37 @@ export class ServerSession implements IServerSession {
             return;
         }
 
-        const prefix = `Invalid arguments for method ${methodName}`;
-
+        const prefix = `Invalid argument(s) for method ${methodName}`;
 
         const errors = validationResult.errors;
+
+        // Handle invalid number of arguments:
         if(errors.length == 1 && errors[0].path === "$input") {
             throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
         }
 
-        const separateLines = errors.length > 1;
-        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${errors.join("\n")}`);
+        // Compose errors into readable messages:
+        const readableErrors: string[] = errors.map(error => {
+            // Replace $input[x] with <argument name>, if possible
+            const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, index: string) => {
+
+                try {
+                    const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
+                    if(reflectedMethod) {
+                        return reflectedMethod.parameters[Number(index)].name;
+                    }
+                }
+                catch (e) {
+
+                }
+                return orig;
+            })
+
+            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+        })
+
+        const separateLines = readableErrors.length > 1;
+        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
     }
 
 

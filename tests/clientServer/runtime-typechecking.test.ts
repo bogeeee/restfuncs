@@ -11,7 +11,7 @@ import {runClientServerTests, standardOptions} from "./lib";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
-const INVALID_ARGUMENTS_MESSAGE = /Invalid arguments/;
+const INVALID_ARGUMENTS_MESSAGE = /Invalid argument/;
 const INVALID_RETURN_MESSAGE = /returned an invalid value/;
 
 
@@ -111,7 +111,7 @@ test('Test arguments', async () => {
             await apiProxy.setObjWithValues({prop1: true});
 
             // @ts-ignore
-            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: 123}), INVALID_ARGUMENTS_MESSAGE );
+            await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({prop1: 123}), /expected.*boolean/i );
 
             // @ts-ignore
             await expectAsyncFunctionToThrow( async () => await apiProxy.setObjWithValues({}), INVALID_ARGUMENTS_MESSAGE );
