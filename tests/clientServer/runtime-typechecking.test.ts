@@ -145,6 +145,13 @@ test('Test arguments with deep undefined', async () => {
 })
 
 test('Test arguments - extra properties value / shape arguments', async () => {
+
+    type IUser=  {
+        name: string,
+        age: number,
+        password: string,
+    }
+
     class ServerAPI extends ServerSession{
         @remote()
         params1(x: string, y: number, z: {}): any {
@@ -160,6 +167,63 @@ test('Test arguments - extra properties value / shape arguments', async () => {
         async (apiProxy) => {
             expect( (await apiProxy.params1("ok", 123, {someExtraProperty: true})).someExtraProperty).toBeUndefined();
             await expectAsyncFunctionToThrow( async () => {await apiProxy.params2("ok", 123, {someExtraProperty: true});}, INVALID_ARGUMENTS_MESSAGE);
+        }
+    );
+})
+
+test('shape result', async () => {
+
+    type IUser=  {
+        name: string,
+        age: number,
+        password: string,
+    }
+
+    class ServerAPI extends ServerSession {
+
+        @remote({shapeResult: false})
+        doesntShapeResult(): {} {
+            return {extra: true}
+        }
+
+        @remote()
+        shapeResult(): {} {
+            return {extra: true}
+        }
+
+        @remote()
+        async shapeResultAsync(): Promise<{}> {
+            return {extra: true}
+        }
+
+        @remote()
+        shapeResultImplicit() {
+            return {extra: true} as {}
+        }
+
+        @remote()
+        shapeResultWithPick(): Pick<IUser, "name" | "age"> { // This will return the user without password
+            const user = {name: "Franz", age: 45, password: "geheim!"}
+            return user;
+        }
+
+        @remote()
+        shapeResultWithOmit(): Omit<IUser, "password">{  // This will return the user without password
+            const user = {name: "Franz", age: 45, password: "geheim!"}
+            return user;
+        }
+
+
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            expectAsyncFunctionToThrow(apiProxy.doesntShapeResult, /invalid.*extra/);
+            expect(await apiProxy.shapeResult()).toStrictEqual({});
+            expect(await apiProxy.shapeResultAsync()).toStrictEqual({});
+            expect(await apiProxy.shapeResultImplicit()).toStrictEqual({});
+            expect(await apiProxy.shapeResultWithPick()).toStrictEqual({name: "Franz", age: 45});
+            expect(await apiProxy.shapeResultWithOmit()).toStrictEqual({name: "Franz", age: 45});
 
         }
     );
@@ -292,6 +356,11 @@ test('Test result validation', async () => {
         returnsImplicitOptionalString(value: string | undefined) {
             return value;
         }
+
+        @remote()
+        returnsObject(value: any): {z: string} {
+            return value
+        }
     };
 
     await runClientServerTests(new ServerAPI(),
@@ -317,6 +386,8 @@ test('Test result validation', async () => {
             await expectAsyncFunctionToThrow(async () => await apiProxy.voidMethodReturnsIllegalValue(), INVALID_RETURN_MESSAGE);
             await apiProxy.returnsIllegalValuesVithoutValidation();
 
+            await expectAsyncFunctionToThrow(async () => await apiProxy.returnsObject({z: 123}), /invalid.*\.z/); // .z should be contained in the message
+            await expectAsyncFunctionToThrow(async () => await apiProxy.returnsString(123), /invalid.*123/); // .z should be contained in the message
         }
     );
 })
