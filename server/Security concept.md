@@ -4,9 +4,11 @@
      The busboy (multipart parsing) parsing will only happen if really needed, so if that method has `readable` or `UploadFile` parameters. Cause the busboy code looks very "leet" and i find it hard to inspect it for side effects. 
   2. We assume that stage 1 was evil and any evil parameters can make it to here. So the call-ready parameters will be security-checked again by ServerSession.validateCall()
 
-# Validation via typescript-rtti
-- The typescript-rtti library needs more reviewing.
-   - More testcases should be added there.
+# Validation library
+This is a very sensitive part, as it should detect every possible type violation of an attacker's input.
+You might have seen the big security warning i've made in the 2.x release's readme because the typescript-rtti library [lacks of validation test cases](https://github.com/typescript-rtti/typescript-rtti/issues/112).  
+Good news: Since 3.x, i've switched over to Typia which is heavily covered by such security tests: It tests an impressive amount of currently [167 different Typescript structures](https://github.com/samchon/typia/tree/master/test/src/structures) with **975 spoiler tests** in total.
+_Still typescript-rtti is very useful for other tasks that are not in the security critical path._
     
 # CSRF protection
 Make sure you've read the [CSRF protection topic in the documentation](../readme.md#csrf-protection) first.

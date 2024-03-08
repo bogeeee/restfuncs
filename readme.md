@@ -349,7 +349,9 @@ db.store(myUser)
 [Also you can inspect all your types at runtime](https://typescript-rtti.org/) 
 
 # Migration from 2.x
-- The [Build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) has changed
+As [the 2.x release was announced to be non production-ready](https://github.com/bogeeee/restfuncs/tree/2.x?tab=readme-ov-file#--warning-not-yet-secure-for-production--),
+here is how to migrate to the production-ready 3.x version, [where those issues were fixed](server/Security%20concept.md#validation-library)
+- Look at how the [Build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) has changed
 - TODO: Security is now specified through the NODE_ENV environment variable.
 
 # That's it !
