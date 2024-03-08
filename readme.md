@@ -12,18 +12,27 @@ greet(name: string) {
 ````
 See, it uses natural parameters and natual `return` and `throw` flow, instead of dealing with `req` and `res` and Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
-- 🔌 **Automatic [REST interface](#rest-interface)**, that comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them.
-- 🛡️ **Automatic arguments validation** from native typescript types: Like here, you said: name is a string. _More than that it can be declared any complex typescript type_. Restfuncs will validate that automatically at runtime.  _No need to repeat yourself in any inconvenient declaration language, no need to learn ZOD._ How does it work ? As we know, typescript usually erases all types at runtime. Therefore, Restfuncs needs a [tsc compiler plugin](https://www.npmjs.com/package/restfuncs-transformer), to add that type information. _It's currently just a wrapper for [typescript-rtti](https://typescript-rtti.org) and all the props go out to these guys ;)._ [See, how to set it up](#setting-up-the-build-here-it-gets-a-bit-nasty-).
-- **Argments and result shaping**: Automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form). 
-- 🍾 **RPC client** (this is the best part 😄😄😄): Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
-  - 🚀 Uses **engine.io (web-) sockets** (default, but can be switched to plain HTTP as well): The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs.  
-- **🔐 Security first approach**: All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
+- 🛡️ **Automatic arguments validation** against **native typescript types**  
+  Like here, you used typescript to say "name must be a `string`" Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
+  _Now you may ask how this works, because usually all types are erased at runtime. Answer: Your files go through a set of transformer plugins during compilation which add that information and emit fast precompiled validator code. 
+  This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
+  - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
+    _In cases where the full power of Typescript is still not enough for you ;)_
+- 🔌 **Zero conf [REST interface](#rest-interface)** for your remote methods  
+  Especially it comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them!
+- 🍾 **RPC client** (this is the best part 😄😄😄)  
+  Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
+  - 🚀 Uses **engine.io (web-) sockets**
+    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
+- **🔐 Security first approach**
+  All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
   Restfuncs is designed to handle setups with different security settings per ServerSession class _while they (always) share one cookie-session_. I.e, think of serving a subset of your APIs (ServerSessions) to ALL origins for third party browser apps or for SSO. _[How it works internally](server/Security%20concept.md)_
   - 🛡️ **[CSRF protection](#csrf-protection) with zero-conf**: Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the socket connection._
   - **🔓CORS** of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` and that's it.
-- **Serve / stream resources**: You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
+- **⛲ Serve / stream resources**
+  You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
 - COMING SOON: These coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 2.x version stay the head.
-- COMING SOON: **Callback functions** as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
+- COMING very SOON: **Callback functions** as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
 - COMING SOON: Simple **file uploads**: You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
 - COMING SOON: **Basic auth** handler. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication)
@@ -32,11 +41,12 @@ That is (features):
 
 Smaller features:
 - **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. COMING SOON: Support for shaping, so you can use some typescript tricks like `Pick` and `Omit` to shape your result into the desired form. 
+- **Argment and result shaping**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
 - Proper **error handling** and logging.
 - **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
 - **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
-- **Very compact** conceptual **documentation**. "All you need to know" fits on 2.5 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
+- **Very compact** conceptual **documentation**. "All you need to know" fits on < 3 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
 # &lt;Boilerplate cheat sheet - all you need to know&gt;
 
