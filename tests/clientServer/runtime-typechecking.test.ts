@@ -144,7 +144,7 @@ test('Test arguments with deep undefined', async () => {
     );
 })
 
-test('Test arguments - extra properties value / shape arguments', async () => {
+test('Test arguments - extra properties value / trim arguments', async () => {
 
     type IUser=  {
         name: string,
@@ -171,7 +171,7 @@ test('Test arguments - extra properties value / shape arguments', async () => {
     );
 })
 
-test('shape result', async () => {
+test('trim result', async () => {
 
     type IUser=  {
         name: string,
@@ -185,7 +185,7 @@ test('shape result', async () => {
     class ServerAPI extends ServerSession {
 
         @remote({trimResult: false})
-        doesntShapeResult(): {} {
+        doesntTrimResult(): {} {
             return {extra: true}
         }
 
@@ -227,7 +227,7 @@ test('shape result', async () => {
 
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
-            expectAsyncFunctionToThrow(apiProxy.doesntShapeResult, /invalid.*extra/);
+            expectAsyncFunctionToThrow(apiProxy.doesntTrimResult, /invalid.*extra/);
             expect(await apiProxy.trimResult()).toStrictEqual({});
             expect(await apiProxy.trimResultAsync()).toStrictEqual({});
             expect(await apiProxy.trimResultImplicit()).toStrictEqual({});

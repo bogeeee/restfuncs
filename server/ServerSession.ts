@@ -823,7 +823,7 @@ export class ServerSession implements IServerSession {
      * @param remoteMethodName
      * @param methodArguments
      * @param call the properties that should be made available for the user during call time. like req, res, ...
-     * @param trimArguments_clientPreference does the client prefer to shape the arguments (=trim extra properties) ?
+     * @param trimArguments_clientPreference does the client prefer to trim the arguments (=trim extra properties) ?
      * @param diagnosis
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
@@ -876,7 +876,7 @@ export class ServerSession implements IServerSession {
 
             // Validate the result:
             if(remoteMethodOptions.validateResult !== false) {
-                serverSession.validateAndShapeResult(result, remoteMethodName);
+                serverSession.validateAndTrimResult(result, remoteMethodName);
             }
         }
         catch (e) {
@@ -1592,13 +1592,13 @@ export class ServerSession implements IServerSession {
 
     /**
      * Validates the result of a remote method call.
-     * Also shapes it, if set by in the options.
+     * Also trims it, if set by in the options.
      * <p>Internal. API may change</p>
      * @param result the awaited result
      * @param remoteMethodName
      * @protected
      */
-    protected validateAndShapeResult(result: unknown, remoteMethodName: string) {
+    protected validateAndTrimResult(result: unknown, remoteMethodName: string) {
         if(this.clazz.isSecurityDisabled) {
             return;
         }
@@ -1638,8 +1638,8 @@ export class ServerSession implements IServerSession {
         const errors: Error[] = []
 
         const meta = this.clazz.getRemoteMethodMeta(remoteMethodName);
-        const shouldShapeResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
-        const validationResult = shouldShapeResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
+        const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
+        const validationResult = shouldTrimResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
         if(validationResult.success) {
             return;
         }

@@ -40,8 +40,8 @@ That is (features):
   - FUTURE 3.x:  ... + can also download the **OpenAPI spec** from there.
 
 Smaller features:
-- **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. COMING SOON: Support for shaping, so you can use some typescript tricks like `Pick` and `Omit` to shape your result into the desired form. 
-- **Argment and result shaping**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
+- **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. 
+- **Argment and result trimming**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
 - Proper **error handling** and logging.
 - **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
 - **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
@@ -75,7 +75,7 @@ export class MyServerSession extends ServerSession {
     // this.call.... // Access or modify the current call's context specific properties. I.e. this.call.res!.header("myHeader","...")
     // (myCallback as ClientCallback).... // Access some options under the hood
 
-    return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated and shaped into the declared or implicit return type of `myRemoteMethod`. Extra properties get removed. TODO: See Typescript tips an tricks on how to shape the result
+    return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated against the declared or implicit return type of `myRemoteMethod`. Extra properties get trimmed off.
   }
 
   // ... <-- More @remote methods  
@@ -319,7 +319,7 @@ When using a load balancer in front of your servers, you have to configure it fo
 
 # Tips & tricks
 ### Using typescript to automatically trim the output into the desired form
-By default, restfuncs shapes the result of your remote methods into the exact declared typescript type. Meaning, it trims off all extra properties. 
+By default, restfuncs trims off all extra properties in the result of your remote methods to match the exact declared typescript type. 
 You can make use of this in combination with these two handy typescript utility types: [Pick<Type, Keys>](using Pick and Omit) and [Omit<Type, Keys>](https://www.typescriptlang.org/docs/handbook/utility-types.html#omittype-keys) 
 Example:
 ````typescript
