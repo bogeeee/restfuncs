@@ -48,7 +48,7 @@ export class ControlService extends ServerSession {
         return ServiceClass.getCsrfToken(this.call.req, this.call.res!)
     }
 
-    private getServiceClass(id: string) {
+    private getServiceClass(id: string): any /* used any because of an error when typescript-rtti follows/includes (typeof ServerSession).typiaRuntime */ {
         let server = this.clazz.server;
         const ServiceClass = server.serverSessionClasses.get(id);
         if (!ServiceClass) {

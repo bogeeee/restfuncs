@@ -6,7 +6,7 @@
   "main": "./server",
   "scripts": {
     "dev": "tspc --build && cross-env NODE_ENV=development node --enable-source-maps server.js",
-    "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev",
+    "dev:withServerBuild": "npm run --prefix ../../server dev:fastbuild && npm run dev",
 
     "clean": "tspc --build --clean && rimraf client/dist",
     "build": "tspc --build --force && cd client && vite build",
