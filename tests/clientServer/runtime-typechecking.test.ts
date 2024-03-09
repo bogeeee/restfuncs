@@ -144,6 +144,34 @@ test('Test arguments with deep undefined', async () => {
     );
 })
 
+test('User defined classes', async () => {
+    class User {
+        name: string
+        someMethod() {}
+    }
+
+    class ServerAPI extends TypecheckingService{
+        @remote()
+        getObject(value: User): any {
+            return value
+        }
+
+        @remote()
+        returnUser(): any {
+            const user = new User();
+            user.name="someone"
+            return user
+        }
+    };
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            expect(await apiProxy.getObject({name: "bob"} as User)).toStrictEqual({name: "bob"}) // Expect it to work like this. But still questionable if it should be allowed in general
+            expect(await apiProxy.returnUser()).toStrictEqual({name: "someone"});
+        }
+    );
+})
+
 test('Test arguments - extra properties value / trim arguments', async () => {
 
     type IUser=  {
@@ -222,6 +250,16 @@ test('trim result', async () => {
             return user;
         }
 
+        @remote({trimResult: false})
+        returnAny(): any {
+            return {extra: true}
+        }
+
+        @remote({trimResult: false})
+        returnUnknown(): unknown {
+            return {extra: true}
+        }
+
 
     };
 
@@ -234,6 +272,9 @@ test('trim result', async () => {
             expect(await apiProxy.trimResultWithPick()).toStrictEqual({name: "Franz", age: 45});
             expect(await apiProxy.trimResultWithOmit()).toStrictEqual({name: "Franz", age: 45});
             expect(await apiProxy.trimResultWithOmitWithSub()).toStrictEqual({name: "Franz", age: 45, sub: {}});
+
+            expect(await apiProxy.returnAny()).toStrictEqual({extra: true});
+            expect(await apiProxy.returnUnknown()).toStrictEqual({extra: true});
 
         }
     );
