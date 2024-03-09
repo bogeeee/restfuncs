@@ -158,7 +158,7 @@ test('Test arguments - extra properties value / shape arguments', async () => {
             return z;
         }
 
-        @remote({shapeArguments: false})
+        @remote({trimArguments: false})
         params2(x: string, y: number, z: {}) {
         }
     };
@@ -262,7 +262,7 @@ test('Test BigInt', async () => {
  */
 test('Test additional properties / overstrict checks', async () => {
     class ServerAPI extends TypecheckingService {
-        @remote({shapeArguments: false})
+        @remote({trimArguments: false})
         setObjWithValues(z: {prop1: boolean}) {
         }
 

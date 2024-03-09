@@ -241,7 +241,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 headers: {
                     'Content-Type': 'application/brillout-json',
                     'Accept': "application/brillout-json",
-                    "shapeArguments": "true",
+                    "trimArguments": "true",
                     // Make sure you list these headers under Access-Control-Allow-Headers in server/index.js
                     // add keys only if needed:
                     ...(this.csrfProtectionMode?{csrfProtectionMode: this.csrfProtectionMode}: {}),
