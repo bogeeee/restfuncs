@@ -8,7 +8,7 @@
     "dev": "tspc --build && cross-env NODE_ENV=development node --enable-source-maps server.js",
     "dev:withServerBuild": "npm run --prefix ../../server build && npm run dev",
 
-    "clean": "tspc --build --clean && rm -rf client/dist",
+    "clean": "tspc --build --clean && rimraf client/dist",
     "build": "tspc --build --force && cd client && vite build",
     "start": "node --enable-source-maps server.js"
   },
@@ -27,6 +27,7 @@
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": ">=1",
     "nodemon": "^2.0.15",
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "rimraf": "=5.0.5"
   }
 }

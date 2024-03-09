@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run clean && nodemon --exec cross-env NODE_ENV=development tsx server.ts",
-    "clean": "tspc --build --clean && rm -rf ../client/dist",
+    "clean": "tspc --build --clean && rimraf ../client/dist",
     "build": "tspc --build --force && npm run build:client",
     "build:client": "cd ../client && vite build",
     "start": "cross-env NODE_ENV=production node --enable-source-maps server.js"
@@ -22,6 +22,7 @@
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^1.0.0",
     "nodemon": "^2.0.15",
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "rimraf": "=5.0.5"
   }
 }

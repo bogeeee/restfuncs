@@ -22,7 +22,7 @@
   },
   "scripts": {
     "dev:fastbuild": "tsc --build",
-    "clean": "tsc --build --clean && rm -rf dist LICENSE readme.md",
+    "clean": "tsc --build --clean && rimraf dist LICENSE readme.md",
     "build": "tsc --build --force"
   },
   "dependencies": {
@@ -47,7 +47,8 @@
   },
   "devDependencies": {
     "nodemon": "^2.0.15",
-    "restfuncs-transformer": "^1.0.0"
+    "restfuncs-transformer": "^1.0.0",
+    "rimraf": "=5.0.5"
   },
   "optionalDependencies": {
     "restfuncs-transformer": "^1.0.0"
