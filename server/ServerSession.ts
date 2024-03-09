@@ -1630,6 +1630,9 @@ export class ServerSession implements IServerSession {
                 return; // Skip validation of Buffer
             }
         }
+        if(result instanceof Readable) {
+            return result;
+        }
 
         // Validate:
         const errors: Error[] = []
