@@ -29,6 +29,6 @@
     "engine.io-client": "^6.5.2"
   },
   "devDependencies": {
-    "typescript": "^4.6"
+    "typescript": "5.x"
   }
 }
