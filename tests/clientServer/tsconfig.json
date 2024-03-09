@@ -1,0 +1,18 @@
+// A tsconfig file must be present, or tsc complains
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "module": "CommonJS", // For Jest. Otherwise it can't dynamicly load modules
+    "moduleResolution": "node",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "plugins": [
+      { "transform": "../../transformer/index.ts" /* ts-node must be installed to run the .ts files directly*/,  "transformProgram": true},
+      { "transform": "typia/lib/transform" },
+      { "transform": "typescript-rtti/dist/transformer" },
+    ],
+    "strictNullChecks": true
+  },
+}

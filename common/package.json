@@ -18,8 +18,9 @@
     }
   },
   "scripts": {
+    "dev:fastbuild": "tsc --build",
     "clean": "tsc --build --clean && rm -rf dist LICENSE readme.md",
-    "build": "tsc && tsc -module ES6 --outDir dist/mjs"
+    "build": "tsc --build --force && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
   },

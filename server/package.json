@@ -21,8 +21,9 @@
     }
   },
   "scripts": {
-    "clean": "tspc --build --clean && rm -rf dist LICENSE readme.md",
-    "build": "tspc"
+    "dev:fastbuild": "tsc --build",
+    "clean": "tsc --build --clean && rm -rf dist LICENSE readme.md",
+    "build": "tsc --build --force"
   },
   "dependencies": {
     "restfuncs-common": "^2.0",

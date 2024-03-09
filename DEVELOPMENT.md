@@ -7,11 +7,9 @@ npm install --ignore-scripts
 _This autoinstalls dependencies for every sub-package / workspace ;)_
 
 
-### Running tests
+### Run the tests
 
-During coding, you would normally run `test:watch-and-run-tests`,
-or, because the filewatcher loves to crash often, start them manually with `test:compile_and_run_tests`. _Note: You must run `test:perpare` once first, to build the transformer._
-
+`npm run tests`
 
 ### Test (with) examples
 You would want to test your code changes with the examples, or use them as a playground, then (from the root):
