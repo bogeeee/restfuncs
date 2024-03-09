@@ -95,7 +95,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateArguments !== false).toBeTruthy()
         expect(options.validateResult !== false).toBeTruthy()
         expect(options.trimArguments === undefined).toBeTruthy()
-        expect(options.shapeResult !== false).toBeTruthy()
+        expect(options.trimResult !== false).toBeTruthy()
         expect(options.apiBrowserOptions!.needsAuthorization).toBeFalsy()
     })
 
@@ -106,7 +106,7 @@ describe("getRemoteMethodOptions", () => {
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
-            shapeResult: false, // Should not be inherited
+            trimResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -131,7 +131,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
-        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
@@ -143,7 +143,7 @@ describe("getRemoteMethodOptions", () => {
                 validateArguments: false,// Should be used
                 validateResult: false, // Should be used
                 trimArguments: false, // Should be used
-                shapeResult: false, // Should be used
+                trimResult: false, // Should be used
                 apiBrowserOptions: {needsAuthorization: true} // Should be used
             }
 
@@ -162,7 +162,7 @@ describe("getRemoteMethodOptions", () => {
             expect(options.validateArguments === false).toBeTruthy()
             expect(options.validateResult === false).toBeTruthy()
             expect(options.trimArguments === false).toBeTruthy()
-            expect(options.shapeResult === false).toBeTruthy()
+            expect(options.trimResult === false).toBeTruthy()
             expect(options.apiBrowserOptions!.needsAuthorization).toBeTruthy()
         }
     })
@@ -180,7 +180,7 @@ describe("getRemoteMethodOptions", () => {
                 validateArguments: false,// Should not be used
                 validateResult: false, // Should not be used
                 trimArguments: false, // Should not be used (but we could do so)
-                shapeResult: false, // Should not be used
+                trimResult: false, // Should not be used
                 apiBrowserOptions: {needsAuthorization: true} // should not be used
             }
             // myMethod() {} // Inherited
@@ -191,7 +191,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected
         expect(options.trimArguments === undefined).toBeTruthy() // Should not be affected
-        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected
+        expect(options.trimResult !== false).toBeTruthy() // Should not be affected
         expect(options.apiBrowserOptions!.needsAuthorization === undefined).toBeTruthy() // Should not be affected
     })
 
@@ -203,7 +203,7 @@ describe("getRemoteMethodOptions", () => {
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
-            shapeResult: false, // Should not be inherited
+            trimResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -227,7 +227,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
-        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
@@ -238,7 +238,7 @@ describe("getRemoteMethodOptions", () => {
             validateArguments: false,// Should not be inherited
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
-            shapeResult: false, // Should not be inherited
+            trimResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -261,7 +261,7 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
-        expect(options.shapeResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 });

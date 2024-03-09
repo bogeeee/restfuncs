@@ -184,40 +184,40 @@ test('shape result', async () => {
 
     class ServerAPI extends ServerSession {
 
-        @remote({shapeResult: false})
+        @remote({trimResult: false})
         doesntShapeResult(): {} {
             return {extra: true}
         }
 
         @remote()
-        shapeResult(): {} {
+        trimResult(): {} {
             return {extra: true}
         }
 
         @remote()
-        async shapeResultAsync(): Promise<{}> {
+        async trimResultAsync(): Promise<{}> {
             return {extra: true}
         }
 
         @remote()
-        shapeResultImplicit() {
+        trimResultImplicit() {
             return {extra: true} as {}
         }
 
         @remote()
-        shapeResultWithPick(): Pick<IUser, "name" | "age"> { // This will return the user without password
+        trimResultWithPick(): Pick<IUser, "name" | "age"> { // This will return the user without password
             const user = {name: "Franz", age: 45, password: "geheim!"}
             return user;
         }
 
         @remote()
-        shapeResultWithOmit(): Omit<IUser, "password">{  // This will return the user without password
+        trimResultWithOmit(): Omit<IUser, "password">{  // This will return the user without password
             const user = {name: "Franz", age: 45, password: "geheim!"}
             return user;
         }
 
         @remote()
-        shapeResultWithOmitWithSub(): Omit<IUser, "password" | "sub"> & {sub: Omit<IUser["sub"], "extra">} {
+        trimResultWithOmitWithSub(): Omit<IUser, "password" | "sub"> & {sub: Omit<IUser["sub"], "extra">} {
             const user = {name: "Franz", age: 45, password: "geheim!", sub: {subExtra: "extra"}}
             return user;
         }
@@ -228,12 +228,12 @@ test('shape result', async () => {
     await runClientServerTests(new ServerAPI(),
         async (apiProxy) => {
             expectAsyncFunctionToThrow(apiProxy.doesntShapeResult, /invalid.*extra/);
-            expect(await apiProxy.shapeResult()).toStrictEqual({});
-            expect(await apiProxy.shapeResultAsync()).toStrictEqual({});
-            expect(await apiProxy.shapeResultImplicit()).toStrictEqual({});
-            expect(await apiProxy.shapeResultWithPick()).toStrictEqual({name: "Franz", age: 45});
-            expect(await apiProxy.shapeResultWithOmit()).toStrictEqual({name: "Franz", age: 45});
-            expect(await apiProxy.shapeResultWithOmitWithSub()).toStrictEqual({name: "Franz", age: 45, sub: {}});
+            expect(await apiProxy.trimResult()).toStrictEqual({});
+            expect(await apiProxy.trimResultAsync()).toStrictEqual({});
+            expect(await apiProxy.trimResultImplicit()).toStrictEqual({});
+            expect(await apiProxy.trimResultWithPick()).toStrictEqual({name: "Franz", age: 45});
+            expect(await apiProxy.trimResultWithOmit()).toStrictEqual({name: "Franz", age: 45});
+            expect(await apiProxy.trimResultWithOmitWithSub()).toStrictEqual({name: "Franz", age: 45, sub: {}});
 
         }
     );

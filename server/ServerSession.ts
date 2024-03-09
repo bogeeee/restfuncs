@@ -928,7 +928,7 @@ export class ServerSession implements IServerSession {
      */
     @remote({
         isSafe: true,
-        validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false // Disable these, cause we have no type inspection at this class's level
+        validateArguments: false, validateResult: false, trimArguments: false, trimResult: false // Disable these, cause we have no type inspection at this class's level
     })
     public async getIndex() {
         let className = this.clazz?.name
@@ -962,7 +962,7 @@ export class ServerSession implements IServerSession {
      *
      * Don't override. Not part of the API.
      */
-    @remote({validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, trimArguments: false, trimResult: false}) // Disable these, cause we have no type inspection at this class's level
     getWelcomeInfo(): WelcomeInfo {
         return {
             classId: this.clazz.id,
@@ -983,7 +983,7 @@ export class ServerSession implements IServerSession {
      * </p>
      */
     @remote({
-        validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false,  // Disable these, cause we have no type inspection at this class's level
+        validateArguments: false, validateResult: false, trimArguments: false, trimResult: false,  // Disable these, cause we have no type inspection at this class's level
         isSafe: false // Don't allow with GET. Maybe an attacker could make an <iframe src="myService/readToken" /> which then displays the result json and trick the user into thinking this is a CAPTCHA
     })
     public getCorsReadToken(): string {
@@ -1015,7 +1015,7 @@ export class ServerSession implements IServerSession {
      * Internal. Do not override.
      * @param evil_encryptedQuestion
      */
-    @remote({validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, trimArguments: false, trimResult: false}) // Disable these, cause we have no type inspection at this class's level
     getCookieSession(evil_encryptedQuestion: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1106,7 +1106,7 @@ export class ServerSession implements IServerSession {
      * Internal. Do no override.
      * @param evil_encryptedQuestion
      */
-    @remote({validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, trimArguments: false, trimResult: false}) // Disable these, cause we have no type inspection at this class's level
     getHttpSecurityProperties(evil_encryptedQuestion: ServerPrivateBox<GetHttpSecurityProperties_question>): ServerPrivateBox<GetHttpSecurityProperties_answer> {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1134,7 +1134,7 @@ export class ServerSession implements IServerSession {
      * @param evil_encryptedCookieSessionUpdate
      * @param evil_alsoReturnNewSession Make a 2 in 1 call to updateCookieSession + {@see getCookieSession}. Safes one round trip.
      */
-    @remote({validateArguments: false, validateResult: false, trimArguments: false, shapeResult: false}) // Disable these, cause we have no type inspection at this class's level
+    @remote({validateArguments: false, validateResult: false, trimArguments: false, trimResult: false}) // Disable these, cause we have no type inspection at this class's level
     async updateCookieSession(evil_encryptedCookieSessionUpdate: ServerPrivateBox<CookieSessionUpdate>, evil_alsoReturnNewSession: ServerPrivateBox<GetCookieSession_question>) {
         // Security check:
         if(!this.call.req || this.call.socketConnection) {
@@ -1638,7 +1638,7 @@ export class ServerSession implements IServerSession {
         const errors: Error[] = []
 
         const meta = this.clazz.getRemoteMethodMeta(remoteMethodName);
-        const shouldShapeResult = this.clazz.getRemoteMethodOptions(remoteMethodName).shapeResult !== false;
+        const shouldShapeResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
         const validationResult = shouldShapeResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
         if(validationResult.success) {
             return;
@@ -2082,7 +2082,7 @@ export class ServerSession implements IServerSession {
             isSafe: ownMethodOptions.isSafe,
             validateArguments: (ownMethodOptions.validateArguments !== undefined)?ownMethodOptions.validateArguments: ownDefaultOptions.validateArguments,
             validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
-            shapeResult: (ownMethodOptions.shapeResult !== undefined)?ownMethodOptions.shapeResult: ownDefaultOptions.shapeResult,
+            trimResult: (ownMethodOptions.trimResult !== undefined)?ownMethodOptions.trimResult: ownDefaultOptions.trimResult,
             trimArguments: (ownMethodOptions.trimArguments !== undefined)?ownMethodOptions.trimArguments : (parentResult.trimArguments !== undefined?parentResult.trimArguments : ownDefaultOptions.trimArguments),
             apiBrowserOptions: {
                 needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions.needsAuthorization : (parentResult.apiBrowserOptions?.needsAuthorization !== undefined?parentResult.apiBrowserOptions.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
@@ -2592,10 +2592,10 @@ export type RemoteMethodOptions = {
      * </p>
      *
      * <p>
-     * <i>Note: shapeResult doesn't work / make sense if you disable {@link #validateResult}.</p>
+     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
      * </p>
      */
-    shapeResult?: boolean
+    trimResult?: boolean
 
     apiBrowserOptions?: {
         /**
