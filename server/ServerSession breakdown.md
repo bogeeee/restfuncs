@@ -51,7 +51,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 const origin = getOrigin(req);
-                const originAllowed =  originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors) || this.options.devDisableSecurity
+                const originAllowed =  originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors) || this.isSecurityDisabled
 
                 // Answer preflights:
                 if(req.method === "OPTIONS") {

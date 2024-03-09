@@ -81,7 +81,7 @@ export type ServerSessionOptions = {
 
     /**
      * Whether to show/expose error information to the client:
-     * - true: Exposes ALL error messages + stacks. Enable this for development.
+     * - true: Exposes ALL error messages + stacks. Enable this for development (default for development).
      * - "messagesOnly": Exposes only the message/title + class name. But no stack or other info.
      * - "RestErrorsOnly" (default): Like messageOnly but only for subclasses of {@see CommunicationError}. Those are intended to aid the interface consumer.
      * - false: No information is exposed. The client will get a standard Error: "Internal server error".
@@ -159,8 +159,8 @@ export type ServerSessionOptions = {
     devForceTokenCheck?: boolean
 
     /**
-     * Disables all argument- and output validation and shaping and all allowed origin and CSRF protection checks and allows calls from all origins.
-     * Default: false
+     * Disables all argument- and output validation and CSRF protection checks and CORS allows all origins.
+     * Default: true when NODE_ENV==development, otherwise false
      */
     devDisableSecurity?: boolean
 
@@ -413,7 +413,7 @@ export class ServerSession implements IServerSession {
         checkAllowedOrigins();
 
         // Check that type info is available
-        if(!this.options.devDisableSecurity) {
+        if(!this.isSecurityDisabled) {
             if(!isTypeInfoAvailable(new this)) {
                 throw new CommunicationError("Runtime type information is not available.\n" + this._diagnosis_HowToSetUpTheBuild())
             }
@@ -559,7 +559,7 @@ export class ServerSession implements IServerSession {
 
                 const origin = getOrigin(req);
                 const diagnosis_originNotAllowedErrors: string[] = []
-                const originAllowed =  originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors) || this.options.devDisableSecurity
+                const originAllowed =  originIsAllowed({origin, destination: getDestination(req), allowedOrigins: this.options.allowedOrigins}, diagnosis_originNotAllowedErrors) || this.isSecurityDisabled
                 // Answer preflights:
                 if(req.method === "OPTIONS") {
                     if(originAllowed) {
@@ -1248,6 +1248,14 @@ export class ServerSession implements IServerSession {
     }
 
     /**
+     * @returns resolved value from settings with default fallback
+     * @see ServerSessionOptions#devDisableSecurity
+     */
+    static get isSecurityDisabled() {
+        return this.options.devDisableSecurity !== undefined?this.options.devDisableSecurity:(process.env.NODE_ENV=="development")
+    }
+
+    /**
      * Wildly collects the parameters. This method is only side effect free but the result may not be secure / contain evil input !
      *
      * For body->Readable parameters and multipart/formdata file -> Readble/UploadFile parameters, this will return before the body/first file is streamed and feed the stream asynchronously.
@@ -1570,7 +1578,7 @@ export class ServerSession implements IServerSession {
         this.clazz.checkIfMethodHasRemoteDecorator(methodName);
         const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName);
 
-        if(this.clazz.options.devDisableSecurity) {
+        if(this.clazz.isSecurityDisabled) {
             return;
         }
 
@@ -1588,7 +1596,7 @@ export class ServerSession implements IServerSession {
      * @protected
      */
     protected validateAndShapeResult(result: unknown, remoteMethodName: string) {
-        if(this.clazz.options.devDisableSecurity) {
+        if(this.clazz.isSecurityDisabled) {
             return;
         }
 
@@ -1686,7 +1694,7 @@ export class ServerSession implements IServerSession {
         const isAllowedInner = () => {
             const diagnosis_seeDocs = `${DOCS_READMEURL}#csrf-protection.`
 
-            if(this.options.devDisableSecurity) {
+            if(this.isSecurityDisabled) {
                 return true;
             }
 
@@ -1761,7 +1769,7 @@ export class ServerSession implements IServerSession {
             //Diagnosis:
             if (!reqSecurityProps.browserMightHaveSecurityIssuseWithCrossOriginRequests) {
                 addErrorHint(`Lastly, but harder to implement: You could allow the request by showing a csrfToken. ${diagnosis_seeDocs}`, 10)
-                addErrorHint(`And for development, you could enable ServerSessionOptions#devDisableSecurity`, 8)
+                addErrorHint(`And for development, you could enable ServerSessionOptions#devDisableSecurity or set NODE_ENV=development`, 8)
             }
 
             const diagnosis_oHints: string[] = []
@@ -2328,7 +2336,7 @@ export class ServerSession implements IServerSession {
         // ** Cut off the parts of errorExt that should not be exposed and add some description *** :
 
         const DIAGNOSIS_SHOWFULLERRORS="If you want to see full errors on the client (development), set exposeErrors=true in the ServerSessionOptions."
-        if(this.options.exposeErrors === true || this.options.devDisableSecurity) {
+        if(this.options.exposeErrors === true || this.isSecurityDisabled) {
             return errorExt;
         }
 
@@ -2372,7 +2380,7 @@ export class ServerSession implements IServerSession {
      */
     private static logAndGetErrorLineForPasteIntoStreams(error: Error, req: Request) {
 
-        // TODO: if(this.options.disableSecurity) { return full message }
+        // TODO: if(this.isSecurityDisabled) { return full message }
 
         if(this.options.logErrors) {
             fixErrorStack(error)
@@ -2499,7 +2507,7 @@ export type RemoteMethodOptions = {
     /**
      * Validates, that the arguments have the proper type at runtime. The remote method's class has to be compiled with the restfuncs-transformer therefore.
      * <p>
-     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity}.
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
      * </p>
      * <p>
      * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>

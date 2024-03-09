@@ -2,9 +2,7 @@ import {remote, ServerSession, ServerSessionOptions} from "restfuncs-server";
 
 export class GreeterSession extends ServerSession {
 
-    static options: ServerSessionOptions = {
-        devDisableSecurity: (process.env.DISABLESECURITY === 'true')
-    }
+    static options: ServerSessionOptions = {/* Configuration */}
 
     @remote()
     async greet(name: string) {

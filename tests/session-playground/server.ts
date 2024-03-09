@@ -9,10 +9,6 @@ import helmet from "helmet";
 (async () => {
     const port = 3000
 
-    MainframeSession.options = {
-        devDisableSecurity: (process.env.NODE_ENV === 'development')
-    }
-
     const app = restfuncsExpress()
 
     app.use("/mainframeAPI", MainframeSession.createExpressHandler())

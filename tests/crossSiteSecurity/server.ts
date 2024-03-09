@@ -19,6 +19,7 @@ import helmet from "helmet"
         const app = restfuncsExpress()
 
         const commonOptions: ServerSessionOptions = {
+            devDisableSecurity: false,
             exposeErrors: true,
             logErrors: false
         }

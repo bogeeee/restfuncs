@@ -453,7 +453,8 @@ class RestfuncsServerOOP {
                      */
                     const isAllowed = () => {
                         for (const group of this.getComputed().securityGroups.values()) {
-                            if(group.options.devDisableSecurity) {
+                            const groupsSecurityIsDisabled = group.options.devDisableSecurity !== undefined?group.options.devDisableSecurity:(process.env.NODE_ENV=="development");
+                            if(groupsSecurityIsDisabled) {
                                 return true;
                             }
 

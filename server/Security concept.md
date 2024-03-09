@@ -22,7 +22,7 @@ Here's a the core CSRF checking method. Diagnosis and some other stuff was remov
 with enforcedCsrfProtectionMode set to, what's currently stored in the cookie session.
 ````typescript
     const isAllowedInner = () => {
-        if (this.options.devDisableSecurity) {
+        if (this.isSecurityDisabled) {
             return true;
         }
 

@@ -7,9 +7,7 @@ import helmet from "helmet";
 (async () => {
     const port = 3000
 
-    MainframeSession.options = {
-        devDisableSecurity: (process.env.DISABLESECURITY === 'true')
-    }
+    MainframeSession.options = { /* Configuration */}
 
     const app = restfuncsExpress()
 

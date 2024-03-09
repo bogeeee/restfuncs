@@ -132,10 +132,10 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 **package.json**
 ````json
 "scripts": {
-    "dev": "...use your beloved and fast tsx/bun/jest/vitest/... runners and just disable all validation via the ServerSessionOptions#devDisableSecurity flag"
+    "dev": "cross-env NODE_ENV=development <use your favourite tsx / bun / jest / vitest / ...>  #NODE_ENV=development disables all security validations in restfuncs and therefore the need for all the transfomed stuff."
     "clean": "tspc --build --clean",
     "build": "tspc --build --force",
-    "start": "node --enable-source-maps server.js"
+    "start": "cross-env NODE_ENV=production node --enable-source-maps server.js"
 },
 "dependencies": {
   "restfuncs-server": "^3.0.0",
@@ -143,7 +143,8 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 },
 "devDependencies": {
   "ts-patch": "^3.0.2",
-  "restfuncs-transformer": "^1.0.0"
+  "restfuncs-transformer": "^1.0.0",
+  "cross-env": "^7.0.3"
 },
 ````
 _Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our transformer plugins (No worries. Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here)._  
@@ -362,7 +363,7 @@ db.store(myUser)
 As [the 2.x release was announced to be non production-ready](https://github.com/bogeeee/restfuncs/tree/2.x?tab=readme-ov-file#--warning-not-yet-secure-for-production--),
 here is how to migrate to the production-ready 3.x version, [where those issues were fixed](server/Security%20concept.md#validation-library)
 - Look at how the [Build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) has changed
-- TODO: Security is now specified through the NODE_ENV environment variable.
+- Disabling security is now influenced by the NODE_ENV==development setting. ServerSessionOptions#devDisableSecurity falls back to this env variable now.
 
 # That's it !
 
