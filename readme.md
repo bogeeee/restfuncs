@@ -1,4 +1,4 @@
-# Restfuncs 2.0 - HTTP API done proper
+# Restfuncs - HTTP API done proper
 
 ## Intro + features
 
