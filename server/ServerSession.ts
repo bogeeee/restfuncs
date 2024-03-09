@@ -55,6 +55,9 @@ import typia, {IValidation} from "typia"
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
+const COMPATIBLE_TRANSFORMER_MAJOR_VERSION = 1;
+const REQUIRED_TRANSFORMER_FEATURE_VERSION = 1;
+
 export type ClientCallback = ((...args: unknown[]) => void) & {};
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -2003,12 +2006,23 @@ export class ServerSession implements IServerSession {
         if(!(declaringClass as object).hasOwnProperty("getRemoteMethodsMeta")) {
             throw new Error(`Class ${declaringClass.name} was not transformed with the restfuncs-transformer. ${this._diagnosis_HowToSetUpTheBuild()}`)
         }
-        const result = declaringClass.getRemoteMethodsMeta().instanceMethods[methodName];
+        const remoteMethodsMeta = declaringClass.getRemoteMethodsMeta();
+        // Version check:
+        if(remoteMethodsMeta.transformerVersion.major > COMPATIBLE_TRANSFORMER_MAJOR_VERSION) {
+            throw new Error(`The class ${declaringClass.name} was compiled with an incompatible restfuncs-transformer version: ${remoteMethodsMeta.transformerVersion.major}`);
+        }
+        if(remoteMethodsMeta.transformerVersion.feature < REQUIRED_TRANSFORMER_FEATURE_VERSION) {
+            throw new Error(`The class ${declaringClass.name} was compiled with a restfuncs-transformer version that is too old (in the minor version): ${remoteMethodsMeta.transformerVersion.major}.${remoteMethodsMeta.transformerVersion.feature}. Please npm install --safe-dev restfuncs-transformer`);
+        }
+
+        const result = remoteMethodsMeta.instanceMethods[methodName];
 
         // Plausibility check:
         if(result === undefined) {
             throw new Error(`Illegal state: method ${methodName} is not listed in instanceMethods. Please report this as a bug.`)
         }
+
+
 
         return result;
     }
