@@ -1,7 +1,7 @@
 import ts, {CompilerHost, CompilerOptions, Program, SourceFile} from 'typescript';
 import {PluginConfig, ProgramTransformerExtras} from "ts-patch";
 import {AddRemoteMethodsMeta} from "./AddRemoteMethodsMeta";
-import {TransformerFactoryOOP} from "./transformerUtil";
+import {FileTransformRun, TransformerFactoryOOP} from "./transformerUtil";
 
 // From: https://github.com/nonara/ts-patch/discussions/29#discussioncomment-325979
 
@@ -63,20 +63,24 @@ export default function transformProgram(
     const transformerFactoryOOP = new TransformerFactoryOOP(AddRemoteMethodsMeta);
 
     /* Transform AST */
-    const transformedSource = tsInstance.transform(
+    tsInstance.transform(
         /* sourceFiles */ program.getSourceFiles().filter(sourceFile => rootFileNames.includes(sourceFile.fileName)),
         /* transformerFactoryOOP */ [ transformerFactoryOOP.asFunction ],
         compilerOptions
-    ).transformed; //.transformed returned all its input files. TODO: Filter those, who were actually modified.
+    )
 
-    /* Render modified files and create new SourceFiles for them to use in host's cache */
-    const { printFile } = tsInstance.createPrinter();
-    for (const sourceFile of transformedSource) {
-        const { fileName, languageVersion } = sourceFile;
-        const updatedSourceFile = tsInstance.createSourceFile(fileName, printFile(sourceFile), languageVersion);
-        updatedSourceFile.version = `${sourceFile.version}_restfuncs_${transformerVersion.major}.${transformerVersion.feature}`;
-        compilerHost.fileCache.set(fileName, updatedSourceFile);
-    }
+    transformerFactoryOOP.transformRunsDone.forEach(transformRun => {
+        if(transformRun.astWasModified) {
+            /* Render modified files and create new SourceFiles for them to use in host's cache */
+            const {printFile} = tsInstance.createPrinter();
+            const sourceFile = transformRun.sourceFile;
+            const updatedSourceFile = tsInstance.createSourceFile(sourceFile.fileName, printFile(sourceFile), sourceFile.languageVersion);
+            updatedSourceFile.version = `${sourceFile.version}_restfuncs_${transformerVersion.major}.${transformerVersion.feature}`;
+            compilerHost.fileCache.set(sourceFile.fileName, updatedSourceFile);
+        }
+    })
+
+
 
     /* Re-create Program instance */
     return tsInstance.createProgram(rootFileNames, compilerOptions, compilerHost);

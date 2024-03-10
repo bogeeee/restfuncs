@@ -22,6 +22,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
     diagnosis_currentClass_instanceMethodsSeen?: Set<string>;
     currentClass_instanceMethodsMeta?: Record<string, ObjectLiteralExpression>; // The {...} that should be added below... see example in readme.md
+    astWasModified = false;
 
     /* Visitor Function */
     visit(node: Node): Node {
@@ -64,6 +65,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                     // add "static getRemoteMethodsMeta() {...}" method:
                     // @ts-ignore yes, a bit hacky, but with factory.crateClassDeclation we might also miss some properties
                     result.members = this.context.factory.createNodeArray([...result.members.values(), this.create_static_getRemoteMethodsMeta_expression()])
+                    this.astWasModified = true;
                 }
 
 
