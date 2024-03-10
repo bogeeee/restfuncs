@@ -24,20 +24,28 @@ That is (features):
   Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets**
     The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
-- **🔐 Security first approach**
+- **🔐 Security first approach**  
   All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
   Restfuncs is designed to handle setups with different security settings per ServerSession class _while they (always) share one cookie-session_. I.e, think of serving a subset of your APIs (ServerSessions) to ALL origins for third party browser apps or for SSO. _[How it works internally](server/Security%20concept.md)_
-  - 🛡️ **[CSRF protection](#csrf-protection) with zero-conf**: Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the socket connection._
-  - **🔓CORS** of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` and that's it.
-- **⛲ Serve / stream resources**
+  - 🛡️ **[CSRF protection](#csrf-protection) with zero-conf**  
+    Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the socket connection._
+  - **🔓CORS**  
+    of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` and that's it.
+- **⛲ Serve / stream resources**  
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
-- COMING SOON: These coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 2.x version stay the head.
-- COMING very SOON: **Callback functions** as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
-- COMING SOON: Simple **file uploads**: You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
-- COMING SOON: **Scalable to a multi node environment**. Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
-- COMING SOON: **Basic auth** handler. Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication)
-- FUTURE 3.x: **API browser** Zero conf and automatically hosted. Just give your partners an URL and they've got all the information and examples they need to call your methods from other programming languages...
-  - FUTURE 3.x:  ... + can also download the **OpenAPI spec** from there.
+- COMING SOON  
+  _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
+- COMING very SOON: **Callback functions**  
+  as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
+- COMING SOON: Simple **file uploads**  
+  You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
+- COMING SOON: **Scalable to a multi node environment**  
+  Uses stateless, encrypted tokens (JWT like) for cookie sessions with whitelist validation (be default, for keeping security and low memory footprint / best of both worlds). See `ServerOptions#secret` and `ServerOptions#sessionValidityTracking`
+- COMING SOON: **Basic auth** handler  
+  Http-session based auth is also covered by the [example](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication)
+- FUTURE: **API browser**  
+  Zero conf and automatically hosted. Just give your partners an URL and they've got all the information and examples they need to call your methods from other programming languages...
+  - FUTURE:  ... + can also download the **OpenAPI spec** from there.
 
 Smaller features:
 - **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. 
@@ -376,6 +384,6 @@ See [DEVELOPMENT.md](DEVELOPMENT.md)
 
 Places where your help would be needed
 
-- Client code generator for Java, C#, Python, Rust. Typesafe / with types. The idea is to integrate this as a download inside the (upcoming) API -/ docs browser. This would all be generated automatically at runtime. We already have typescript-rtti but there also needs to be some transformer that makes the jsdoc available.   
+- If you're familiar with tsc compiler internals, you're our guy ;) Please have a look at [this issue](https://github.com/bogeeee/restfuncs/issues/2) ! 
 - Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
 - Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).   
