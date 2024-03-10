@@ -16,6 +16,7 @@
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
     "experimentalDecorators": true,
+    "skipLibCheck": true,
     "plugins": [
       { "transform": "restfuncs-transformer",  "transformProgram": true},
       { "transform": "typia/lib/transform" },

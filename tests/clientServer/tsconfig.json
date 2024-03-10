@@ -13,6 +13,7 @@
       { "transform": "typia/lib/transform" },
       { "transform": "typescript-rtti/dist/transformer" },
     ],
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "skipLibCheck": true
   },
 }
