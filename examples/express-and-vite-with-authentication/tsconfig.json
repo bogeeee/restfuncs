@@ -17,6 +17,7 @@
     "jsx": "react",
     "experimentalDecorators": true,
     "strictNullChecks": true,
+    "skipLibCheck": true,
     "plugins": [
       { "transform": "restfuncs-transformer",  "transformProgram": true},
       { "transform": "typia/lib/transform" },
