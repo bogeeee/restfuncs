@@ -16,5 +16,3 @@ Security is disabled.
 ```bash
 npn run dev
 ```
-
-_The starter script might look a bit strange but these routes work you through the CommonJS / ESM / typescript / transformer / with_proper_debugging  jungle. Hope, we will get a version for bun and be relieved one day ;)_
