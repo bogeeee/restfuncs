@@ -1,5 +1,5 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, ExternalPromise, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
+import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
     CookieSessionState,
@@ -12,6 +12,7 @@ import {
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import _ from "underscore";
+import {ExternalPromise} from "restfuncs-common/util";
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 

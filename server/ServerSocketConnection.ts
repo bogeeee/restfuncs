@@ -21,6 +21,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
+import {ExternalPromise} from "restfuncs-common/util";
 
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
