@@ -10,7 +10,7 @@ import {
     SecurityPropertiesOfHttpRequest, ServerPrivateBox,
     Socket_Client2ServerMessage,
     Socket_MethodCall,
-    Socket_MethodCallResult, Socket_Server2ClientInit,
+    Socket_MethodUpCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
 } from "restfuncs-common";
 import _ from "underscore";
@@ -175,7 +175,7 @@ export class ServerSocketConnection {
         /**
          * This function definitely returns a (one) Socket_MethodCallResult. This is the safer arrangement than calling this.sendMessage from multiple places
          */
-        const handleMethodCall_inner = async (): Promise<Omit<Socket_MethodCallResult, "callId">> => {
+        const handleMethodCall_inner = async (): Promise<Omit<Socket_MethodUpCallResult, "callId">> => {
             try { // We can properly answer errors from here on
 
                 // Continue validating:
@@ -329,7 +329,7 @@ export class ServerSocketConnection {
 
         // Send the the result from handleMethodCall_inner:
         (async () => {
-            const payload: Socket_MethodCallResult = {
+            const payload: Socket_MethodUpCallResult = {
                 callId: methodCall.callId,
                 ... await handleMethodCall_inner()
             }

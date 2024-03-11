@@ -6,14 +6,14 @@ import {
     GetCookieSessionAnswerToken,
     IServerSession, ServerPrivateBox,
     Socket_Client2ServerMessage,
-    Socket_MethodCallResult, Socket_Server2ClientInit,
+    Socket_MethodUpCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
 } from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import _ from "underscore";
 
-class MethodCallPromise extends ExternalPromise<Socket_MethodCallResult> {
+class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
 }
 
@@ -276,7 +276,7 @@ export class ClientSocketConnection {
             return await methodCallPromise // Wait till the return message arrived and the promise is resolved
         }
 
-        let callResult: Socket_MethodCallResult;
+        let callResult: Socket_MethodUpCallResult;
         while ( (callResult = await exec()).status === "dropped_CookieSessionIsOutdated") {
             // (Somebody-) fetch the cookieSession:
             await this.fixOutdatedCookieSessionOp.exec(async () => {
@@ -374,7 +374,7 @@ export class ClientSocketConnection {
             this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
         }
         else if(message.type === "methodCallResult") {
-            this.handleMethodCallResult(message.payload as Socket_MethodCallResult /* will be validated in method*/)
+            this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
         }
         else if(message.type === "getVersion") {
             // Leave this for future extensibility / probing feature flags (don't throw an error)
@@ -385,7 +385,7 @@ export class ClientSocketConnection {
 
     }
 
-    protected handleMethodCallResult(resultFromServer: Socket_MethodCallResult) {
+    protected handleMethodCallResult(resultFromServer: Socket_MethodUpCallResult) {
         const methodCallpromise = this.methodCallPromises.get(resultFromServer.callId);
         if(!methodCallpromise) {
             throw new Error( `MethodCallPromise for callId: ${resultFromServer.callId} does not exist.`);
