@@ -2311,6 +2311,52 @@ it('should close all ClientSocketConnections after client.close()', async () => 
     }
 });
 
+
+describe("Server#isSecurityDisabled", () => {
+   it("security should not be disabled even in NODE_ENV=development when at least one serversession does not want so (critical)", () => {
+       const orig_NODE_ENV = process.env.NODE_ENV;
+       process.env.NODE_ENV = "development";
+       try {
+           class ServerSessionA extends ServerSession {
+
+           }
+
+           class ServerSessionB extends ServerSession {
+           }
+           ServerSessionB.options = {devDisableSecurity: false}
+           const app = restfuncsExpress({});
+           app.use("/a", ServerSessionA.createExpressHandler());
+           app.use("/b", ServerSessionB.createExpressHandler());
+           expect(app.isSecurityDisabled()).toBe(false);
+       }
+       finally {
+           process.env.NODE_ENV = orig_NODE_ENV;
+       }
+
+   })
+
+    it("security should be disabled in NODE_ENV=development when no ServerSession class specifies it explicitly otherwise", () => {
+        const orig_NODE_ENV = process.env.NODE_ENV;
+        process.env.NODE_ENV = "development";
+        try {
+            class ServerSessionA extends ServerSession {
+
+            }
+
+            class ServerSessionB extends ServerSession {
+            }
+            const app = restfuncsExpress({});
+            app.use("/a", ServerSessionA.createExpressHandler());
+            app.use("/b", ServerSessionB.createExpressHandler());
+            expect(app.isSecurityDisabled()).toBe(true);
+        }
+        finally {
+            process.env.NODE_ENV = orig_NODE_ENV;
+        }
+
+    })
+});
+
 it('should reopen failed ClientSocketConnections', async () => {
     class MyService extends Service {
         myMethod() {}

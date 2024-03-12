@@ -278,7 +278,7 @@ class RestfuncsServerOOP {
     _computed?: {
         securityGroups: Map<string, SecurityGroup>
         service2SecurityGroupMap: Map<typeof ServerSession, SecurityGroup>
-
+        devDisableSecurity: boolean | undefined,
         diagnosis_triggeredBy: Error;
     }
 
@@ -643,8 +643,24 @@ class RestfuncsServerOOP {
                 service2SecurityGroupMap.set(service, group);
             }
         }
+        // Compute devDisableSecurity:
+        let devDisableSecurity: ServerSessionOptions["devDisableSecurity"] = undefined;
+        if(Array.from(securityGroups.values()).some(group => group.options.devDisableSecurity === false)) { // Some has false ?
+            devDisableSecurity = false;
+        }
+        else if(!Array.from(securityGroups.values()).some(group => group.options.devDisableSecurity !== true)) { // all have true ?
+            devDisableSecurity = true;
+        }
 
-        return {securityGroups, service2SecurityGroupMap}
+        return {securityGroups, service2SecurityGroupMap, devDisableSecurity}
+    }
+
+    /**
+     * @returns Computed value from strongest setting from any registered ServerSession with fallback to process.env.NODE_ENV===development
+     */
+    public isSecurityDisabled(): boolean {
+        const devDisableSecurityOption = this.getComputed().devDisableSecurity;
+        return devDisableSecurityOption !== undefined?devDisableSecurityOption:(process.env.NODE_ENV=="development")
     }
 
     /**
