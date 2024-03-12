@@ -37,6 +37,8 @@ That is (features):
   _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
 - COMING very SOON: **Callback functions**  
   as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
+  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.
+  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !
 - COMING SOON: Simple **file uploads**  
   You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**  
@@ -74,14 +76,14 @@ export class MyServerSession extends ServerSession {
   /**
    * This JSDoc also gets outputted in the public API browser and OpenAPI spec. Write only nice things here ;)
    * @param myComplexParam Your parameters can be of any typescript type. They are automatically validated at runtime.
-   * @param myCallback   You can pass server->client callback functions anywhere/deeply                          . Here we send the progress of the file upload.
+   * @param myCallback   You can pass server->client callback functions anywhere/deeply                          . Here we send the progress of the file upload. Callback's args and results are validated 👍. But this works only for "inline"- callbacks, see readme.md.
    * @param myUploadFile You can pass UploadFile objects                anywhere/deeply/also as ...rest arguments. As soon as you read from the the stream, the restfuncs client will send that file in an extra http request in the background/automatically.
    */
   @remote({/* RemoteMethodOptions */})
   myRemoteMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
     // ADVANCED:
     // this.call.... // Access or modify the current call's context specific properties. I.e. this.call.res!.header("myHeader","...")
-    // (myCallback as ClientCallback).... // Access some options under the hood
+    // (myCallback as ClientCallback).options.... // Access some options under the hood
 
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated against the declared or implicit return type of `myRemoteMethod`. Extra properties get trimmed off.
   }
@@ -305,6 +307,9 @@ Notes:
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
 - Set `ServerSessionOptions#csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 
+# Inline and advanced callbacks
+**Tl;dr:** Restfuncs will (security-) alert, when it can't analyze the type of a callback and tell you what options to adjust.
+TODO: long version
 
 # Performance
 

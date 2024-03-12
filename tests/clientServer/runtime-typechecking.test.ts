@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {ServerSession as ServerSession} from "restfuncs-server/ServerSession";
+import {ClientCallback, ClientCallbackOptions, ServerSession as ServerSession} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
@@ -509,6 +509,109 @@ test('Test result validation with null and undefined', async () => {
 
         }
     );
+})
+
+describe("callbacks", () => {
+    class ServerAPI extends TypecheckingService {
+        @remote()
+        async callVoidPromiseCallback(callback: ()=> Promise<void>) {
+            await callback();
+        }
+
+        @remote()
+        async callStringPromiseCallback(callback: ()=> Promise<string>) {
+            return await callback();
+        }
+
+        @remote()
+        async putArgsIntoCallback(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[], options: Partial<ClientCallbackOptions>) {
+            (callback as ClientCallback).options = {...(callback as ClientCallback).options, ...options}; // add options
+            return await callback.call(undefined,...args);
+        }
+
+        @remote()
+        async callObjectPromiseCallback(callback: ()=> Promise<{a: string, b?:number }>, options: Partial<ClientCallbackOptions>) {
+            (callback as ClientCallback).options = {...(callback as ClientCallback).options, ...options}; // Add options
+            return await callback();
+        }
+
+
+    }
+
+    it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn();
+
+        await expect(async () => apiProxy.putArgsIntoCallback(mock, ["abc", 3, {myFlag: true}],{})).resolves.toReturn()
+
+    }, {
+        useSocket: true
+    }));
+
+    it("should error when putting illegal args into a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn();
+
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [],{}), /invalid number of arguments/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3],{}), /invalid number of arguments/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [123,3],{}), /expected.*string.*123/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, ["abc","x"],{}), /expected.*number.*x/)
+
+    }, {
+        useSocket: true
+    }));
+
+    it("should trim extra properties", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        async function returnExact(...args:any[]) { return args}
+
+        expect(await apiProxy.putArgsIntoCallback(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}],{})).toStrictEqual(["abc", 3, {myFlag: true}])
+
+    }, {
+        useSocket: true
+    }));
+
+    it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        async function returnExact(...args:any[]) { return args}
+
+        expectAsyncFunctionToThrow(() => apiProxy.putArgsIntoCallback(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}],{trimArguments: false}), /extraProperty/)
+
+    }, {
+        useSocket: true
+    }));
+
+
+
+
+    it("should error when a callback with Promise<void> returns non-void", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn();
+        await apiProxy.callVoidPromiseCallback(async () => {});
+        // @ts-ignore
+        await expectAsyncFunctionToThrow(async () => apiProxy.callVoidPromiseCallback(async () => {return "aString"}), /aString/)
+
+    }, {
+        useSocket: true
+    }));
+
+    it("should error when a callback with Promise<string> returns number", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn();
+        await apiProxy.callVoidPromiseCallback(async () => {});
+        // @ts-ignore
+        await expectAsyncFunctionToThrow(async () => apiProxy.callStringPromiseCallback(async () => {return 123}), /expected.*string.*123/i)
+
+    }, {
+        useSocket: true
+    }));
+
+    it("should trim extra properties off the result", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true}}, {} )).toStrictEqual({a: "123", b: 4})
+    }, {
+        useSocket: true
+    }));
+
+    it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true}} ,{trimResult: false}) );
+
+    }, {
+        useSocket: true
+    }));
 })
 
 /*

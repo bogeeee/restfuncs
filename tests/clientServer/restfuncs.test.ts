@@ -2341,3 +2341,80 @@ it('should reopen failed ClientSocketConnections', async () => {
         await new Promise((resolve) => server.close(resolve));
     }
 });
+
+describe("callbacks", () => {
+    class ServerAPI extends ServerSession {
+        @remote()
+        callVoidCallback3Times(callback: ()=>void) {
+            callback();
+            callback();
+            callback();
+        }
+
+        @remote()
+        async callVoidPromiseCallback3Times(callback: ()=> Promise<void>) {
+            await callback();
+            await callback();
+            await callback();
+        }
+
+        @remote()
+        async callPromiseStringCallback(callback: ()=> Promise<string>) {
+            return await callback();
+        }
+
+        @remote()
+        async deepCallback(a: string, b: {deepProp: ()=> Promise<string>}) {
+            return await b.deepProp();
+        }
+
+        remembered?:() => void;
+        @remote()
+        setRemembered(callback: () => void) {
+            this.remembered = callback
+        }
+
+        @remote()
+        isRemembered(callback: () => void) {
+            if(this.remembered === undefined) {
+                throw new Error("Illegal state")
+            }
+            return this.remembered  === callback;
+        }
+    }
+
+    it("should give usefull error message when used with non- socket connection", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn().mockResolvedValue("hello from client");
+        await expectAsyncFunctionToThrow(async () => apiProxy.deepCallback("123", {deepProp: mock}), /deepProp.*socket/);
+    }, {
+        useSocket: false
+    }));
+
+    test("same function instances on the client should lead to same instances on the server", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        function myCallback() {
+
+        }
+        await apiProxy.setRemembered(myCallback);
+        expect(await apiProxy.isRemembered(myCallback)).toBeTruthy();
+        expect(await apiProxy.isRemembered(()=> {})).toBeFalsy();
+
+    }, {
+        useSocket: true
+    }));
+
+    test("Callback with Promise<void>", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn();
+        await apiProxy.callVoidPromiseCallback3Times(mock);
+        expect(mock).toBeCalledTimes(3);
+    }, {
+        useSocket: true
+    }));
+
+    test("Callback with Promise<string>", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const mock = jest.fn().mockResolvedValue("hello from client");
+        expect(await apiProxy.callPromiseStringCallback(mock)).toBe("hello from client");
+    }, {
+        useSocket: true
+    }));
+
+})

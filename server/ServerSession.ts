@@ -58,7 +58,18 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 const COMPATIBLE_TRANSFORMER_MAJOR_VERSION = 1;
 const REQUIRED_TRANSFORMER_FEATURE_VERSION = 1;
 
-export type ClientCallback = ((...args: unknown[]) => void) & {};
+
+export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackOptions & {
+    options: ClientCallbackOptions
+    /**
+     * Chosen by the client
+     */
+    id: number;
+    /**
+     * The connection to the client, that made the call via engine.io / websockets.
+     */
+    socketConnection?: ServerSocketConnection
+}
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 export type ParameterSource = "string" | "json" | null; // Null means: Cannot be auto converted
@@ -2606,6 +2617,59 @@ export type RemoteMethodOptions = {
          */
         needsAuthorization?: boolean
     }
+}
+
+export type ClientCallbackOptions = {
+    /**
+     * Validates, that the arguments, which the server put into the callback (sends to the client), have the proper type at runtime.
+     * <p>
+     * Therefore, this client callback must be "inline" (=fully declared inside the brackets of the @remote method's arguments) and it must be compiled with the restfuncs-transformer plugin.
+     * </p>
+     * <p>
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
+     * </p>
+     * <p>
+     * Default: <b>true</b>
+     * </p>
+     */
+    validateArguments?: boolean
+
+    /**
+     * Trims away any extra properties and arguments that are not allowed otherwise.
+     *
+     * Default: <b>true</b>
+     *
+     * <p>
+     * <i>Note: trimArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
+     * </p>
+     * @see RemoteMethodOptions#trimArguments for an example
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    trimArguments?: boolean
+
+    /**
+     * Performs a check at runtime, to ensure, that the returned value from the client matches the type that is declared by the method (explicitly or implicitly).
+     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
+     *
+     * <p>
+     * Default: <b>true</b>
+     * </p>
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    validateResult?: boolean
+
+    /**
+     * Like {@link #trimArguments}, but for the result.
+     * <p>
+     * Default: <b>true</b>
+     * </p>
+     *
+     * <p>
+     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
+     * </p>
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    trimResult?: boolean
 }
 
 /**
