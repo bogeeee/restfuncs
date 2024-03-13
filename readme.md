@@ -35,10 +35,11 @@ That is (features):
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
 - COMING SOON  
   _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
-- COMING very SOON: **Callback functions**  
+- COMING [very](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) SOON: **Callback functions**  
   as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
-  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.
-  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !
+  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.  
+  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !  
+  [Here](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) 's an alpha version of that feature which you can already start using in development.
 - COMING SOON: Simple **file uploads**  
   You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**  
