@@ -16,7 +16,6 @@ import {
     enhanceViaProxyDuringCall,
     ERROR_PROPERTIES,
     errorToHtml,
-    errorToString,
     ErrorWithExtendedInfo,
     fixErrorStack,
     fixTextEncoding,
