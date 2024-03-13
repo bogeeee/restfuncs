@@ -222,6 +222,22 @@ export class ClientSocketConnection {
     }
 
     /**
+     * Replaces those things in args with DTOs and registers them
+     * @param args
+     */
+    insertChannelItemDTOs(args: unknown[]) {
+        let numerOfFunctionDTOs = 0;
+        visitReplace(args, (value, visitChilds) => {
+            if(typeof value === "function") {
+                const functionDTO: any = {};
+                numerOfFunctionDTOs++;
+                return functionDTO;
+            }
+            return visitChilds(value)
+        });
+    }
+
+    /**
      * <p/>
      * In order to make your special static subclass members available via <code>this.clazz</code>, you must help typescript a bit by redefining this field with the follwing line:
      * </p>

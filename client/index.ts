@@ -4,6 +4,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
 import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver} from "./Util";
+import {visitReplace} from "restfuncs-common";
 
 export {ClientSocketConnection} from "./ClientSocketConnection";
 
@@ -226,6 +227,8 @@ export class RestfuncsClient<S extends IServerSession> {
      * @protected
      */
     protected async doCall_http(remoteMethodName: string, args: any[], skipSocketConnectionCookieSessionUpdate = false) {
+        this.diagnosis_httpCall_checkArgumentsForChannelItems(remoteMethodName, args)
+
         const exec = async () => {
             let requestUrl: string;
             if(this.url) {
@@ -428,6 +431,30 @@ export class RestfuncsClient<S extends IServerSession> {
         }
         const conn = await this.getClientSocketConnection();
         conn?.unregisterClient(this);
+    }
+
+    /**
+     * Check if args has callback functions / channelItems and errors then
+     * @param remoteMethodName
+     * @param args
+     * @private
+     */
+    private diagnosis_httpCall_checkArgumentsForChannelItems(remoteMethodName: string, args: any[]) {
+        const result = visitReplace(args, (value, visitChilds, context) => {
+            if(typeof value === "function") {
+                throw new Error(`A (callback-) function was found inside your arguments of ${remoteMethodName}: args${context!.diagnosis_path}. Callback functions are only possible with (web-) sockets. ${this.diagnosis_whyNoSocketsAvailable()}`)
+            }
+            return visitChilds(value, context);
+        }, "onError");
+    }
+
+    private diagnosis_whyNoSocketsAvailable() {
+        if(!this.useSocket) {
+            return "Please enable 'useSocket' in the RestfuncsClientOptions."
+        }
+        else {
+            return "Sockets were not enabled on the server. Please use restfuncsExpress() instead of express() or check the ServerOptions#installEngineIoServer setting (but this should be already enabled by default)"
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-import {ServerSession} from "./ServerSession";
+import {ClientCallback, ServerSession} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
@@ -11,7 +11,7 @@ import {
     Socket_Client2ServerMessage,
     Socket_MethodCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
-    Socket_Server2ClientMessage
+    Socket_Server2ClientMessage, UploadFile
 } from "restfuncs-common";
 import _ from "underscore";
 import {Readable} from "node:stream";
@@ -43,6 +43,31 @@ export class ServerSocketConnection {
     securityGroup2SecurityPropertiesOfHttpRequest?: Map<SecurityGroup, Readonly<SecurityPropertiesOfHttpRequest>>
 
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
+
+    /**
+     * For worry-free feature: Remember the same function instances
+     * id -> callback function
+     */
+    clientCallbacks = new Map<number, ClientCallback>(); // TODO: Find a Weakmap with weak strings and weak values
+
+    /**
+     * Downcalls of client-initialted callbacks
+     * On such that return via promise
+     * @protected
+     */
+    protected methodDownCallPromises = new Map<number, ExternalPromise<Socket_MethodUpCallResult>>()
+
+    /**
+     * Track if client GCed or closed the stream or pulls from them.
+     * @protected
+     */
+    protected sentReadables = new Map<number, Readable>()
+
+    // TODO Finalization registry for client initiated Readbles to signal GC to the client
+    // TODO Finalization registry for client initiated UploadFiles to signal GC to the client
+
+
+
 
     /**
      * TODO: Let the client set this in a hello message (there is no such thing currently)
