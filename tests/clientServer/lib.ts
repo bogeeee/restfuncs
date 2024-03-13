@@ -5,6 +5,7 @@ import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import session from "express-session";
 import express from "express";
 import crypto from "node:crypto";
+import {ExternalPromise} from 'restfuncs-common'; ExternalPromise.diagnosis_recordCallstacks=true;
 
 export function resetGlobalState() {
     develop_resetGlobals();

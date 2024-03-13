@@ -71,11 +71,43 @@ export class ExternalPromise<T> implements Promise<T> {
     resolve!: (value: T | PromiseLike<T>) => void;
     reject!: (reason?: any) => void;
 
+    diagnosis_creatorCallStack?: Error["stack"]
+    static diagnosis_recordCallstacks = false;
+
     constructor() {
+        if(ExternalPromise.diagnosis_recordCallstacks) {
+            this.diagnosis_creatorCallStack = new Error("Dummy error, to record creator stack").stack;
+        }
+        const thisExternalPromise = this;
 
         this.promise = new Promise<T>((resolve, reject) => {
             this.resolve = resolve;
-            this.reject = reject;
+            // this.reject = reject, but with more diagnosis:
+            this.reject = (reason?: any) => {
+                let creatorStack = thisExternalPromise.diagnosis_creatorCallStack
+                if(creatorStack) {
+                    // Fix creatorStack:
+                    creatorStack = creatorStack.replace(/^.*Dummy error, to record creator stack.*?\n/, ""); // remove that confusing line
+
+                    if (reason instanceof Error) {
+                        reason.stack = `${reason.stack}\n*** creator stack: ***\n${creatorStack}`
+                    } else {
+                        reason = fixErrorForJest(new Error(`Promise was rejected.\n${creatorStack}\n*** ignore this following stack and skip to 'reason' ****`, {cause: reason}));
+                    }
+                }
+                else {
+                    // Add hint:
+                    const hint = `Hint: if you want to see the creator- (mostly the awaiter) call stack for this error, do: import {ExternalPromise} from 'restfuncs-common'; ExternalPromise.diagnosis_recordCallstacks=true;`
+                    if (reason instanceof Error) {
+                        reason.message+="\n" +  hint;
+                    } else {
+                        reason = fixErrorForJest(new Error(`Promise was rejected. ${hint}`, {cause: reason}));
+                    }
+                }
+
+                reject(reason);
+            }
+
         });
     }
 
