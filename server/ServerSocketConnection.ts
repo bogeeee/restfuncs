@@ -372,7 +372,7 @@ export class ServerSocketConnection {
     handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall) {
 
         visitReplace(methodCall.args, (item, visitChilds) => {
-            if (typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
+            if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
                 if (typeof dtoItem._dtoType !== "string") {
                     throw new Error("_dtoType is not a string");
