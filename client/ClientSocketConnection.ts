@@ -12,7 +12,7 @@ import {
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import _ from "underscore";
-import {ExternalPromise} from "restfuncs-common/util";
+import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
@@ -175,7 +175,7 @@ export class ClientSocketConnection {
 
     checkFatal() {
         if(this.fatalError) {
-            throw new Error(`Connection failed: ${this.fatalError.message}, see cause`, {cause: this.fatalError})
+            throw fixErrorForJest(new Error(`Connection failed: ${this.fatalError.message}, see cause`, {cause: this.fatalError}))
         }
     }
 
@@ -191,7 +191,7 @@ export class ClientSocketConnection {
         try {
             this.clazz.sharedInstances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
-            const error = new Error("Socket connection has been closed", {cause: this.fatalError});
+            const error = fixErrorForJest(new Error("Socket connection has been closed", {cause: this.fatalError}));
 
             // Reject this.initMessage
             try {

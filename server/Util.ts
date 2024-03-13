@@ -125,22 +125,6 @@ export function errorToHtml(e: any): string {
 }
 
 
-export function errorToString(e: any): string {
-    // Handle other types:
-    if(!e || typeof e !== "object") {
-        return String(e);
-    }
-    if(!e.message) { // e is not an ErrorWithExtendedInfo ?
-        return JSON.stringify(e);
-    }
-    e = <ErrorWithExtendedInfo> e;
-
-    return (e.name ? `${e.name}: `: "") + (e.message || String(e)) +
-        (e.stack ? `\n${e.stack}` : '') +
-        (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
-        (e.cause ? `\nCause: ${errorToString(e.cause)}` : '')
-}
-
 const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*CommunicationError.*\n/;
 
 /**

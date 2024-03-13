@@ -1,5 +1,7 @@
 import {Readable} from "node:stream"
 
+export * from "./util";
+
 export type UploadFile = {
     createReadStream: () => Readable
 }

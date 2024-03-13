@@ -52,6 +52,7 @@ import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
+import {errorToString} from "restfuncs-common";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
