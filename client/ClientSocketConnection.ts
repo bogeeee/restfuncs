@@ -277,10 +277,9 @@ export class ClientSocketConnection {
             await this.fixOutdatedCookieSessionOp.waitTilIdle(); // Wait til this one is fixed and we have a valid cookie again
             await this.pollRfSessStateCookie_once(); //
 
-            // Create and register a MethodCallPromise:
+            // Create a MethodCallPromise:
             const callId = ++this.callIdGenerator;
             const methodCallPromise = new MethodCallPromise();
-            this.methodCallPromises.set(callId, methodCallPromise) // Register call
 
             //Send the call message to the server:
             this.sendMessage({
@@ -290,6 +289,8 @@ export class ClientSocketConnection {
                 }
             });
 
+            this.methodCallPromises.set(callId, methodCallPromise) // Register call.
+            // Minor note: no potential exception throwing code  must be here in this place between registering and awaiting. Cause when leaving it unawaited, a fatal connection error or connection close event will reject it and it crashes the whole node/jest with as "unhandled rejection"
             return await methodCallPromise // Wait till the return message arrived and the promise is resolved
         }
 
