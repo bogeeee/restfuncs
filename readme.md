@@ -1,3 +1,28 @@
+# Callbacks alpha branch
+This is a branch for the alpha version of the "callback" functions feature: 
+callbacks are already working, so you can start using them and wait for the production release in a few weeks.
+- Security / validation is not yet implemented
+- they can only be void currently  / not return a value back to the server themselfes. But that's all you need usually ;)
+- garbage collection of callback functions is not yet passed to the client
+
+Usage:
+```bash
+git clone https://github.com/bogeeee/restfuncs.git
+cd restfuncs
+npm install
+npm run build
+```
+
+then set up your own project like here in the docs or in the examples, but in the package.json, refer to the cloned restfuncs repo via file path, i.e:
+````json
+  "dependencies": {
+    "restfuncs-server": "../path.to.restfuncs/server",
+    "restfuncs-client": "../path.to.restfuncs/client",
+}
+
+````
+then run `npm install` again which creates the symlinks in node_modules. 
+
 # Restfuncs - HTTP API done proper
 
 ## Intro + features
