@@ -21,10 +21,13 @@ describe("callbacks", () => {
             callback();
         }
 
+        @remote()
+        callVoidCallbackWithArgs(callback: (a: number, b: string)=>void) {
+            callback(1, "2");
+        }
+
 
     }
-
-
 
     test("Wait until simple void callback has been called 3 times", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         await new Promise<void>((resolve, reject) => {
@@ -40,6 +43,36 @@ describe("callbacks", () => {
             (async () => {
                 try {
                     await apiProxy.callVoidCallback3Times(myCallback);
+                }
+                catch (e) {
+                    reject(e);
+                }
+            })()
+
+        })
+    }, {
+        useSocket: true
+    }));
+
+
+    test("Wait until void callback with args has been called", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await new Promise<void>((resolve, reject) => {
+            let counter = 0;
+            function myCallback(a: number, b: string) {
+                try {
+                    expect(a).toBe(1);
+                    expect(b).toBe("2");
+                    resolve();
+                }
+                catch (e) {
+                    reject(e);
+                }
+            }
+
+
+            (async () => {
+                try {
+                    await apiProxy.callVoidCallbackWithArgs(myCallback);
                 }
                 catch (e) {
                     reject(e);

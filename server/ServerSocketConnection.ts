@@ -11,7 +11,7 @@ import {
     Socket_Client2ServerMessage,
     Socket_MethodCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
-    Socket_Server2ClientMessage, UploadFile
+    Socket_Server2ClientMessage, UploadFile, visitReplace, ChannelItemDTO, ClientCallbackDTO, Socket_DownCall
 } from "restfuncs-common";
 import _ from "underscore";
 import {Readable} from "node:stream";
@@ -263,6 +263,7 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
+                    this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
                     const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
@@ -361,6 +362,52 @@ export class ServerSocketConnection {
             }
             this.sendMessage({type: "methodCallResult", payload});
         })();
+    }
+
+    /**
+     * Replaces all ClientCallback objects in the arguments with functions that do the down call
+     *
+     * @param methodCall
+     */
+    handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall) {
+
+        visitReplace(methodCall.args, (item, visitChilds) => {
+            if (typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
+                let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
+                if (typeof dtoItem._dtoType !== "string") {
+                    throw new Error("_dtoType is not a string");
+                }
+                const id: number = dtoItem.id;
+                if(typeof id !== "number") {
+                    throw new Error("id is not a number");
+                }
+                if(dtoItem._dtoType === "ClientCallback") {
+                    // Create the function:
+                    // @ts-ignore
+                    let callback: ClientCallback = (...args: unknown[])=> {
+                        // Execute the downcall
+                        const downCall: Socket_DownCall = {
+                            callbackFnId: callback.id,
+                            args: args,
+                            diagnosis_awaitResult: true,
+                        }
+                        this.sendMessage({type: "downCall", payload: downCall})
+                    }
+                    callback.socketConnection = this;
+                    callback.id = id;
+                    callback.options = {};
+
+                    return callback;
+                }
+                else {
+                    throw new Error(`Unhandled dto type:${dtoItem._dtoType}`)
+                }
+
+            }
+            else {
+                return visitChilds(item)
+            }
+        });
     }
 
     /**

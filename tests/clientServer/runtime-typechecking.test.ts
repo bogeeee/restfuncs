@@ -607,7 +607,7 @@ describe("callbacks", () => {
     }));
 
     it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
-        expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true}} ,{trimResult: false}) );
+        await expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true}} ,{trimResult: false}), /extraProp/ );
 
     }, {
         useSocket: true

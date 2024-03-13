@@ -25,7 +25,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import {CookieSession, ServerPrivateBox} from "restfuncs-common";
 import {reflect, ReflectedClass, ReflectedProperty} from "typescript-rtti";
 
-export const PROTOCOL_VERSION = "1.1" // ProtocolVersion.FeatureVersion
+export const PROTOCOL_VERSION = "1.2" // ProtocolVersion.FeatureVersion
 
 export type SessionHeader = {
     /**

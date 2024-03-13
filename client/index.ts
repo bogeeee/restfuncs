@@ -127,6 +127,11 @@ export class RestfuncsClient<S extends IServerSession> {
      */
     protected _nodeCookie: Record<string,string> = {}
 
+    /**
+     * As seen in the headers
+     */
+    public serverProtocolVersion?: {major: number, feature: number} = undefined
+
     get absoluteUrl() {
         // Validity check
         if(!this.url) {
@@ -294,7 +299,7 @@ export class RestfuncsClient<S extends IServerSession> {
         // Exec fetch:
         const response = <Response>await this.httpFetch(url, req);
 
-        // Check server protocol version:
+        // Check and remember server protocol version:
         const serverProtocolVersion = response.headers.get("restfuncs-protocol");
         if (serverProtocolVersion) {
             const [majorVersion, featureVersion] = serverProtocolVersion.split(".").map(str => Number(str));
@@ -304,6 +309,7 @@ export class RestfuncsClient<S extends IServerSession> {
             if (featureVersion < REQUIRED_SERVER_PROTOCOL_FEATUREVERSION) {
                 throw new Error(`Restfuncs server uses a a too old protocol feature version: ${serverProtocolVersion}. Please upgrade the 'restfuncs' or the 'restfuncs-server' package on the server`)
             }
+            this.serverProtocolVersion = {major: majorVersion, feature: featureVersion}
         } else {
             const responseText = await response.text();
             throw new Error(`Invalid response. Seems like '${this.url}' is not served by restfuncs cause there's no 'restfuncs-protocol' header field. Response body:\n${responseText}`);

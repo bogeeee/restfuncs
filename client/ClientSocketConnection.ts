@@ -2,10 +2,11 @@ import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
+    ClientCallbackDTO,
     CookieSessionState,
     GetCookieSessionAnswerToken,
     IServerSession, ServerPrivateBox,
-    Socket_Client2ServerMessage,
+    Socket_Client2ServerMessage, Socket_DownCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
 } from "restfuncs-common";
@@ -46,7 +47,18 @@ export class ClientSocketConnection {
     protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
 
     protected callIdGenerator = 0;
+    protected dtoIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
+
+    /**
+     * Channel items that were sent to the server and a currently up there
+     */
+    channelItemsOnServer = new Map<number, object>()
+
+    /**
+     * Adds an id to an (already used) item
+     */
+    channelItemIds = new WeakMap<object, number>();
 
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
@@ -222,19 +234,48 @@ export class ClientSocketConnection {
     }
 
     /**
-     * Replaces those things in args with DTOs and registers them
+     * Creates one if if needed
+     * @param item
+     */
+    getChannelItemId(item: object) {
+        const existing = this.channelItemIds.get(item);
+        if(existing) {
+            return existing;
+        }
+
+        const newId = this.dtoIdGenerator++;
+        this.channelItemIds.set(item, newId);
+        return newId;
+    }
+
+    /**
+     * Scans args and replaces those items with DTOs and registers them on this.channelItemsOnServer (assuming, args gets definitely get sent to the server afterwards)
      * @param args
      */
-    insertChannelItemDTOs(args: unknown[]) {
-        let numerOfFunctionDTOs = 0;
-        visitReplace(args, (value, visitChilds) => {
-            if(typeof value === "function") {
-                const functionDTO: any = {};
-                numerOfFunctionDTOs++;
-                return functionDTO;
-            }
-            return visitChilds(value)
-        });
+    private docall_exec_insertChannelItemDTOs(args: unknown[]) {
+        try {
+            let numerOfFunctionDTOs = 0;
+            visitReplace(args, (item, visitChilds) => {
+                if (typeof item === "function") {
+                    // Check if supported by server:
+                    if(this.firstClient.serverProtocolVersion!.feature < 2) {
+                        throw new Error("Cannot use callbacks. Server version to old. Please upgrade the restfuncs-server to >=3.1")
+                    }
+
+                    const id = this.getChannelItemId(item)
+                    const functionDTO: ClientCallbackDTO = {_dtoType: "ClientCallback", id};
+                    this.channelItemsOnServer.set(id, item);
+
+                    numerOfFunctionDTOs++;
+                    return functionDTO;
+                }
+                return visitChilds(item)
+            });
+        }
+        catch (e) {
+            this.failFatal(e as Error); // Can't clean up what we've done with this.channelItemsOnServer.set(...)
+            throw e;
+        }
     }
 
     /**
@@ -272,6 +313,8 @@ export class ClientSocketConnection {
 
     async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
         this.checkFatal();
+
+        this.docall_exec_insertChannelItemDTOs(args);
 
         const exec = async () => {
             await this.fixOutdatedCookieSessionOp.waitTilIdle(); // Wait til this one is fixed and we have a valid cookie again
@@ -397,8 +440,8 @@ export class ClientSocketConnection {
         else if(message.type === "getVersion") {
             // Leave this for future extensibility / probing feature flags (don't throw an error)
         }
-        else {
-            throw new Error(`Unhandled message type: ${message.type}`)
+        else if(message.type === "downCall") {
+            this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
         }
 
     }
@@ -410,6 +453,19 @@ export class ClientSocketConnection {
         }
         methodCallpromise.resolve(resultFromServer);
         this.methodCallPromises.delete(resultFromServer.callId);
+    }
+
+    protected handleDownCall(downCall: Socket_DownCall) {
+        const fnItem = this.channelItemsOnServer.get(downCall.callbackFnId);
+        if(!fnItem) {
+            throw new Error(`Illegal state: ClientSocketConnection does not know of this callback item (id: ${downCall.callbackFnId})`)
+        }
+        if(typeof fnItem !== "function") {
+            throw new Error("Illegal state: fnItem is not a function");
+        }
+
+        // Call it:
+        fnItem(...downCall.args);
     }
 
 
