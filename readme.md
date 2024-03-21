@@ -1,5 +1,35 @@
 # Restfuncs - HTTP API done proper
 
+<details>
+  <summary>What is Restfuncs: Coming from tRPC</summary>
+Restfuncs is also an RPC (Remote Procedure Call) library. It also has a client and sever part and also gives the user end2end type safety. 
+
+The key differences are:
+
+- Restfuncs uses (native) typescript for validation, instead of ZOD or other type generators. 
+- It has websocket support as first class citizen, enabled by default.
+Therefore supports push events (handed over, just as callback functions) and file uploads in the arguments. 
+- Cookie sessions / JWT and CSRF protections and CORS is tightly integrated into Restfuncs instead of beeing 3rd party plugins or having to be coded manually.
+_This was especially necessary for supporting / syncing  with websockets._
+- Less boilterplate per endpoint and aimed for less total boilerplate and a more shallow learning curve.
+
+Also see the additional features in the list.
+</details>
+
+<details>
+  <summary>What is Restfuncs: Coming from Nest or other "big frameworks"</summary>
+  Restfuncs is not a framework for organizing your code (and does not want to be such). It is just a small layer above express, to improve communication needs in a one-tool-for-one-purpose manner.
+Similiar to those frameworks, it makes coding API endpoints easier and offers you a rich set of features around those (but, as said, just what tightly belongs to http communication. Nothing else). 
+
+Also, Restfuncs it is made for RPC (Remote Procedure Calls): That means, on the client, you don't code a fetch request by hand, but 
+just call a remote method, as if it was a normal javascript method (but across the wire). It's an old concept in the IT that was a bit forgotten but regains traction again in the js world cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
+Therefore, all your calls can be checked for type safety at compile time (end2end type safety). 
+A similar popular library that offers such a concept is tRPC. Think of Restfuncs as a more modern alternative of that.
+
+A Nest' "Controller" (=Service) corresponds to a "ServerSession" class in Restfuncs. That's the only organization unit, it has. Wiring them to the express routes is done manually.
+Now you put a few methods (=endpoints) and fields (=session cookie fields) into such a ServerSession class and that's already all the concept ;) There's really nothing more conceptually. Just a lot of configuration options around that. 
+</details>
+
 ## Intro + features
 
 With restfuncs, you write your http API endpoints just as **plain typescript func**tion**s**. Or better say: methods.  
@@ -89,10 +119,11 @@ export class MyServerSession extends ServerSession {
     return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated against the declared or implicit return type of `myRemoteMethod`. Extra properties get trimmed off.
   }
 
-  // ... <-- More @remote methods  
-  // ... <-- @remote methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
-  // ... <-- Override the `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
-  // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description). Also see the static methods.
+  // <-- More @remote methods
+
+  // <-- methods, which serve html / images / binary. See https://github.com/bogeeee/restfuncs#html--images--binary-as-a-result
+  
+  // <-- Intercept **each** call, by overriding the `doCall` method. I.e. check for auth (see example project), handle errors. Use your IDE's intellisense (ctrl+space) to override it.
 }
 ````
 **server.ts**
@@ -101,10 +132,10 @@ import {restfuncsExpress} from "restfuncs-server";
 import {MyServerSession} from "./MyServerSession.js";
 
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). Installs a jwt session cookie middleware and the websockets listener. Recommended.
-
 app.use("/myAPI", MyServerSession.createExpressHandler())
-// ... app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
-// ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
+
+// Optional: app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
+// Optional: app.use(...) //<-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
 
 app.listen(3000); // Listen on Port 3000
 ````
@@ -121,7 +152,7 @@ console.log( await myRemoteSession.myRemoteMethod({name: "Hans"}) ); // finally,
 
 // And an example call with a callback + a file upload:
 const myDomFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myDomFile as UploadFile /* The trick is, to just cast it. */)
+await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`The callback says: ${progress}% uploaded`), myDomFile as UploadFile) // Note: You must cast it here to the server's `UploadFile` type, to resemble Restfuncs's automatic client->server translation.
 ````
 
 ### Setting up the build (here, it gets a bit nasty 😈)
@@ -158,7 +189,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "cross-env": "^7.0.3"
 },
 ````
-_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our transformer plugins (No worries. Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here)._  
+_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our transformer plugins (No worries: Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here)._  
 See, [how the transformer chain works](https://github.com/bogeeee/restfuncs/tree/3.x/transformer/readme.md#how-the-transformer-chain-works).
 
 ## &lt;/Boilerplate cheat sheet&gt;
