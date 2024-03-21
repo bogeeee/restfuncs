@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-server",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser).",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
