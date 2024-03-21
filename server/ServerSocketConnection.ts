@@ -23,6 +23,8 @@ import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 
+const FEATURE_ENABLE_CALLBACKS = false;
+
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
@@ -263,7 +265,9 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
+                    if(FEATURE_ENABLE_CALLBACKS) {
+                        this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
+                    }
                     const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
