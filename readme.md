@@ -2,6 +2,7 @@
 
 <details>
   <summary>What is Restfuncs: Coming from tRPC</summary>
+
 Restfuncs is also an RPC (Remote Procedure Call) library. It also has a client and sever part and also gives the user end2end type safety. 
 
 The key differences are:
@@ -18,16 +19,37 @@ Also see the additional features in the list.
 
 <details>
   <summary>What is Restfuncs: Coming from Nest or other "big frameworks"</summary>
+
   Restfuncs is not a framework for organizing your code (and does not want to be such). It is just a small layer above express, to improve communication needs in a one-tool-for-one-purpose manner.
 Similiar to those frameworks, it makes coding API endpoints easier and offers you a rich set of features around those (but, as said, just what tightly belongs to http communication. Nothing else). 
 
 Also, Restfuncs it is made for RPC (Remote Procedure Calls): That means, on the client, you don't code a fetch request by hand, but 
-just call a remote method, as if it was a normal javascript method (but across the wire). It's an old concept in the IT that was a bit forgotten but regains traction again in the js world cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
+just call a remote method, as if it was a normal javascript method (but across the wire). It's an old concept in the IT that was a bit forgotten but regains traction again in the JS world, cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
 Therefore, all your calls can be checked for type safety at compile time (end2end type safety). 
-A similar popular library that offers such a concept is tRPC. Think of Restfuncs as a more modern alternative of that.
+A similar popular library that offers such a concept is [tRPC](https://trpc.io/). Think of Restfuncs as a more modern alternative of that.
 
 A Nest' "Controller" (=Service) corresponds to a "ServerSession" class in Restfuncs. That's the only organization unit, it has. Wiring them to the express routes is done manually.
 Now you put a few methods (=endpoints) and fields (=session cookie fields) into such a ServerSession class and that's already all the concept ;) There's really nothing more conceptually. Just a lot of configuration options around that. 
+</details>
+
+<details>
+  <summary>What is Restfuncs: Coming from Express or new to Javascript</summary>
+
+Coding Express handlers (let's call them "endpoints" now) is fun, but soon you will notice, that this is pretty low level and you do all that repetitive
+tasks over and over again, like:
+- Converting from request/body parameters into local variables 
+- Checking these variables against evil input
+- Doing error handling and reporting
+
+The same thing on the client where, each time, you code a fetch request by hand and do conversion, status checking/error handling,...
+
+Now, instead of a request handler, in Restfuncs you code your endpoint as a plain javascript function (with typescript types).
+And it also offers a client, where you can just virtually call that same function from the client (but it goes over the wire via http or websockets). 
+
+This It's an old concept in the IT that's called RPC (Remote Procedure Call) and it was a bit forgotten but regains traction again in the JS world, cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
+Therefore, all your calls can be checked for type safety at compile time (end2end type safety). A similar popular library that offers such a concept is [tRPC](https://trpc.io/). Think of Restfuncs as a more modern alternative of that.
+
+But besides RPC, Restfuncs deals with much more aspects around http-communication, that play together and make just sense to be tightly integrated here into this communication library. But see the features for yourself. 
 </details>
 
 ## Intro + features
