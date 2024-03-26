@@ -280,6 +280,32 @@ test('trim result', async () => {
     );
 })
 
+it('should trim result but not modify the original objects', async () => {
+
+
+    const myObj: {a: boolean} = {a:true, extra: "something"} as any
+    class ServerAPI extends ServerSession {
+        @remote()
+        getMyObjTrimmed() {
+            return myObj
+        }
+
+        @remote({trimResult: false, validateResult: false})
+        getOriginalMyObj() {
+            return myObj
+        }
+    }
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            expect(await apiProxy.getOriginalMyObj()).toStrictEqual({a:true, extra: "something"})
+            expect(await apiProxy.getMyObjTrimmed()).toStrictEqual({a:true})
+            expect(await apiProxy.getOriginalMyObj()).toStrictEqual({a:true, extra: "something"}) // Should still have the extra property
+
+        }
+    );
+})
+
 test('Test BigInt', async () => {
 
     class A {
