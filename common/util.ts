@@ -53,14 +53,14 @@ export function visitReplace<O extends object>(value: O, visitor: ((value: unkno
 
     if(trackContext === "onError") {
         try {
-            return visitChilds(value,  undefined) as O; // Fast try without context
+            return visitor(value,  visitChilds) as O; // Fast try without context
         }
         catch (e) {
             return visitReplace(value,  visitor, true); // Try again with context
         }
     }
 
-    return visitChilds(value, trackContext?{diagnosis_path: ""}:undefined) as O;
+    return visitor(value, visitChilds,trackContext?{diagnosis_path: ""}:undefined) as O;
 }
 
 /**
