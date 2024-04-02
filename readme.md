@@ -6,15 +6,22 @@
 Restfuncs is also an RPC (Remote Procedure Call) library. It also has a client and sever part and also gives the user end2end type safety. 
 
 The key differences are:
-
+- Restfuncs takes [tRPCs claim: "It's just functions"](https://trpc.io/docs/concepts#its-just-functions) for real also for the server side 😎, resulting in a much simpler usage and way less boilerplate. 
 - Restfuncs uses (native) typescript for validation, instead of ZOD or other type generators. 
 - It has websocket support as first class citizen, enabled by default.
-Therefore supports push events (handed over, just as callback functions) and file uploads in the arguments. 
-- Cookie sessions / JWT and CSRF protections and CORS is tightly integrated into Restfuncs instead of beeing 3rd party plugins or having to be coded manually.
+Therefore push events can be achieved just via plain callback functions 👍 which you can pass anywhere in the arguments.  
+- Cookie sessions / JWT, CSRF protections and CORS are tightly integrated into Restfuncs instead of beeing 3rd party plugins or having to be coded manually.
 _This was especially necessary for supporting / syncing  with websockets._
-- Less boilterplate per endpoint and aimed for less total boilerplate and a more shallow learning curve.
+- Concepts are simplified, aiming for less total boilerplate and a more shallow learning curve.
+- Also see the additional features in the [list](#intro--features).
 
-Also see the additional features in the list.
+Here's a mapping of the tRPC's conceptual items to Restfuncs:
+- `Procedure`/`Query`/`Mutation` -> No distinctions between them in restfuncs. It's all just @remote methods. Following GET/POST semantics is done by a client (if needed) and Restfuncs [serves just both styles](#rest-interface) instead of needing configuration.
+- `Router` -> `ServerSession`
+- `Context` -> `ServerSession` - _you can also store fields there._
+- Middlewares ->  You just overwrite the ServerSession#doCall method for this (use ctrl+space / intellisense in your IDE). Needs no further explanation or docs, if you know some basic OOP concepts.
+- `Subscriptions` -> You can simply use callback functions anywhere in your @remote methods. _When called, the events automatically get send to the client via websocket push events. No need to set up that channel or synchronize that context manually 👍_.
+- Inferring Types -> Not needed. Can just be achieved by Typescript.
 </details>
 
 <details>
