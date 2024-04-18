@@ -231,9 +231,9 @@ In some cases where more configuration needs to be decided for, contextual error
 
 # Example projects
 
-- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite) (use as starter stack)
-- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-separate) (if you prefer that cleaner layout)
-- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite) (use as starter stack) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/2.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=GreeterSession.ts) 
+- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-separate) (if you prefer that cleaner layout) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-separate?title=Restfuncs%20-separate-%20example&file=server/GreeterSession.ts)
+- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=MainframeSession.ts)
 
 
 _They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
