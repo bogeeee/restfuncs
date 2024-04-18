@@ -40,11 +40,11 @@ class RestfuncsClientWithLogin<S extends WithLogin> extends RestfuncsClient<S> {
 const mainframeService = new RestfuncsClientWithLogin<MainframeSession>("/mainframeAPI").proxy // This is the way to use a subclassed RestfuncsClient
 
 // Click handler for multiply button:
-document.getElementById("multiplyButton").onclick = async function() {
+document.getElementById("multiplyButton")!.onclick = async function() {
     // @ts-ignore
     const inputValue = document.getElementById("numberInput").value
     const result = await mainframeService.multiplyBy10(Number(inputValue));
-    document.getElementById("multiplyResult").textContent = "Result: " + String(result) // show result
+    document.getElementById("multiplyResult")!.textContent = "Result: " + String(result) // show result
 }
 
 
