@@ -137,7 +137,7 @@ export class ExternalPromise<T> implements Promise<T> {
  * @param error
  */
 export function fixErrorForJest(error: Error) {
-    if(process.env.JEST_WORKER_ID !== undefined) { // Are we running with jest ?
+    if(typeof process === 'object' && process.env.JEST_WORKER_ID !== undefined) { // Are we running with jest ?
         const cause = (error as any).cause;
         if(cause) {
             error.message = `${error.message}, cause: ${errorToString(cause)}\n*** end of cause ***`
