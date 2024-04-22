@@ -82,9 +82,9 @@ test('browserMightHaveSecurityIssuseWithCrossOriginRequests', async () => {
     expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (compatible, MSIE 11, Windows NT 6.3; Trident/7.0; rv:11.0) like Gecko"})).toBeFalsy();
 
 
-    // Android Browser (AOSP):
+    // **** Android Browser (AOSP) ******:
 
-    expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "mozilla/5.0 (X11; Linux x86_64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.34 Safari/534.24"})).toBeTruthy();
+    expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "mozilla/5.0 (X11; Linux x86_64) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.34 Safari/534.24"})).toBeTruthy(); // Stock browser from this guy: https://stackoverflow.com/questions/14403766/how-to-detect-the-stock-android-browser/
 
     // Taken from here: https://stackoverflow.com/questions/14403766/how-to-detect-the-stock-android-browser
     expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Linux; U; Android 4.0.3; ko-kr; LG-L160L Build/IML74K) AppleWebkit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30"})).toBeTruthy();
@@ -110,5 +110,11 @@ test('browserMightHaveSecurityIssuseWithCrossOriginRequests', async () => {
     expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Linux; U; Android 2.2.1; de-de; HTC_Wildfire_A3333 Build/FRG83D) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"})).toBeTruthy();
     expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Linux; U; Android 2.1-update1; es-mx; SonyEricssonE10a Build/2.0.A.0.504) AppleWebKit/530.17 (KHTML, like Gecko) Version/4.0 Mobile Safari/530.17"})).toBeTruthy();
     expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Linux; U; Android 1.6; ar-us; SonyEricssonX10i Build/R2BA026) AppleWebKit/528.5+ (KHTML, like Gecko) Version/3.1.2 Mobile Safari/525.20.1"})).toBeTruthy();
+
+
+    // This is my chrome on android (2023'ish) and should be ok:
+    expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"})).toBeFalsy()
+    // This is my firefox on android (2023'ish) and should be ok:
+    expect(browserMightHaveSecurityIssuseWithCrossOriginRequests({userAgent: "Mozilla/5.0 (Android 13; Mobile; rv:124.0) Gecko/124.0 Firefox/124.0"})).toBeFalsy()
 
 });
