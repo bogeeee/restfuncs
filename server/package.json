@@ -46,7 +46,6 @@
     "typia": "^5.0.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.15",
     "restfuncs-transformer": "^1.0.0",
     "rimraf": "=5.0.5"
   },
