@@ -450,6 +450,5 @@ See [DEVELOPMENT.md](DEVELOPMENT.md)
 
 Places where your help would be needed
 
-- If you're familiar with tsc compiler internals, you're our guy ;) Please have a look at [this issue](https://github.com/bogeeee/restfuncs/issues/2) ! 
-- Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
-- Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).   
+- See [issues with 'help wanted' on github](https://github.com/bogeeee/restfuncs/labels/help%20wanted).
+- Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).
