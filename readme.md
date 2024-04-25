@@ -227,6 +227,8 @@ _Congrats, you've got the concept!
 Now use your IDE's intellisense and have a quick browse through the `/* XxxOptions */` and also the `Callback` and `UploadFile` description/members. That JSDoc is considered the official documentation and it won't be repeated here.
 In some cases where more configuration needs to be decided for, contextual error messages will guide you. So don't be scared of them and read them and see them as part of the concept._
 
+
+TODO: [Create a more guided documentation (help wanted)](https://github.com/bogeeee/restfuncs/issues/7)
 <br/><br/><br/><br/><br/><br/>
 
 # Example projects
