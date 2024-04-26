@@ -44,8 +44,10 @@ export function visitReplace<O extends object>(value: O, visitor: ((value: unkno
                 const key = k as keyof object;
                 const value = obj[key];
                 let newValue = visitor(value, visitChilds, context?{...context, diagnosis_path: `${context.diagnosis_path}${diagnosis_jsonPath(key)}`}:undefined);
-                // @ts-ignore
-                obj[key] = newValue;
+                if(newValue !== value) { // Only if value really has changed. We don't want to interfer with setting a readonly property and trigger a proxy
+                    // @ts-ignore
+                    obj[key] = newValue;
+                }
             }
         }
         return value;
