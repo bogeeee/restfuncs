@@ -238,9 +238,9 @@ export class ClientSocketConnection {
      * @param item
      */
     getChannelItemId(item: object) {
-        const existing = this.channelItemIds.get(item);
-        if(existing) {
-            return existing;
+        const existingId = this.channelItemIds.get(item);
+        if(existingId !== undefined) {
+            return existingId;
         }
 
         const newId = this.dtoIdGenerator++;
