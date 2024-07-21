@@ -429,7 +429,7 @@ export class ServerSession implements IServerSession {
         // Check that type info is available
         if(!this.isSecurityDisabled) {
             if(!isTypeInfoAvailable(new this)) {
-                throw new CommunicationError("Runtime type information is not available.\n" + this._diagnosis_HowToSetUpTheBuild())
+                throw new CommunicationError(`Runtime type information is not available for class ${this.name}.\n` + this._diagnosis_HowToSetUpTheBuild())
             }
         }
     }
