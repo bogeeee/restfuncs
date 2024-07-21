@@ -106,3 +106,5 @@ The main source of truth of the cookieSession is always the http side. After a w
 
 Another advantage of this approach is, that all RestunfsClients can just share one connection, so they don't exhaust connections. The pulled `SecurityPropertiesOfHttpRequest` is simply associated to the ServerSession class id (or group of such with same security settings = `SecurityGroup`).
 
+# Dependencies
+- `not-so-weak@2.0.0` Had a quick review -> looks good. Therefore fixed to that version. 

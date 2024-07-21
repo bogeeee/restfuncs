@@ -51,7 +51,7 @@ export class ClientSocketConnection {
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
     /**
-     * Channel items that were sent to the server and a currently up there
+     * Channel items that were sent to the server and are currently up there
      */
     channelItemsOnServer = new Map<number, object>()
 
