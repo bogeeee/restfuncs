@@ -2389,6 +2389,7 @@ it('should reopen failed ClientSocketConnections', async () => {
 });
 
 describe("callbacks", () => {
+    let rememberedFunction:() => void | undefined;
     class ServerAPI extends ServerSession {
         @remote()
         callVoidCallback3Times(callback: ()=>void) {
@@ -2413,19 +2414,17 @@ describe("callbacks", () => {
         async deepCallback(a: string, b: {deepProp: ()=> Promise<string>}) {
             return await b.deepProp();
         }
-
-        remembered?:() => void;
         @remote()
         setRemembered(callback: () => void) {
-            this.remembered = callback
+            rememberedFunction = callback
         }
 
         @remote()
         isRemembered(callback: () => void) {
-            if(this.remembered === undefined) {
+            if(rememberedFunction === undefined) {
                 throw new Error("Illegal state")
             }
-            return this.remembered  === callback;
+            return rememberedFunction  === callback;
         }
     }
 
