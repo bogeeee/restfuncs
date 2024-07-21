@@ -49,8 +49,7 @@ export class ServerSocketConnection {
      * For worry-free feature: Remember the same function instances. This could be useful if you register/unregister a subscription. I.e. like in the browser's addEventListener / removeEventListener functions.
      * id -> callback function
      */
-    //@ts-ignore Bug workaround for: https://github.com/WebReflection/not-so-weak/issues/2
-    clientCallbacks: Map<number,ClientCallback> = new WeakValueMap<number, ClientCallback>();
+    clientCallbacks = new WeakValueMap<number, ClientCallback>() as (Map<number,ClientCallback> & {set: (key: number, cb: ClientCallback, onGC: (key: number) => void)  => void});  // Type rl-specified as Bug workaround for: https://github.com/WebReflection/not-so-weak/issues/2
 
     /**
      * Downcalls of client-initialted callbacks
@@ -405,7 +404,10 @@ export class ServerSocketConnection {
                     callback.id = id;
                     callback.options = {};
 
-                    this.clientCallbacks.set(id, callback);
+                    // Register it on client's id, so that the function instance can be reused:
+                    this.clientCallbacks.set(id, callback, (id) => { // called on garbage collect:
+                        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: id}});
+                    });
 
                     return callback;
                 }

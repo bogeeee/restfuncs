@@ -114,8 +114,8 @@ export type Socket_MethodCall = {
 }
 
 export type Socket_Server2ClientMessage = {
-    type: "init" | "methodCallResult" | "getVersion" | "downCall"
-    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall
+    type: "init" | "methodCallResult" | "getVersion" | "downCall" | "channelItemNotUsedAnymore"
+    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall | Socket_ChannelItemNotUsedAnymore
 }
 
 /**
@@ -270,6 +270,10 @@ export type Socket_DownCall = {
     args: unknown[]
 
     diagnosis_awaitResult: boolean;
+}
+
+export type Socket_ChannelItemNotUsedAnymore = {
+    id: number;
 }
 
 /**

@@ -5,7 +5,7 @@ import {
     ClientCallbackDTO,
     CookieSessionState,
     GetCookieSessionAnswerToken,
-    IServerSession, ServerPrivateBox,
+    IServerSession, ServerPrivateBox, Socket_ChannelItemNotUsedAnymore,
     Socket_Client2ServerMessage, Socket_DownCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
     Socket_Server2ClientMessage
@@ -195,7 +195,7 @@ export class ClientSocketConnection {
     private cleanUp() {
         //Dereference resources, just to make sure. We just got a signal that something was wrong but don't know, if the socket is still open -> references this's listeners -> references this / prevents GC
         this.methodCallPromises.clear();
-        // TODO: dereference callbacks
+        this.channelItemsOnServer.clear();
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
     }
 
@@ -442,6 +442,9 @@ export class ClientSocketConnection {
         }
         else if(message.type === "downCall") {
             this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
+        }
+        else if(message.type === "channelItemNotUsedAnymore") {
+            this.channelItemsOnServer.delete( (message.payload as Socket_ChannelItemNotUsedAnymore).id ); // Delete it also here
         }
 
     }
