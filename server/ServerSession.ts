@@ -61,14 +61,26 @@ const REQUIRED_TRANSFORMER_FEATURE_VERSION = 1;
 
 export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackOptions & {
     options: ClientCallbackOptions
+
     /**
      * Chosen by the client
      */
     id: number;
+
     /**
      * The connection to the client, that made the call via engine.io / websockets.
      */
     socketConnection?: ServerSocketConnection
+
+    /**
+     * Advanced: Tells the client, that this callback is not used anymore and allows the client to free the reference to it.
+     * Usually this is done automatically for you, when node reports that the callback has been garbage collected (on the server).
+     * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
+     * <p>
+     *     Alias for <code>free(clientCallback)</code>
+     * </p>
+     */
+    free: ()=> void;
 }
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -2688,6 +2700,24 @@ export function remote(options?: RemoteMethodOptions) {
         // @ts-ignore we want the field to stay protected
         clazz.remoteMethod2Options!.set(methodName, options || {});
     };
+}
+
+/**
+ * Advanced: Tells the client, that this resource is not used anymore and allows the client to free the reference to it.
+ * Usually this is done automatically for you, when node reports that the resource has been garbage collected (on the server).
+ * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
+ */
+export function free(resource: (...args: any[]) => any) {
+    if(typeof resource === "function") {
+        const clientCallback = resource as ClientCallback;
+        if(clientCallback.socketConnection === undefined) { //
+            throw new Error("The passed argument is not a client callback function.")
+        }
+        clientCallback.socketConnection.freeClientCallback(clientCallback);
+    }
+    else {
+        throw new Error("Unsupported resource type")
+    }
 }
 
 /**

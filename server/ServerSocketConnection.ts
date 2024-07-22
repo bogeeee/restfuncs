@@ -392,6 +392,11 @@ export class ServerSocketConnection {
                     // Create the function:
                     // @ts-ignore
                     let callback: ClientCallback = (...args: unknown[])=> {
+                        // Validity check:
+                        if(this.clientCallbacks.get(callback.id) === undefined) {
+                            throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
+                        }
+
                         // Execute the downcall
                         const downCall: Socket_DownCall = {
                             callbackFnId: callback.id,
@@ -403,10 +408,11 @@ export class ServerSocketConnection {
                     callback.socketConnection = this;
                     callback.id = id;
                     callback.options = {};
+                    callback.free = () => {this.freeClientCallback(callback)}
 
                     // Register it on client's id, so that the function instance can be reused:
                     this.clientCallbacks.set(id, callback, (id) => { // called on garbage collect:
-                        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: id}});
+                        this.freeClientCallback(callback);
                     });
 
                     return callback;
@@ -420,6 +426,15 @@ export class ServerSocketConnection {
                 return visitChilds(item)
             }
         });
+    }
+
+    /**
+     * Unregister and inform the client
+     * @param clientCallback
+     */
+    freeClientCallback(clientCallback: ClientCallback) {
+        this.clientCallbacks.delete(clientCallback.id);
+        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id}});
     }
 
     /**

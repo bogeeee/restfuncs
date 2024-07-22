@@ -20,6 +20,7 @@ export const ServerSessionOptions = cjsServerSession.ServerSessionOptions
 export const remote = cjsServerSession.remote
 export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
 export const ClientCallback = cjsServerSession.ClientCallback
+export const free = cjsServerSession.free
 
 import cjsCommon from "restfuncs-common"
 export const UploadFile = cjsCommon.UploadFile
