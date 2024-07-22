@@ -24,7 +24,7 @@ import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 import {WeakValueMap} from "restfuncs-common";
 
-const FEATURE_ENABLE_CALLBACKS = false;
+const FEATURE_ENABLE_CALLBACKS = true;
 
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
