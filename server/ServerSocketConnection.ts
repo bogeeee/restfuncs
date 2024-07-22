@@ -22,7 +22,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
-import {WValue as WeakValueMap} from 'not-so-weak';
+import {WeakValueMap} from "restfuncs-common";
 
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
@@ -49,7 +49,9 @@ export class ServerSocketConnection {
      * For worry-free feature: Remember the same function instances. This could be useful if you register/unregister a subscription. I.e. like in the browser's addEventListener / removeEventListener functions.
      * id -> callback function
      */
-    clientCallbacks = new WeakValueMap<number, ClientCallback>() as (Map<number,ClientCallback> & {set: (key: number, cb: ClientCallback, onGC: (key: number) => void)  => void});  // Type rl-specified as Bug workaround for: https://github.com/WebReflection/not-so-weak/issues/2
+    clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
+        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id}}); // Inform the client that the callback is not referenced anymore
+    });
 
     /**
      * Downcalls of client-initialted callbacks
@@ -384,7 +386,7 @@ export class ServerSocketConnection {
                 }
                 if(dtoItem._dtoType === "ClientCallback") {
 
-                    const existingCallback = this.clientCallbacks.get(id);
+                    const existingCallback = this.clientCallbacks.peek(id); // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                     if(existingCallback) {
                         return existingCallback;
                     }
@@ -411,9 +413,7 @@ export class ServerSocketConnection {
                     callback.free = () => {this.freeClientCallback(callback)}
 
                     // Register it on client's id, so that the function instance can be reused:
-                    this.clientCallbacks.set(id, callback, (id) => { // called on garbage collect:
-                        this.freeClientCallback(callback);
-                    });
+                    this.clientCallbacks.set(id, callback);
 
                     return callback;
                 }

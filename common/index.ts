@@ -1,6 +1,7 @@
 import {Readable} from "node:stream"
 
 export * from "./util";
+export {WeakValueMap} from "./WeakValueMap";
 
 export type UploadFile = {
     createReadStream: () => Readable

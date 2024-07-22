@@ -25,6 +25,7 @@ import {
     Service,
     standardOptions
 } from "./lib";
+import {WeakValueMap} from "restfuncs-common/WeakValueMap";
 
 // Config:
 const leakSizeMiB = 1000; // How much memory should every test try to leak. In MiB. So the test can be watched for fail from the outside by giving it half that memory. i.e. on gnu with "ulimit -d _size_in_kb_"
@@ -56,10 +57,171 @@ describe("callbacks", () => {
             await apiProxy.withCallback(myFn);
 
             if(i %100 === 0) {
-                //gc!();
+                //runGarbageCollection();
             }
         }
     }, {
         useSocket: true
     }));
 });
+
+type TargetObject = {
+    diag_theKey: any;
+}
+
+/**
+ * These tests are placed here because they need to invoke the gc.
+ */
+describe("WeakValueMap", () => {
+
+    for(const {makerFn, title} of [{makerFn: makeObject, title: "objects"},{makerFn: makeFunctionObject, title: "functions"}]) {
+        test(`Add entries and check if they exist (with ${title})`, () => {
+            let weakValueMap = new WeakValueMap<string, TargetObject>();
+            const a = makerFn("a");
+            const b = makerFn("b");
+
+            weakValueMap.set("a", a);
+            weakValueMap.set("b", b);
+
+
+            expect(weakValueMap.has("a")).toBeTruthy()
+            expect(weakValueMap.has("b")).toBeTruthy()
+            expect(weakValueMap.has("nonExistent")).toBeFalsy()
+
+            expect(weakValueMap.get("a")).toBeDefined()
+            expect(weakValueMap.get("b")).toBeDefined()
+
+            expect(weakValueMap.get("a")?.diag_theKey).toStrictEqual("a");
+            expect(weakValueMap.get("b")?.diag_theKey).toStrictEqual("b");
+        });
+
+        it(`Should delete entries after garbage collection (with ${title})`, async () => {
+            let weakValueMap = new WeakValueMap<string, TargetObject>();
+
+            function addA() {
+                const a = makerFn("a");
+                weakValueMap.set("a", a);
+            }
+            addA();
+
+            const b = makerFn("b");
+            weakValueMap.set("b", b);
+
+            await waitForATick(); // Workaround: Things from this job (event loop run) don't get gc'ed. So we give it time to breathe
+
+            runGarbageCollection();
+
+            expect(weakValueMap.has("a")).toBeFalsy()
+            expect(weakValueMap.has("b")).toBeTruthy()
+
+            expect(weakValueMap.get("a")).toBeUndefined()
+            expect(weakValueMap.get("b")).toBeDefined()
+
+            expect(weakValueMap.get("b")?.diag_theKey).toStrictEqual("b");
+        });
+
+        it(`Should call the entryLostCallback function after garbage collection - triggered by query (with ${title})`, async () => {
+            let lastLostKey: any;
+            let weakValueMap = new WeakValueMap<string, TargetObject>([], (key) => {
+                lastLostKey = key}
+            );
+
+            function addA() {
+                const a = makerFn("a");
+                weakValueMap.set("a", a);
+            }
+            addA();
+
+            const b = makerFn("b");
+            weakValueMap.set("b", b);
+
+            await waitForATick(); // Workaround: Things from this job (event loop run) don't get gc'ed. So we give it time to breathe
+
+            runGarbageCollection();
+
+            expect(weakValueMap.has("a")).toBeFalsy() // Query, this should trigger the
+
+            expect(lastLostKey).toBe("a");
+
+        });
+
+        it(`Should call the entryLostCallback function after garbage collection - triggered by finalizationregistry (with ${title})`, async () => {
+            let lastLostKey: any;
+            let weakValueMap = new WeakValueMap<string, TargetObject>([], (key) => {
+                lastLostKey = key}
+            );
+
+            function addA() {
+                const a = makerFn("a");
+                weakValueMap.set("a", a);
+            }
+            addA();
+
+            const b = makerFn("b");
+            weakValueMap.set("b", b);
+
+            await waitForATick(); // Workaround: Things from this job (event loop run) don't get gc'ed. So we give it time to breathe
+
+            runGarbageCollection();
+
+            await waitForATick();
+
+            expect(lastLostKey).toBe("a");
+
+        });
+
+        /*
+        // Not yet implemented cause not needed yet:
+        test(`Iterate keys (with ${title})`, () => {
+            let weakValueMap = new WeakValueMap<string, TargetObject>();
+            const a = makerFn("a");
+            const b = makerFn("b");
+            const c = makerFn("c");
+
+            expect(weakValueMap.keys()).toStrictEqual(["a", "b", "c"])
+        });
+
+        test(`Iterate entries (with ${title})`, () => {
+            let weakValueMap = new WeakValueMap<string, TargetObject>();
+            const a = makerFn("a");
+            const b = makerFn("b");
+            const c = makerFn("c");
+
+            expect([...weakValueMap.entries()].length).toBe(3);
+        });
+
+        test(`Iterate keys with numeric keys (with ${title})`, () => {
+            let weakValueMap = new WeakValueMap<string, TargetObject>();
+            const a = makerFn(1);
+            const b = makerFn(-2);
+            const c = makerFn(8);
+
+            expect(weakValueMap.keys()).toStrictEqual([1, -2, 8])
+        });
+        */
+    }
+
+    function makeObject(key: any): TargetObject {
+        return {
+            diag_theKey: key
+        }
+    }
+    function makeFunctionObject(key: any): TargetObject {
+        const result = function () {};
+        result.diag_theKey = key;
+        return result as any as TargetObject;
+    }
+});
+
+function runGarbageCollection() {
+    if(!gc) {
+        throw new Error("No garbage collection hooks available but this test needs such. You must run node with the --expose-gc parameter.");
+    }
+    gc();
+}
+
+function waitForATick(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        setTimeout(resolve);
+    });
+}
