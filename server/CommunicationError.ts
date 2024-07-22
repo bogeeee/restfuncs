@@ -22,7 +22,7 @@ export type CommunicationErrorOptions = ErrorOptions & {
  *
  * You may use these to indicate special situations that should be reacted to. I.e. A 'class NotLoggedinError extends CommunicationError' that would trigger a login popup dialog.
  *
- * Note that on the client you will catch it wrapped in a 'ServerError' so you'll find this CommunicationError under the .cause property.
+ * Note that on the client you will catch it, wrapped in a 'ServerError' so you'll find this CommunicationError under the .cause property.
  */
 export class CommunicationError extends Error {
     public httpStatusCode?: number;

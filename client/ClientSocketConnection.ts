@@ -392,17 +392,6 @@ export class ClientSocketConnection {
         }
 
         return callResult.result;
-
-        try {
-            return await exec();
-        } catch (e) {
-            if (typeof e === "object" && (e as any)?.httpStatusCode === 480) { // Invalid token error ?
-                await client.fetchCorsReadToken()
-                return await exec(); // try once again;
-            } else {
-                throw e;
-            }
-        }
     }
 
 

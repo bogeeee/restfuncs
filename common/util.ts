@@ -44,8 +44,10 @@ export function visitReplace<O extends object>(value: O, visitor: ((value: unkno
                 const key = k as keyof object;
                 const value = obj[key];
                 let newValue = visitor(value, visitChilds, context?{...context, diagnosis_path: `${context.diagnosis_path}${diagnosis_jsonPath(key)}`}:undefined);
-                // @ts-ignore
-                obj[key] = newValue;
+                if(newValue !== value) { // Only if value really has changed. We don't want to interfer with setting a readonly property and trigger a proxy
+                    // @ts-ignore
+                    obj[key] = newValue;
+                }
             }
         }
         return value;
@@ -53,14 +55,14 @@ export function visitReplace<O extends object>(value: O, visitor: ((value: unkno
 
     if(trackContext === "onError") {
         try {
-            return visitChilds(value,  undefined) as O; // Fast try without context
+            return visitor(value,  visitChilds) as O; // Fast try without context
         }
         catch (e) {
             return visitReplace(value,  visitor, true); // Try again with context
         }
     }
 
-    return visitChilds(value, trackContext?{diagnosis_path: ""}:undefined) as O;
+    return visitor(value, visitChilds,trackContext?{diagnosis_path: ""}:undefined) as O;
 }
 
 /**
@@ -137,7 +139,7 @@ export class ExternalPromise<T> implements Promise<T> {
  * @param error
  */
 export function fixErrorForJest(error: Error) {
-    if(process.env.JEST_WORKER_ID !== undefined) { // Are we running with jest ?
+    if(typeof process === 'object' && process.env.JEST_WORKER_ID !== undefined) { // Are we running with jest ?
         const cause = (error as any).cause;
         if(cause) {
             error.message = `${error.message}, cause: ${errorToString(cause)}\n*** end of cause ***`

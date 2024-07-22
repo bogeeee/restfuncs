@@ -2,6 +2,7 @@
 
 ```bash
 git clone https://github.com/bogeeee/restfuncs.git
+cd restfuncs
 npm install --ignore-scripts
 ```
 _This autoinstalls dependencies for every sub-package / workspace ;)_

@@ -316,6 +316,12 @@ export function browserMightHaveSecurityIssuseWithCrossOriginRequests(req: { use
         var resultChromeRegEx = regExChrome.exec(navU);
         var chromeVersion = (resultChromeRegEx === null ? null : parseFloat(resultChromeRegEx[1]));
 
+        // Bugfix: It returns true for some (tested myself, see tests) **Chrome** browsers on some 2023 phones. They still have appleWebKitVersion < 538. So we rather focus on the following tip (from stackoverflow) to quickly filter these out:
+        // > Edit 4: The recommended solution is to look for Android without Chrome in the user agent as per: https://developer.chrome.com/multidevice/user-agent#webview_user_agent
+        if(chromeVersion !== null && ( (appleWebKitVersion || 0) >= 535)) { // still checking for the appleWebKitVersion version, to not catch get the stackoverflow OP's browser here
+            return false;
+        }
+
         return isAndroidMobile && (appleWebKitVersion !== null && appleWebKitVersion < 538) || (chromeVersion !== null && chromeVersion < 37);
     }
 

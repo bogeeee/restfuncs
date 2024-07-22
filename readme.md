@@ -25,6 +25,65 @@ then run `npm install` again which creates the symlinks in node_modules.
 
 # Restfuncs - HTTP API done proper
 
+<details>
+  <summary>What is Restfuncs: Coming from tRPC</summary>
+
+Restfuncs is also an RPC (Remote Procedure Call) library. It also has a client and sever part and also gives the user end2end type safety. 
+
+The key differences are:
+- Restfuncs takes [tRPCs claim: "It's just functions"](https://trpc.io/docs/concepts#its-just-functions) for real also for the server side 😎, resulting in a much simpler usage and way less boilerplate. 
+- Restfuncs uses (native) typescript for validation, instead of ZOD or other type generators. 
+- It has websocket support as first class citizen, enabled by default.
+Therefore push events can be achieved just via plain callback functions 👍 which you can pass anywhere in the arguments.  
+- Cookie sessions / JWT, CSRF protections and CORS are tightly integrated into Restfuncs instead of beeing 3rd party plugins or having to be coded manually.
+_This was especially necessary for supporting / syncing  with websockets._
+- Concepts are simplified, aiming for less total boilerplate and a more shallow learning curve.
+- Also see the additional features in the [list](#intro--features).
+
+Here's a mapping of the tRPC's conceptual items to Restfuncs:
+- `Procedure`/`Query`/`Mutation` -> No distinctions between them in restfuncs. It's all just @remote methods. Following GET/POST semantics is done by a client (if needed) and Restfuncs [serves just both styles](#rest-interface) instead of needing configuration.
+- `Router` -> `ServerSession`
+- `Context` -> `ServerSession` - _you can also store fields there._
+- Middlewares ->  You just overwrite the ServerSession#doCall method for this (use ctrl+space / intellisense in your IDE). Needs no further explanation or docs, if you know some basic OOP concepts.
+- `Subscriptions` -> You can simply use callback functions anywhere in your @remote methods. _When called, the events automatically get send to the client via websocket push events. No need to set up that channel or synchronize that context manually 👍_.
+- Inferring Types -> Not needed. Can just be achieved by Typescript.
+</details>
+
+<details>
+  <summary>What is Restfuncs: Coming from Nest or other "big frameworks"</summary>
+
+  Restfuncs is not a framework for organizing your code (and does not want to be such). It is just a small layer above express, to improve communication needs in a one-tool-for-one-purpose manner.
+Similiar to those frameworks, it makes coding API endpoints easier and offers you a rich set of features around those (but, as said, just what tightly belongs to http communication. Nothing else). 
+
+Also, Restfuncs it is made for RPC (Remote Procedure Calls): That means, on the client, you don't code a fetch request by hand, but 
+just call a remote method, as if it was a normal javascript method (but across the wire). It's an old concept in the IT that was a bit forgotten but regains traction again in the JS world, cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
+Therefore, all your calls can be checked for type safety at compile time (end2end type safety). 
+A similar popular library that offers such a concept is [tRPC](https://trpc.io/). Think of Restfuncs as a more modern alternative of that.
+
+A Nest' "Controller" (=Service) corresponds to a "ServerSession" class in Restfuncs. That's the only organization unit, it has. Wiring them to the express routes is done manually.
+Now you put a few methods (=endpoints) and fields (=session cookie fields) into such a ServerSession class and that's already all the concept ;) There's really nothing more conceptually. Just a lot of configuration options around that. 
+</details>
+
+<details>
+  <summary>What is Restfuncs: Coming from Express or new to Javascript</summary>
+
+Coding Express handlers (let's call them "endpoints" now) is fun, but soon you will notice, that this is pretty low level and you do all that repetitive
+tasks over and over again, like:
+- Converting from request/body parameters into local variables 
+- Checking these variables against evil input
+- Doing error handling and reporting
+
+The same thing on the client where, each time, you code a fetch request by hand and do conversion, status checking/error handling,...
+
+Now, instead of a request handler, in Restfuncs you code your endpoint as a plain javascript function (with typescript types).
+And it also offers a client, where you can just virtually call that same function from the client (but it goes over the wire via http or websockets). 
+
+This It's an old concept in the IT that's called RPC (Remote Procedure Call) and it was a bit forgotten but regains traction again in the JS world, cause it makes especially sense in a scenario with typescript, both, on the client and the server side.
+Therefore, all your calls can be checked for type safety at compile time (end2end type safety). A similar popular library that offers such a concept is [tRPC](https://trpc.io/). Think of Restfuncs as a more modern alternative of that.
+
+But besides RPC, Restfuncs deals with much more aspects around http-communication, that play together and make just sense to be tightly integrated here into this communication library. But see the features for yourself. 
+</details>
+
 ## Intro + features
 
 With restfuncs, you write your http API endpoints just as **plain typescript func**tion**s**. Or better say: methods.  
@@ -60,10 +119,11 @@ That is (features):
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
 - COMING SOON  
   _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
-- COMING very SOON: **Callback functions**  
+- COMING [very](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) SOON: **Callback functions**  
   as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
-  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.
-  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !
+  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.  
+  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !  
+  [Here](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) 's an alpha version of that feature which you can already start using in development.
 - COMING SOON: Simple **file uploads**  
   You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**  
@@ -83,10 +143,19 @@ Smaller features:
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on < 3 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
 
-# &lt;Boilerplate cheat sheet - all you need to know&gt;
+# Getting started
 
-**Security note:** When using client certificates, you must also read the [CSRF protection chapter](#csrf-protection).
+<details>
+  <summary>⚠⚠⚠ Security must-read </summary>
 
+- When using **client certificates**, you must also read the [CSRF protection chapter](#csrf-protection). 
+- When making **raw calls** via the [REST interface](#rest-interface), see security note there.
+
+_Apart from that, **all security**, which this communication layer (=this Resfuncs library) is responsible for, **is already enabled by default 👍**. I.e., CRSF protection, CORS, param validation, concealing error stacks,... There will be explicit hints if you need to take further action._
+</details>
+
+Here's how to set up a server that serves a remote method, named `myRemoteMethod`, and a client that makes a call to that method:
+  
 **MyServerSession.ts**
 
 ````typescript
@@ -94,58 +163,45 @@ import {ServerSession, ServerSessionOptions, UploadFile, remote, ClientCallback}
 
 export class MyServerSession extends ServerSession {
 
-  static options: ServerSessionOptions = {/* ... */}
-
-  myLogonUserId?: string // This value gets stored in the session-cookie under the key "myLogonUserId".
+  static options: ServerSessionOptions = {/* ServerSessionOptions */}
 
   /**
    * This JSDoc also gets outputted in the public API browser and OpenAPI spec. Write only nice things here ;)
-   * @param myComplexParam Your parameters can be of any typescript type. They are automatically validated at runtime.
-   * @param myCallback   You can pass server->client callback functions anywhere/deeply                          . Here we send the progress of the file upload. Callback's args and results are validated 👍. But this works only for "inline"- callbacks, see readme.md.
-   * @param myUploadFile You can pass UploadFile objects                anywhere/deeply/also as ...rest arguments. As soon as you read from the the stream, the restfuncs client will send that file in an extra http request in the background/automatically.
+   * @param myUserName Some string param.
+   * @param someOptionalComplexParam Your parameters can be of any complex typescript type. They are automatically security-validated at runtime to fit into that schema.
+   * Also you can use [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags) like `string & MaxLength<255>`
    */
   @remote({/* RemoteMethodOptions */})
-  myRemoteMethod(myComplexParam: { id?: number, name: string }, myCallback?: (percentDone: number) => void, myUploadFile?: UploadFile) {
-    // ADVANCED:
-    // this.call.... // Access or modify the current call's context specific properties. I.e. this.call.res!.header("myHeader","...")
-    // (myCallback as ClientCallback).options.... // Access some options under the hood
-
-    return `Hello ${myComplexParam.name}, your userId is ${this.myLogonUserId}` // The output automatically gets validated against the declared or implicit return type of `myRemoteMethod`. Extra properties get trimmed off.
+  myRemoteMethod(myUserName: string, someOptionalComplexParam?: { id?: number, city: string & MaxLength<255> }) {
+    return `Hello ${myUserName}`
   }
-
-  // ... <-- More @remote methods  
-  // ... <-- @remote methods that serve html / images / binary. See TODO:baseurl/#html--images--binary-as-a-result    
-  // ... <-- Override the `doCall` method to intercept each call (i.e. check for auth (see example project), handle errors, filter args, filter result).
-  // ... <-- Override other methods from the ServerSession base class for advanced tweaking (use intellisense and read the method description). Also see the static methods.
 }
 ````
+<br/>
+
 **server.ts**
 ````typescript
 import {restfuncsExpress} from "restfuncs-server";
 import {MyServerSession} from "./MyServerSession.js";
 
-const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). Installs a jwt session cookie middleware and the websockets listener. Recommended.
-
+const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). It installs a jwt session cookie middleware and the websockets listener. Recommended.
 app.use("/myAPI", MyServerSession.createExpressHandler())
-// ... app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
-// ... app.use(...) <-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
+
+// Optional: app.use(helmet(), express.static('dist/web')) // Serve pre-built web pages / i.e. by a bundler like vite, parcel or turbopack. See examples. It's recommended to use the helmet() middleware for additional protection.
+// Optional: app.use(...) //<-- Serve *other / 3rd party* express routes here. SECURITY: These are not covered by restfuncs CSRF protection. Don't do write/state-changing operations in here ! Instead do them by MyServerSession.
 
 app.listen(3000); // Listen on Port 3000
 ````
-**client.ts**
+<br>
+
+**client.ts**  
+_Use a bundler like vite, parcel or turbopack to deliver this file to the browser_
 ````typescript
-// Use a bundler like vite, parcel or turbopack to deliver these modules to the browser (as usual, also see the example projects): 
-import {UploadFile} from "restfuncs-common";
 import {RestfuncsClient} from "restfuncs-client";
-import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Gives us the full end2end type support
+import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the type for full **end2end type support**. A good bundler like vite will see, that in the code below, only types are used (via generic parameter `RestfuncsClient<MyServerSession>`) but it looks for the bundler like no actual server code is called, so it will not try to follow and include server-side code 👍. Note: Despite some rumors, you don't need a monorepo for this cross-referencing. Just packages next to each other. Or client + server files can live even in the same package. See the examples which show both options.
 
-const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* RestfuncsClientOptions */}).proxy; // Tip: For intercepting calls (+ more tweaks), sublcass it and override `doCall`. See the auth example.  
-
-console.log( await myRemoteSession.myRemoteMethod({name: "Hans"}) ); // finally, call your remote method over the wire :)
-
-// And an example call with a callback + a file upload:
-const myDomFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
-await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback says: ${progress}% uploaded`), myDomFile as UploadFile /* The trick is, to just cast it. */)
+const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* RestfuncsClientOptions */}).proxy;
+console.log( await myRemoteSession.myRemoteMethod("Hans") ); // Call your remote method over the wire 😎😎😎
 ````
 
 ### Setting up the build (here, it gets a bit nasty 😈)
@@ -167,7 +223,7 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
 **package.json**
 ````json
 "scripts": {
-    "dev": "cross-env NODE_ENV=development <use your favourite tsx / bun / jest / vitest / ...>  #NODE_ENV=development disables all security validations in restfuncs and therefore the need for all the transfomed stuff."
+    "dev": "cross-env NODE_ENV=development <use your favourite tsx / bun / jest / vitest / ... to run stuff>"
     "clean": "tspc --build --clean",
     "build": "tspc --build --force",
     "start": "cross-env NODE_ENV=production node --enable-source-maps server.js"
@@ -182,30 +238,171 @@ await myRemoteSession.myRemoteMethod(...,  (progress) => console.log(`myCallback
   "cross-env": "^7.0.3"
 },
 ````
-_Here we compile with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our transformer plugins (No worries. Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here)._  
+The `build` script compiles for production with `tspc` (instead of `tsc`) from the [ts-patch](https://www.npmjs.com/package/ts-patch) package, which allows for our 3 transformer plugins in `tsconfig.json` (No worries: Despite the name "ts-patch", it runs in "live mode" so nothing will be patched here).
 See, [how the transformer chain works](https://github.com/bogeeee/restfuncs/tree/3.x/transformer/readme.md#how-the-transformer-chain-works).
 
-## &lt;/Boilerplate cheat sheet&gt;
+The `dev` script sets `NODE_ENV=development` to tell Restfuncs that it can ignore all security validations and therefore there's no need for all that transformer chain.
+So you're fast and unrestricted during development👍. But be warned: You should still **check very often, that the production run (`build` + `start`) is still working !!!** Otherwise, things can break unnoticed, i.e., if you import ".ts" instead of ".js", if there are some tsc-only compile errors, or if the bundler's build tries to follow into server-side symbols. Especially for the last one, it can be hard to track down the reason, if you face a lot of code changes at once. So check often !!!  
 
 _Congrats, you've got the concept!  
-Now use your IDE's intellisense and have a quick browse through the `/* XxxOptions */` and also the `Callback` and `UploadFile` description/members. That JSDoc is considered the official documentation and it won't be repeated here.
+Now use your IDE's intellisense and have a quick browse through the `/* XxxOptions */`. That JSDoc is considered the official documentation and it won't be repeated here.
 In some cases where more configuration needs to be decided for, contextual error messages will guide you. So don't be scared of them and read them and see them as part of the concept._
 
 <br/><br/><br/><br/><br/><br/>
 
 # Example projects
 
-- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite) (use as starter stack)
-- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-separate) (if you prefer that cleaner layout)
-- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/2.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter)
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite) (use as starter stack) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts) 
+- [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-separate) (if you prefer that cleaner layout)
+- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts)
 
 
-_They use vite, which is a very minimalistic/ (zero conf) web packer with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
+_They use vite, which is a very minimalistic/ (zero conf) web bundler with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
 
+# Store values in the browser-session:
+With Restfuncs, session values are stored in a typesafe way as fields in your `ServerSession` class. 
+
+See the following example: 
+
+````typescript
+import {ServerSession} from "restfuncs-server";
+
+export class MyServerSession extends ServerSession {
+
+  myLogonUserId?: string // This value gets stored in the session under the key "myLogonUserId".
+
+  @remote()
+  whoIsLoggedIn() {
+    const user = getUser(this.myLogonUserId); // Read a session field
+  }
+}
+````
+When you modify the fields and after successful completion of the remote method, the fields get **serialized** into the session and a http cookie is sent accordingly and also
+the changes are updated to all your (web-)socket connections :). 
+Concurrency behaviour with (web-)socket connections is exactly like with http calls: There won't be a swapping of session values (from another call) right in the middle of a call but before the next call. _An exception is: `ServerSessionOptions#inMemorySessions`._
+
+Note, that Restfuncs will enforce some rules:
+- The **initial field values must be deterministic** to allow for lazy sessions. I.e. no random initial values are allowed are allowed like a field reading `myBasketId=Math.Random()` 
+- If you define a field with the same name in **multiple ServerSession** classes, the **type must be compatible** cause there's only one session-cookie for all (Restfuncs will also check that at startup).
+ 
+
+## File uploads
+
+**COMING SOON!**, but the docs are already here ;)
+
+There's no big extra way you have to go for file uploads. You just pass a browsers [`File`](https://developer.mozilla.org/en-US/docs/Web/API/File) object anywhere in your remote
+method's parameters to the server. On the server side, you can then grab that and just suck on the stream and restfuncs will automatically send that file in an extra http request in the background/automatically.
+There's just one thing. Because the browser API's [`File`](https://developer.mozilla.org/en-US/docs/Web/API/File) class is not type compatible with the server API, you have to cast it to the `UploadFile` type. See example/client.ts. 
+Example:
+
+````typescript
+import {ServerSession, ServerSessionOptions, UploadFile, remote} from "restfuncs-server";
+
+export class MyServerSession extends ServerSession {
+
+  /**
+   * @param someotherField
+   * @param myUploadFile You can pass UploadFile objects anywhere/deeply and also as ...rest arguments. As soon as you read from the the stream, the restfuncs client will send that file in an extra http request in the background/automatically.
+   */
+  @remote({/* RemoteMethodOptions */})
+  myRemoteMethodWithUploadFile(someotherField: string, myUploadFile: UploadFile) {
+    // TODO
+    return "Your file was uploaded"
+  }
+}
+````
+
+**client.ts**
+````typescript
+import {UploadFile} from "restfuncs-common";
+import {RestfuncsClient} from "restfuncs-client";
+import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Gives us the full end2end type support
+
+const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* RestfuncsClientOptions */}).proxy; // Create a client, as usual
+const myBrowserFile = document.querySelector("#myFileInput").files[0]; // Retrieve your File object(s) from an <input type="file" /> (here), or from a DragEvent.dataTransfer.files
+await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile as UploadFile) // And send myBrowserFile to the server. Note: You must cast myBrowserFile to the `UploadFile` type.
+````
+
+
+You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
+
+# Callbacks
+**COMING SOON!** TODO
 
 # Advanced
 
-### Html / images / binary as a result
+## Access the raw request/response/websocket fields
+
+There's a virtual runtime field named `call` where you can access your runtime context. Use intellisense for docs. Example:
+
+````typescript
+@remote()
+myRemoteMethod() {
+  const req = this.call.req; // Express's req object
+  const res = this.call.res; // Express's res object 
+  
+  res!.header("Content-Type", "text/plain")
+  
+  return `your ip address is: ${req!.ip}`
+}
+````
+
+
+## Intercept calls
+### On the server
+It's possible to intercept each call to i.e. check for auth (see example project) or handle errors.
+In your ServerSession class, **override the `doCall` method** Use your IDE's intellisense (ctrl+space) to override it. It would look like this:
+
+````typescript
+export class MyServerSession extends ServerSession {
+  
+  protected async doCall(funcName: string, args: any[]) {
+    try {
+      // ... Intercept before
+      const result = await super.doCall(funcName, args);
+      // ... Intercept after
+      return result;
+    } catch (e) { // Intercept on error (if really needed). Also see the #error-handling chapter
+      throw e; // When doing so, it is adviced to throw an error again. Restfuncs will do the proper reporting to the client.  
+    } finally {
+      //... Intercept finally
+    }
+  }
+}
+````
+
+### On the client
+
+Same same like [on the server](#on-the-server): You override the `RestfuncsClient#doCall` method. To get to the goal, you must subclass the RestfuncsClient. Example:
+
+````typescript
+//Create your own subclass of RestfuncsClient...
+class MyRestfuncsClient<S> extends RestfuncsClient<S> {
+    
+  async doCall(funcName: string, args: any[]) {
+    try {
+      // ... Intercept before
+      let result = await super.doCall(funcName, args);
+      // ... Intercept after
+      return result;
+    } catch (e) { // Intercept on error
+      throw e;
+    } finally {
+      //... Intercept finally
+    }
+  }
+}
+
+const myRemoteSession = new MyRestfuncsClient<MyServerSession>(...).proxy // ... and use your subclass in place of RestfuncsClient
+````
+
+### Working example
+
+[Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts)
+
+This example intercepts calls on the server and on the client.
+
+## Html / images / binary as a result
 
 To serve a non API result, the remote method must explicitly **set the content type**. Return the result via `string`, `Buffer` or `Readable`. Example:
 ```typescript
@@ -217,11 +414,14 @@ To serve a non API result, the remote method must explicitly **set the content t
     }
 ```
 
-**Security note:** When serving html with rich content or with scripts, you might want to add the [helmet](https://www.npmjs.com/package/helmet) middleware in front of your ServerSession for additional protection via `app.use("/myAPI", helmet(), MyServerSession.createExpressHandler())`
+**⚠⚠⚠ Security note:** When serving html with rich content or with scripts, you might want to add the [helmet](https://www.npmjs.com/package/helmet) middleware in front of your ServerSession for additional protection via `app.use("/myAPI", helmet(), MyServerSession.createExpressHandler())`
 
 ## REST interface
+<details>
+  <summary>⚠⚠⚠ Security must-read </summary>
 
-**Security note:** For handcrafted calls from inside a **browser**, you (the clients) need to care about [protecting your session from CSRF](#csrf-protection).
+For handcrafted calls from inside a **browser**, **you** (the clients) need to care about [protecting **your** session from CSRF attacks from other browser windows](#csrf-protection).
+</details>
 
 **Tl;dr:** Just form the http call from your imagination, and its likely a way that works, or Restfuncs will tell you exactly, what's wrong with the params.
 
@@ -266,7 +466,7 @@ Also it's possible to have Readable and Buffers as parameters ...
 
 
 ### Content types
-To specify what you **send** and how it should be interpreted, set the `Content-Type` header to 
+To specify what you **send** and how it should be interpreted, [set the `Content-Type` header](#access-the-raw-requestresponsewebsocket-fields) to 
  - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
  - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Better. Fixes the above.
  - `text/plain` - For the one case, see table above.
@@ -287,6 +487,23 @@ _Note for the security cautious of you: After all this "wild" parameter collecti
 To specify what you want to **receive** in the response, Set the `Accept` header to
  - `application/json` _(**default**)_ - Mind that JSON lacks support for some Data types.
  - [`application/brillout-json`](https://www.npmjs.com/package/@brillout/json-serializer) - Better.
+
+
+## Using websockets
+**Tl;dr:** The RestfuncsClient already uses Websockets by default. There's usually nothing to configure.  
+
+It is required that you use the `restfuncsExpress()` instead of `express()` server, like shown in the [getting started chapter/server.ts](#getting-started).
+Make sure, the path `/engine.io_restfuncs` is reachable and not blocked by your proxy. See `ServerOptions#engineIoOptions.path`. 
+Also see the `RestfuncsClientOptions#useSocket` and `RestfuncsClientOptions#shareSocketConnections` options.
+
+## Error handling
+**Tl;dr:** usually no need to implement it, because Restfuncs already brings a comprehensive reporting to the client.
+
+Besides that, there are options to tweak: See `ServerSessionOptions#logErrors` and `ServerSessionOptions#exposeErrors`.
+
+## Errors with http status code or special errors
+If, for some specific occurrence, you need to specify the http status code or have the error always (in production) be sent to the client or have custom error properties which should (always) be sent to the client, then
+throw a `new CommunicationError(...message..., {httpStatusCode: ...})` or a custom subclass of it. Here's the import: `import {CommunicationError} from "restfuncs-server"`
 
 # Security
 
@@ -352,6 +569,11 @@ But it's no excuse to not take it sportive ;)... i will focus on this topic late
 ### Writes to the session fields have some overhead
 It costs an additional http roundtrip + 1 websocket roundtrip + (auto.) resend of unprocessed websocket calls. This is to ensure fail-safe commits to the http cookie and to ensure security. So keep that in mind.
 
+# Use up your own cookie handler
+The build-in cookie handler goes like this, as already mentioned in the set up: `const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original).`
+Alternatively (not recommended), you can still set up your own cookie handler, after using the classic express: `app = express()`, or by setting `ServerOptions#installSessionHandler` to `false`. Restfuncs will still synchronize the content to/from (Web-) Socket connections.
+
+
 # Multi server environment
 When using a load balancer in front of your servers, you have to configure it for [sticky sessions](https://socket.io/docs/v4/using-multiple-nodes/#enabling-sticky-session), because the underlying engine.io uses http long polling as a first, failsafe approach. You might try to also change that.  
 
@@ -412,8 +634,7 @@ here is how to migrate to the production-ready 3.x version, [where those issues 
 
 See [DEVELOPMENT.md](DEVELOPMENT.md)
 
-Places where your help would be needed
+lPlaces where your help would be needed
 
-- If you're familiar with tsc compiler internals, you're our guy ;) Please have a look at [this issue](https://github.com/bogeeee/restfuncs/issues/2) ! 
-- Review or rewrite the busboy library. Currently, it is very "leet" code that's hard to inspect. What we need is at least some guarantee that it's side effect free.
-- Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).   
+- See [issues with 'help wanted' on github](https://github.com/bogeeee/restfuncs/labels/help%20wanted).
+- Write a 3rd party `ServerSession` base class for authentication (session based, oauth, SSO).
