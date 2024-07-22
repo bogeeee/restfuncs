@@ -54,6 +54,10 @@ describe("callbacks", () => {
             }
 
             await apiProxy.withCallback(myFn);
+
+            if(i %100 === 0) {
+                //gc!();
+            }
         }
     }, {
         useSocket: true
