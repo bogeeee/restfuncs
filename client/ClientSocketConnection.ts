@@ -2,6 +2,7 @@ import {Socket, SocketOptions} from "engine.io-client";
 import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
+    _testForRaceCondition_breakPoints,
     ClientCallbackDTO,
     CookieSessionState,
     GetCookieSessionAnswerToken,
@@ -417,25 +418,28 @@ export class ClientSocketConnection {
      * @protected
      */
     protected handleMessage(message: Socket_Server2ClientMessage) {
-        this.checkFatal()
+        //@ts-ignore An un-awaited async block is **needed for development** for _testForRaceCondition_breakPoints
+        (async() => {
+            this.checkFatal()
 
-        // Switch on type:
-        if(message.type === "init") {
-            this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
-        }
-        else if(message.type === "methodCallResult") {
-            this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
-        }
-        else if(message.type === "getVersion") {
-            // Leave this for future extensibility / probing feature flags (don't throw an error)
-        }
-        else if(message.type === "downCall") {
-            this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
-        }
-        else if(message.type === "channelItemNotUsedAnymore") {
-            this.channelItemsOnServer.delete( (message.payload as Socket_ChannelItemNotUsedAnymore).id ); // Delete it also here
-        }
-
+            // Switch on type:
+            if(message.type === "init") {
+                this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
+            }
+            else if(message.type === "methodCallResult") {
+                this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
+            }
+            else if(message.type === "getVersion") {
+                // Leave this for future extensibility / probing feature flags (don't throw an error)
+            }
+            else if(message.type === "downCall") {
+                this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
+            }
+            else if(message.type === "channelItemNotUsedAnymore") {
+                await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
+                this.channelItemsOnServer.delete( (message.payload as Socket_ChannelItemNotUsedAnymore).id ); // Delete it also here
+            }
+        })();
     }
 
     protected handleMethodCallResult(resultFromServer: Socket_MethodUpCallResult) {

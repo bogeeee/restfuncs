@@ -2,6 +2,9 @@ import {Readable} from "node:stream"
 
 export * from "./util";
 export {WeakValueMap} from "./WeakValueMap";
+import {BreakPoints} from "./BreakPoints";
+
+export const _testForRaceCondition_breakPoints = new BreakPoints();
 
 export type UploadFile = {
     createReadStream: () => Readable
