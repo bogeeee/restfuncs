@@ -390,6 +390,10 @@ export class ServerSocketConnection {
                 }
                 if(dtoItem._dtoType === "ClientCallback") {
 
+                    //TODO: also for existing callback:
+                    //  -Always apply the strictest security settings, from the RemoteMethoOptions of the currently called function
+                    // - Also add the argumens and result validation of the current calls remoteMethod->callbackDTO to a set. So that multiple will be checked / security cannot be downgraded by using the callback instance on some less strict place
+
                     const existingCallback = this.clientCallbacks.peek(id); // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                     if(existingCallback) {
                         return existingCallback;
