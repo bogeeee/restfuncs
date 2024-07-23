@@ -16,7 +16,7 @@ Here is, how the restfuncs-transformer, typia transformer and typescript-rtti wo
 static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
     this.__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession // Give a friendly error message when this is not the case. Otherwise the following statement "const typia = ..." would fail and leaves the user wondering.
     let typia = this.typiaRuntime; // We need a "typia" defined in the scope, but let restfuncs manage where that dependency comes from
-    return {
+    const result= {
         transformerVersion: {major: XX,  feature: XX },
         instanceMethods: {
             "myMethod": {
@@ -35,7 +35,9 @@ static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
                 }
             }
         }
-    }
+    };
+    
+    return result; // Code style note for this line: Why not do `return {...}` directly ? This tiny difference allows for extra properties which ensure backward compatibility with older "restfuncs-server" packages.
 }
 ````
 

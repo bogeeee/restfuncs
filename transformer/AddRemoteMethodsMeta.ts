@@ -369,31 +369,45 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                             ts.NodeFlags.Let
                         )
                     ),
-                    factory.createReturnStatement(factory.createObjectLiteralExpression(
-                        [
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("transformerVersion"),
+                    // Const result =
+                    factory.createVariableStatement(
+                        undefined,
+                        factory.createVariableDeclarationList(
+                            [factory.createVariableDeclaration(
+                                factory.createIdentifier("result"),
+                                undefined,
+                                undefined,
                                 factory.createObjectLiteralExpression(
                                     [
                                         factory.createPropertyAssignment(
-                                            factory.createIdentifier("major"),
-                                            factory.createIdentifier(`${transformerVersion.major}`)
+                                            factory.createIdentifier("transformerVersion"),
+                                            factory.createObjectLiteralExpression(
+                                                [
+                                                    factory.createPropertyAssignment(
+                                                        factory.createIdentifier("major"),
+                                                        factory.createIdentifier(`${transformerVersion.major}`)
+                                                    ),
+                                                    factory.createPropertyAssignment(
+                                                        factory.createIdentifier("feature"),
+                                                        factory.createIdentifier(`${transformerVersion.feature}`)
+                                                    )
+                                                ],
+                                                false
+                                            )
                                         ),
                                         factory.createPropertyAssignment(
-                                            factory.createIdentifier("feature"),
-                                            factory.createIdentifier(`${transformerVersion.feature}`)
+                                            factory.createIdentifier("instanceMethods"),
+                                            instanceMethods
                                         )
                                     ],
-                                    false
+                                    true
                                 )
-                            ),
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("instanceMethods"),
-                                instanceMethods
-                            )
-                        ],
-                        true
-                    ))
+                            )],
+                            ts.NodeFlags.Const | ts.NodeFlags.Constant | ts.NodeFlags.Constant
+                        )
+                    ),
+
+                    factory.createReturnStatement(factory.createIdentifier("result"))
                 ],
                 true
             )
