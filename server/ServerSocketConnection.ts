@@ -30,6 +30,7 @@ export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
+    lastSequenceNumberFromClient=-1;
 
     /**
      * The raw cookie-session values that were obtained from a http call.
@@ -52,7 +53,7 @@ export class ServerSocketConnection {
      * id -> callback function
      */
     clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
-        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id}}); // Inform the client that the callback is not referenced anymore
+        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient}}); // Inform the client that the callback is not referenced anymore
     });
 
     /**
@@ -165,6 +166,12 @@ export class ServerSocketConnection {
         if(typeof message.type !== "string") {
             throw new Error("message.type is not a string");
         }
+        // Validate and fix sequenceNumber for older clients:
+        if(typeof message.sequenceNumber !== "number") {
+            message.sequenceNumber = 0;
+        }
+
+        this.lastSequenceNumberFromClient = message.sequenceNumber;
 
         // Switch on type:
         if(message.type === "methodCall") {
@@ -442,7 +449,7 @@ export class ServerSocketConnection {
      */
     freeClientCallback(clientCallback: ClientCallback) {
         this.clientCallbacks.delete(clientCallback.id);
-        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id}});
+        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient}});
     }
 
     /**

@@ -47,6 +47,7 @@ export class ClientSocketConnection {
      */
     protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
 
+    protected lastMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
     protected callIdGenerator = 0;
     protected dtoIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
@@ -54,7 +55,13 @@ export class ClientSocketConnection {
     /**
      * Channel items that were sent to the server and are currently up there
      */
-    channelItemsOnServer = new Map<number, object>()
+    channelItemsOnServer = new Map<number, {
+        item: object,
+        /**
+         * The sequenceNumber **before** last sent up to the server.
+         */
+        lastTimeSent: number
+    }>()
 
     /**
      * Adds an id to an (already used) item
@@ -265,7 +272,7 @@ export class ClientSocketConnection {
 
                     const id = this.getChannelItemId(item)
                     const functionDTO: ClientCallbackDTO = {_dtoType: "ClientCallback", id};
-                    this.channelItemsOnServer.set(id, item);
+                    this.channelItemsOnServer.set(id, {item, lastTimeSent: this.lastMessageSequenceNumber});
 
                     numerOfFunctionDTOs++;
                     return functionDTO;
@@ -308,7 +315,7 @@ export class ClientSocketConnection {
      * Immediately returns without waiting for an ack.
      */
     setCookieSessionOnServer(getCookieSessionResult: ReturnType<IServerSession["getCookieSession"]>) {
-        this.sendMessage({type: "setCookieSession", payload: getCookieSessionResult.token})
+        this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "setCookieSession", payload: getCookieSessionResult.token})
         this.lastSetCookieSessionOnServer = getCookieSessionResult.state;
     }
 
@@ -327,6 +334,7 @@ export class ClientSocketConnection {
 
             //Send the call message to the server:
             this.sendMessage({
+                sequenceNumber: ++this.lastMessageSequenceNumber,
                 type: "methodCall",
                 payload: {
                     callId, serverSessionClassId, methodName, args
@@ -350,7 +358,7 @@ export class ClientSocketConnection {
             // (Somebody-) fetch the needed HttpSecurityProperties and update them on the server
             await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => {
                 const answer = await client.controlProxy_http.getHttpSecurityProperties(callResult.needsHttpSecurityProperties!.question);
-                this.sendMessage({type: "updateHttpSecurityProperties", payload: answer});
+                this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "updateHttpSecurityProperties", payload: answer});
             })
 
             callResult = await exec(); // Try again
@@ -437,7 +445,14 @@ export class ClientSocketConnection {
             }
             else if(message.type === "channelItemNotUsedAnymore") {
                 await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
-                this.channelItemsOnServer.delete( (message.payload as Socket_ChannelItemNotUsedAnymore).id ); // Delete it also here
+                const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
+
+                if(this.channelItemsOnServer.has(payload.id) && this.channelItemsOnServer.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
+                    //  Don't delete. Prevents race condition bug (see tests for it).
+                }
+                else { // Normally:
+                    this.channelItemsOnServer.delete(payload.id); // Delete it also here
+                }
             }
         })();
     }
@@ -452,7 +467,7 @@ export class ClientSocketConnection {
     }
 
     protected handleDownCall(downCall: Socket_DownCall) {
-        const fnItem = this.channelItemsOnServer.get(downCall.callbackFnId);
+        const fnItem = this.channelItemsOnServer.get(downCall.callbackFnId)?.item;
         if(!fnItem) {
             throw new Error(`Illegal state: ClientSocketConnection does not know of this callback item (id: ${downCall.callbackFnId})`)
         }
