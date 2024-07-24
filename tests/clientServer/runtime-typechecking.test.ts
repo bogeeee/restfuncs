@@ -561,6 +561,10 @@ describe("callbacks", () => {
             return await callback();
         }
 
+        @remote()
+        async alsoWithStringParam(callback1: ()=> void, someString: string) {
+        }
+
 
     }
 
@@ -635,6 +639,13 @@ describe("callbacks", () => {
     it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         await expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true}} ,{trimResult: false}), /extraProp/ );
 
+    }, {
+        useSocket: true
+    }));
+
+    it("should fail when trying to inject a callback into a string param", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        //@ts-ignore
+        await expectAsyncFunctionToThrow(() => apiProxy.alsoWithStringParam(async () => {} ,() => {}) );
     }, {
         useSocket: true
     }));
