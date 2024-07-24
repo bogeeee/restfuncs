@@ -39,7 +39,7 @@ beforeEach(() => {
 describe("callbacks", () => {
     class ServerAPI extends ServerSession {
         @remote()
-        withCallback(cb: () => any) {
+        withCallback(cb: () => void) {
 
         }
     }
