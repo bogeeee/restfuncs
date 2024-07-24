@@ -175,13 +175,13 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 if (functionTypeNode.type.kind == SyntaxKind.VoidKeyword) { // Return type is (sync) void ?
                     awaitedResultDeclaration = factory.createIdentifier("undefined");
                 } else {
-                    if (functionTypeNode.type.kind == SyntaxKind.TypeReference && (functionTypeNode.type as TypeReference).typeName.escapedText == "Promise") { // Returns via Promise
+                    if (functionTypeNode.type.kind == SyntaxKind.TypeReference && ((functionTypeNode.type as TypeReferenceNode).typeName as any).escapedText == "Promise") { // Returns via Promise
                         // Validity check:
-                        if ((functionTypeNode.type as TypeReference).typeArguments?.length != 1) {
+                        if (!(functionTypeNode.type as TypeReferenceNode).typeArguments || (functionTypeNode.type as TypeReferenceNode).typeArguments!.length != 1) {
                             throw new Error(`A callback function, declared in ${methodName}'s parameters, returns a Promise with an invalid number of type arguments.`);
                         }
 
-                        const awaitedType: TypeReferenceNode = (functionTypeNode.type as TypeReference).typeArguments[0] as TypeReferenceNode;
+                        const awaitedType: TypeReferenceNode = (functionTypeNode.type as TypeReferenceNode).typeArguments![0] as TypeReferenceNode;
 
                         awaitedResultDeclaration = factory.createObjectLiteralExpression(
                             Object.keys(result_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
@@ -243,7 +243,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         let typeParamForTypiaValidate: TypeNode = factory.createTupleTypeNode(methodParametersWithPlaceholders);
         if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
             if (callbackDeclarations.length > 0) {
-                throw new Error(`Parameter ${node.parameters.find(p => p.type === undefined)!.name.escapedText} does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types.`) // TODO: add diagnosis
+                throw new Error(`Parameter ${(node.parameters.find(p => p.type === undefined) as any)!.name.escapedText} does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types.`) // TODO: add diagnosis
             }
 
             // Use the old style: Parameters<typeof this.prototype["method name"]>. This worked very fine in old versions but we now want to battle-test the other style
