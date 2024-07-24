@@ -20,7 +20,12 @@ export class A extends ServerSession {
      * @returns bla xy
      */
     @remote()
-    myMethod(a: any, b: B, ...c: B[]) {
+    myMethod(a: any, myCallback1: (a: string) => Promise<string>, b: B, ...c: ((a:number) => void)[]) {
+        "marker"
+    }
+
+    @remote()
+    myMethod2(a,b) {
         "marker"
     }
 

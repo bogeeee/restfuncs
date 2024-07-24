@@ -7,7 +7,14 @@ This transformer prepares `ServerSession` subclasses for Typia and adds jsDoc in
 
 ## How the transformer chain works
 Here is, how the restfuncs-transformer, typia transformer and typescript-rtti work together: 
-1. The `restfuncs-transformer` scans for all `@remote` methods and, at the bottom of inside their class, it adds the following code (here for "myMethod"): 
+1. The `restfuncs-transformer` scans for all `@remote` methods and, at the bottom of inside their class, it adds the following code (here for):
+````typescript
+@remote
+async myMethod(param1: string, someCallbackFn: (p:number) => Promise<string>);
+````
+
+results in adding this to the class body:
+
 ````typescript
 
 /**
@@ -21,13 +28,23 @@ static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
         instanceMethods: {
             "myMethod": {
                 arguments: {
-                    validateEquals: (args: unknown) => typia.validateEquals<Parameters<typeof this.prototype["myMethod"]>>(args),
+                    validateEquals: (args: unknown) => typia.validateEquals<[param1: string, someCallback: "_callback"]>(args), // Note: Can be 
                     validatePrune: ...
-                },
+                },                
                 result: {
                     validateEquals: (value: unknown) => typia.validateEquals<Awaited<ReturnType<typeof this.prototype["myMethod"]>>>(value),
                     ...
                 },
+                callbacks: [{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration
+                    arguments: {
+                        validateEquals: (args: unknown) => typia.validateEquals<[p: number]>(args),
+                        validatePrune: ...
+                    },
+                    awaitedResult: {
+                        validateEquals: (value: unknown) => typia.validateEquals<string>(value),
+                        ...
+                    }
+                }],
                 jsDoc: {
                     comment: "text with <strong>markup</strong>", 
                     params: {a: "text..."},

@@ -56,7 +56,7 @@ import {errorToString} from "restfuncs-common";
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 const COMPATIBLE_TRANSFORMER_MAJOR_VERSION = 1;
-const REQUIRED_TRANSFORMER_FEATURE_VERSION = 1;
+const REQUIRED_TRANSFORMER_FEATURE_VERSION = 2;
 
 
 export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackOptions & {
@@ -244,6 +244,22 @@ type RemoteMethodsMeta = {
                 validateEquals: (result: unknown) => IValidation<unknown>
                 validatePrune:  (result: unknown) => IValidation<unknown>
             }
+            /**
+             * callback function declarations (arrow style) inside the remote method's parameters
+             */
+            callbacks: {
+                arguments: {
+                    validateEquals: (args: unknown[]) => IValidation<unknown[]>
+                    validatePrune:  (args: unknown[]) => IValidation<unknown[]>
+                },
+                /**
+                 * Undefined, when the result is void (sync)
+                 */
+                awaitedResult: {
+                    validateEquals: (result: unknown) => IValidation<unknown>
+                    validatePrune:  (result: unknown) => IValidation<unknown>
+                } | undefined
+            }[],
             jsDoc?: {
                 comment: string,
                 params: Record<string, string>

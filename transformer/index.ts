@@ -5,7 +5,7 @@ import {FileTransformRun, TransformerFactoryOOP} from "./transformerUtil";
 
 // From: https://github.com/nonara/ts-patch/discussions/29#discussioncomment-325979
 
-export const transformerVersion = {major: 1,  feature: 1 }
+export const transformerVersion = {major: 1,  feature: 2 }
 
 /* ****************************************************************************************************************** */
 // region: Helpers

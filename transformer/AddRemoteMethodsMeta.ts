@@ -1,13 +1,15 @@
 import ts, {
-    ClassDeclaration,
+    ArrowFunction,
+    ClassDeclaration, Expression, FunctionTypeNode, Identifier,
     MethodDeclaration,
-    Node,
-    ObjectLiteralExpression,
+    Node, NodeArray,
+    ObjectLiteralExpression, ParameterDeclaration,
     PropertyAccessExpression,
-    SyntaxKind
+    SyntaxKind, TypeNode, TypeReference, TypeReferenceNode
 } from 'typescript';
 import {FileTransformRun} from "./transformerUtil";
 import {transformerVersion} from "./index";
+import {visitReplace} from "restfuncs-common";
 
 
 /**
@@ -29,17 +31,17 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         if (node.kind === SyntaxKind.MethodDeclaration) { // @remote ?
             const methodDeclaration = (node as MethodDeclaration)
             if(this.getChilds(methodDeclaration).some(n => n.kind == SyntaxKind.StaticKeyword)) { // static ?
-                return node;
+                return node; // no special handling
             }
             if(this.getParent().kind !== SyntaxKind.ClassDeclaration) { // Method not under a class (i.e. an anonymous object ?}
-                return node;
+                return node; // no special handling
             }
 
             const methodName = (methodDeclaration.name as any).escapedText;
             try {
                 let remoteDecorator = this.getChilds(methodDeclaration).find(d => d.kind === SyntaxKind.Decorator);
                 if (!remoteDecorator) { // no @remote found ?
-                    return node;
+                    return node; // no special handling
                 }
 
                 // Diagnosis: Check for overloads:
@@ -99,6 +101,8 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      * @private
      */
     createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
+        // Note: These `factory.create...` "pyramids of doom", which you see all along in this method's code, were mostly created by copying the example code from readme.md#how-it-works through the [AST viewer tool](https://ts-ast-viewer.com/)
+
         const factory = this.context.factory;
 
         const arguments_typiaFuncs:Record<string, PropertyAccessExpression> = {
@@ -116,15 +120,26 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         }
         const result_typiaFuncs = {...arguments_typiaFuncs};
 
-        // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
-        // @ts-ignore
-        return factory.createObjectLiteralExpression(
-            [
-                // arguments: {...}
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("arguments"),
-                    factory.createObjectLiteralExpression(
-                        Object.keys(arguments_typiaFuncs).map((typiaFnName) =>
+        // Clone parameters and convert all ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
+        const methodParametersWithPlaceholders = structuredClone(node.parameters).map(paramDecl => {
+            return factory.createNamedTupleMember(
+                paramDecl.dotDotDotToken,
+                paramDecl.name as Identifier,
+                paramDecl.questionToken,
+                paramDecl.type || factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+            )
+        });
+
+        // Replace the (arrow-) function declarations inside methodParametersWithPlaceholders with "_callback" placeholders and create the callbackDeclarations array which contains the
+        // declarations like in readme.md saying "[{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration ...}]"
+        let callbackDeclarations: ObjectLiteralExpression[] = [];
+        visitReplace(methodParametersWithPlaceholders, (value, visitChilds, context) => {
+            if (value && (value as Node).kind === SyntaxKind.FunctionType) { // found an arrow-style function type declaration ?
+                const functionTypeNode = value as FunctionTypeNode;
+                // **** Create the callbackDeclaration like `{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration...}` in readme.md ****
+                // Create argumentsDeclaration. `{ validateEquals: ..., validatePrune: ...}` like in readme.md
+                const argumentsDeclaration = factory.createObjectLiteralExpression(
+                    Object.keys(arguments_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
                         factory.createPropertyAssignment(
                             factory.createIdentifier(typiaFnName),
                             factory.createArrowFunction(
@@ -141,31 +156,150 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
                                 factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
-                                    [factory.createTypeReferenceNode(
-                                        factory.createIdentifier("Parameters"),
-                                        [factory.createIndexedAccessTypeNode(
-                                            factory.createTypeQueryNode(
-                                                factory.createQualifiedName(
-                                                    factory.createIdentifier("this"),
-                                                    factory.createIdentifier("prototype")
-                                                ),
-                                                undefined
-                                            ),
-                                            factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
-                                        )]
-                                    )],
+                                    [factory.createTupleTypeNode(structuredClone(functionTypeNode.parameters).map(paramDecl => { // Must convert ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
+                                        return factory.createNamedTupleMember(
+                                            paramDecl.dotDotDotToken,
+                                            paramDecl.name as Identifier,
+                                            paramDecl.questionToken,
+                                            paramDecl.type || factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+                                        )
+                                    }))],
                                     [factory.createIdentifier("args")]
                                 )
                             )
                         )),
+                    true
+                );
+                // Create awaitedResultDeclaration. `awaitedResult = ...` like in readme.md:
+                let awaitedResultDeclaration: Expression;
+                if (functionTypeNode.type.kind == SyntaxKind.VoidKeyword) { // Return type is (sync) void ?
+                    awaitedResultDeclaration = factory.createIdentifier("undefined");
+                } else {
+                    if (functionTypeNode.type.kind == SyntaxKind.TypeReference && (functionTypeNode.type as TypeReference).typeName.escapedText == "Promise") { // Returns via Promise
+                        // Validity check:
+                        if ((functionTypeNode.type as TypeReference).typeArguments?.length != 1) {
+                            throw new Error(`A callback function, declared in ${methodName}'s parameters, returns a Promise with an invalid number of type arguments.`);
+                        }
+
+                        const awaitedType: TypeReferenceNode = (functionTypeNode.type as TypeReference).typeArguments[0] as TypeReferenceNode;
+
+                        awaitedResultDeclaration = factory.createObjectLiteralExpression(
+                            Object.keys(result_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier(typiaFnName),
+                                    factory.createArrowFunction(
+                                        undefined,
+                                        undefined,
+                                        [factory.createParameterDeclaration(
+                                            undefined,
+                                            undefined,
+                                            factory.createIdentifier("value"),
+                                            undefined,
+                                            factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+                                            undefined
+                                        )],
+                                        undefined,
+                                        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                        factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
+                                            [awaitedType],
+                                            [factory.createIdentifier("value")]
+                                        )
+                                    )
+                                )),
+                            true
+                        );
+                    } else {
+                        throw new Error(`A callback function, declared in ${methodName}'s parameters, has neither void nor a Promise as return type`);
+                    }
+
+
+                }
+
+                // Compose result:
+                const callbackDeclaration = factory.createObjectLiteralExpression(
+                    [
+                        // arguments: {...}
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("arguments"),
+                            argumentsDeclaration
+                        ),
+
+                        // awaitedResult: {...}
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("awaitedResult"),
+                            awaitedResultDeclaration
+                        ),
+                    ],
+                    true
+                );
+
+                callbackDeclarations.push(callbackDeclaration);
+                return factory.createLiteralTypeNode(factory.createStringLiteral("_callback")); // replace with "_callback"
+            }
+            return visitChilds(value, context)
+        });
+
+
+        let typeParamForTypiaValidate: TypeNode = factory.createTupleTypeNode(methodParametersWithPlaceholders);
+        if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
+            if (callbackDeclarations.length > 0) {
+                throw new Error(`Parameter ${node.parameters.find(p => p.type === undefined)!.name.escapedText} does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types.`) // TODO: add diagnosis
+            }
+
+            // Use the old style: Parameters<typeof this.prototype["method name"]>. This worked very fine in old versions but we now want to battle-test the other style
+            typeParamForTypiaValidate = factory.createTypeReferenceNode(
+                factory.createIdentifier("Parameters"),
+                [factory.createIndexedAccessTypeNode(
+                    factory.createTypeQueryNode(
+                        factory.createQualifiedName(
+                            factory.createIdentifier("this"),
+                            factory.createIdentifier("prototype")
+                        ),
+                        undefined
+                    ),
+                    factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
+                )]
+            )
+        }
+
+        // @ts-ignore
+        return factory.createObjectLiteralExpression(
+            [
+                // arguments: {...}
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("arguments"),
+                    factory.createObjectLiteralExpression(
+                        Object.keys(arguments_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
+                            factory.createPropertyAssignment(
+                                factory.createIdentifier(typiaFnName),
+                                factory.createArrowFunction(
+                                    undefined,
+                                    undefined,
+                                    [factory.createParameterDeclaration(
+                                        undefined,
+                                        undefined,
+                                        factory.createIdentifier("args"),
+                                        undefined,
+                                        factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+                                        undefined
+                                    )],
+                                    undefined,
+                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                    factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
+                                        [typeParamForTypiaValidate],
+                                        [factory.createIdentifier("args")]
+                                    )
+                                )
+                            )),
                         true
                     )
                 ),
+
                 // result: {...}
                 factory.createPropertyAssignment(
                     factory.createIdentifier("result"),
                     factory.createObjectLiteralExpression(
-                        Object.keys(result_typiaFuncs).map((typiaFnName) =>
+                        Object.keys(result_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
                             factory.createPropertyAssignment(
                                 factory.createIdentifier(typiaFnName),
                                 factory.createArrowFunction(
@@ -202,6 +336,15 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 )
                             )),
                         true
+                    )
+                ),
+
+                // callbacks: [...]:
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("callbacks"),
+                    factory.createArrayLiteralExpression(
+                        callbackDeclarations,
+                        false
                     )
                 ),
                 factory.createPropertyAssignment(
