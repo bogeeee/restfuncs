@@ -385,7 +385,7 @@ export class ServerSocketConnection {
      */
     handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall) {
 
-        visitReplace(methodCall.args, (item, visitChilds) => {
+        visitReplace(methodCall.args, (item, visitChilds, context) => {
             if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
                 if (typeof dtoItem._dtoType !== "string") {
@@ -438,7 +438,7 @@ export class ServerSocketConnection {
 
             }
             else {
-                return visitChilds(item)
+                return visitChilds(item, context)
             }
         });
     }

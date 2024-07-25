@@ -263,7 +263,7 @@ export class ClientSocketConnection {
     private docall_exec_insertChannelItemDTOs(args: unknown[]) {
         try {
             let numerOfFunctionDTOs = 0;
-            visitReplace(args, (item, visitChilds) => {
+            visitReplace(args, (item, visitChilds, context) => {
                 if (typeof item === "function") {
                     // Check if supported by server:
                     if(this.firstClient.serverProtocolVersion!.feature < 2) {
@@ -277,7 +277,7 @@ export class ClientSocketConnection {
                     numerOfFunctionDTOs++;
                     return functionDTO;
                 }
-                return visitChilds(item)
+                return visitChilds(item, context)
             });
         }
         catch (e) {

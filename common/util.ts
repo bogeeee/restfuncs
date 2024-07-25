@@ -4,7 +4,10 @@ type VisitReplaceContext = {
     /**
      * Not safely escaped. Should be used for diag only !
      */
-    diagnosis_path: string
+    diagnosis_path?: string
+
+    parentObject?: object
+    key?: unknown
 }
 
 function diagnosis_jsonPath(key: unknown) {
@@ -24,12 +27,12 @@ function diagnosis_jsonPath(key: unknown) {
  *
  * @param value
  * @param visitor
- * @param trackContext whether to pass on the context object. This hurts performance because the path is concatted every time, so use it only when needed. Setting this to "onError" re-executes the visitprelace with the concetxt when an error was thrown
+ * @param trackPath whether to pass on the context object. This hurts performance because the path is concatted every time, so use it only when needed. Setting this to "onError" re-executes the visitprelace with the concetxt when an error was thrown
  */
-export function visitReplace<O extends object>(value: O, visitor: ((value: unknown, visitChilds: (value: unknown, context?: VisitReplaceContext) => unknown, context?: VisitReplaceContext) => unknown ), trackContext: boolean | "onError" = false): O {
+export function visitReplace<O extends object>(value: O, visitor: (value: unknown, visitChilds: (value: unknown, context: VisitReplaceContext) => unknown, context: VisitReplaceContext) => unknown , trackPath: boolean | "onError" = false): O {
     const visisitedObjects = new Set<object>()
 
-    function visitChilds(value: unknown, context?: VisitReplaceContext) {
+    function visitChilds(value: unknown, context: VisitReplaceContext) {
         if(value === null) {
             return value;
         }
@@ -41,28 +44,28 @@ export function visitReplace<O extends object>(value: O, visitor: ((value: unkno
             visisitedObjects.add(obj);
 
             for (let k in obj) {
-                const key = k as keyof object;
-                const value = obj[key];
-                let newValue = visitor(value, visitChilds, context?{...context, diagnosis_path: `${context.diagnosis_path}${diagnosis_jsonPath(key)}`}:undefined);
-                if(newValue !== value) { // Only if value really has changed. We don't want to interfer with setting a readonly property and trigger a proxy
+                const keyInParent = k as keyof object;
+                const childValue = obj[keyInParent];
+                let newValue = visitor(childValue, visitChilds, {...context, parentObject: value, key: keyInParent, diagnosis_path: (context.diagnosis_path !== undefined?`${context.diagnosis_path!}${diagnosis_jsonPath(keyInParent)}`:undefined)});
+                if(newValue !== childValue) { // Only if childValue really has changed. We don't want to interfer with setting a readonly property and trigger a proxy
                     // @ts-ignore
-                    obj[key] = newValue;
+                    obj[keyInParent] = newValue;
                 }
             }
         }
         return value;
     }
 
-    if(trackContext === "onError") {
+    if(trackPath === "onError") {
         try {
-            return visitor(value,  visitChilds) as O; // Fast try without context
+            return visitor(value,  visitChilds, {}) as O; // Fast try without context
         }
         catch (e) {
             return visitReplace(value,  visitor, true); // Try again with context
         }
     }
 
-    return visitor(value, visitChilds,trackContext?{diagnosis_path: ""}:undefined) as O;
+    return visitor(value, visitChilds,{diagnosis_path: trackPath?"":undefined}) as O;
 }
 
 /**
