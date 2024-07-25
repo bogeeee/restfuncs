@@ -7,7 +7,6 @@
     "tests": "npm run dev:fastbuild && jest --runInBand",
     "tests:watch": "nodemon -e ts --exec npm run tests",
     "tests:runSpecificTest": "clear && npm run dev:fastbuild && jest --runInBand --testNamePattern=\"^callback-handle is cleaned up\"",
-    "tests:runSpecificTest_tsc_only": "clear && npm run --prefix transformer clean && npm run --prefix common dev:fastbuild && npm run --prefix client dev:fastbuild && npm run --prefix server dev:fastbuild && npm run --prefix tests/clientServer dev:build_tsc_only && jest --runInBand --testNamePattern=\"same function instances\" && npm run --prefix tests/clientServer clean",
     "tests:memoryLeakTests": "clear && npm run dev:fastbuild && ulimit -d 500000 && node --expose-gc node_modules/jest/bin/jest --runInBand --testPathIgnorePatterns=\".*\\.ts\" --testPathPattern=\".*memoryLeak.*\"",
     "dev:playground": "tsx devPlayground.ts",
     "clean": "npm run --prefix transformer clean && npm run --prefix common clean && npm run --prefix client clean && npm run --prefix server clean && npm run --prefix tests/clientServer clean",

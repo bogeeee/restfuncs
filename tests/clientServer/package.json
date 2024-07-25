@@ -4,7 +4,6 @@
   "type": "module",
   "scripts": {
     "dev:fastbuild": "tspc --build",
-    "dev:build_tsc_only": "ts-patch uninstall --silent && tsc",
     "clean": "tsc --build --clean",
     "test": "jest --config jest.config.js --runInBand"
   },
