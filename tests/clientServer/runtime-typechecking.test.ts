@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import {ClientCallback, ClientCallbackOptions, ServerSession as ServerSession} from "restfuncs-server/ServerSession";
+import {ClientCallback, ServerSession as ServerSession} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
@@ -8,6 +8,7 @@ import {develop_resetGlobals} from "restfuncs-server/Server";
 import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import {runClientServerTests, standardOptions} from "./lib";
+import _ from "underscore";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -550,14 +551,14 @@ describe("callbacks", () => {
         }
 
         @remote()
-        async putArgsIntoCallback(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[], options: Partial<ClientCallbackOptions>) {
-            (callback as ClientCallback).options = {...(callback as ClientCallback).options, ...options}; // add options
+        async putArgsIntoCallback(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[], propertiesToSet: Partial<ClientCallback>) {
+            _.extend(callback, propertiesToSet);
             return await callback.call(undefined,...args);
         }
 
         @remote()
-        async callObjectPromiseCallback(callback: ()=> Promise<{a: string, b?:number }>, options: Partial<ClientCallbackOptions>) {
-            (callback as ClientCallback).options = {...(callback as ClientCallback).options, ...options}; // Add options
+        async callObjectPromiseCallback(callback: ()=> Promise<{a: string, b?:number }>, propertiesToSet: Partial<ClientCallback>) {
+            _.extend(callback, propertiesToSet);
             return await callback();
         }
 

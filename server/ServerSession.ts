@@ -59,8 +59,8 @@ const COMPATIBLE_TRANSFORMER_MAJOR_VERSION = 1;
 const REQUIRED_TRANSFORMER_FEATURE_VERSION = 2;
 
 
-export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackOptions & {
-    options: ClientCallbackOptions
+export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackProperties;
+export type ClientCallbackProperties = {
 
     /**
      * Chosen by the client
@@ -81,6 +81,91 @@ export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackO
      * </p>
      */
     free: ()=> void;
+
+    /**
+     * Trims away any extra properties and arguments that are not allowed otherwise.
+     *
+     * Default: <b>true</b>
+     *
+     * <p>
+     * <i>Note: trimArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
+     * </p>
+     * @see RemoteMethodOptions#trimArguments for an example
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    trimArguments: boolean
+
+
+
+    /**
+     * Like {@link #trimArguments}, but for the result.
+     * <p>
+     * Default: <b>true</b>
+     * </p>
+     *
+     * <p>
+     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
+     * </p>
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    trimResult: boolean
+
+    // **** Section: Security ******
+    /**
+     * The meta (=param and result- validator functions for the places where it has been used. All those will be applied
+     */
+    useInRemoteMethod_meta: Set<RemoteMethodCallbackMeta>
+
+    /**
+     * Validates, that the arguments, which the server puts into the callback, have the proper type at runtime.
+     * <p>
+     * Therefore, this client callback must be "inline" (=fully declared inside the brackets of the @remote method's arguments) and it must be compiled with the restfuncs-transformer plugin.
+     * </p>
+     * <p>
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
+     * </p>
+     * <p>
+     * Default: <b>Weakest value of all used place's RemoteMethodOptions#validateArguments, which is normally "true".</b>
+     * </p>
+     */
+    validateArguments: boolean
+
+    /**
+     * Performs a check at runtime, to ensure, that the returned value from the client matches the type that is declared by the method (explicitly or implicitly).
+     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
+     *
+     * <p>
+     * Default: <b>Weakest value of all used place's RemoteMethodOptions#validateResult, which is normally "true".</b>
+     * </p>
+     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     */
+    validateResult: boolean
+}
+
+/**
+ * TODO: may be eliminate this type for simpler readability and list the args directly
+ */
+export type SwapPlaceholders_args = {
+    serverSessionClass: typeof ServerSession
+    remoteMethodName: string
+    remoteMethodOptions: RemoteMethodOptions,
+}
+
+/**
+ * Arguments array, but with placeholders for validation that can be swapped/replaced after validation.
+ */
+export type SwappableArgs = {
+    /**
+     * args where i.e. callback functions are replaced with "_callback" placeholders (+there a also dummy class instance placeholders planned for the future).
+     * Cause this is the only way to validate them properly with Typia.
+     */
+    argsWithPlaceholders: unknown[],
+
+    /**
+     * Replaces the "_callback" placeholders with the actual values (=a function).
+     * When there are zero callbacks in the args, this field should be set to undefined (and not a noop function)
+     */
+    swapCallbackPlaceholders?: (args: SwapPlaceholders_args) => void
 }
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -231,6 +316,20 @@ export type SecurityRelevantSessionFields = {
 type ClassOf<T> = {
     new(...args: unknown[]): T
 }
+// TODO: inline / does this need to be an extra type ?
+export type RemoteMethodCallbackMeta = {
+    arguments: {
+        validateEquals: (args: unknown[]) => IValidation<unknown[]>
+        validatePrune: (args: unknown[]) => IValidation<unknown[]>
+    },
+    /**
+     * Undefined, when the result is void (sync)
+     */
+    awaitedResult: {
+        validateEquals: (result: unknown) => IValidation<unknown>
+        validatePrune: (result: unknown) => IValidation<unknown>
+    } | undefined
+};
 
 type RemoteMethodsMeta = {
     transformerVersion: {major: number,  feature: number },
@@ -247,19 +346,7 @@ type RemoteMethodsMeta = {
             /**
              * callback function declarations (arrow style) inside the remote method's parameters
              */
-            callbacks: {
-                arguments: {
-                    validateEquals: (args: unknown[]) => IValidation<unknown[]>
-                    validatePrune:  (args: unknown[]) => IValidation<unknown[]>
-                },
-                /**
-                 * Undefined, when the result is void (sync)
-                 */
-                awaitedResult: {
-                    validateEquals: (result: unknown) => IValidation<unknown>
-                    validatePrune:  (result: unknown) => IValidation<unknown>
-                } | undefined
-            }[],
+            callbacks: RemoteMethodCallbackMeta[],
             jsDoc?: {
                 comment: string,
                 params: Record<string, string>
@@ -687,7 +774,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Do the call:
-                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, {req, res, securityProps: securityPropertiesOfRequest}, metaParams["trimArguments"] === "true",{
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, {argsWithPlaceholders: methodArguments}, {req, res, securityProps: securityPropertiesOfRequest}, metaParams["trimArguments"] === "true",{
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -857,6 +944,9 @@ export class ServerSession implements IServerSession {
      * <p>
      *     The structure of this method is explained in 'ServerSession breakdown.md'
      * </p>
+     * <p>
+     *     Side effect: Swaps/modifies values inside methodArguments
+     * </p>
      * @param cookieSession
      * @param securityPropertiesOfHttpRequest
      * @param remoteMethodName
@@ -867,7 +957,7 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], trimArguments_clientPreference: boolean, diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: SwappableArgs, call: ServerSession["call"], trimArguments_clientPreference: boolean, diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
         {
@@ -885,6 +975,10 @@ export class ServerSession implements IServerSession {
         let serverSession: ServerSession = new this();
 
         serverSession.validateCall(remoteMethodName, methodArguments, remoteMethodOptions.trimArguments !== undefined?remoteMethodOptions.trimArguments:trimArguments_clientPreference);
+        // Swap all placeholders to the final values:
+        methodArguments.swapCallbackPlaceholders?.({serverSessionClass: this, remoteMethodName, remoteMethodOptions});
+        const finalMethodArguments = methodArguments.argsWithPlaceholders; // i know, this reads strange :)
+
 
         {
             // *** Prepare serverSession for change tracking **
@@ -906,10 +1000,10 @@ export class ServerSession implements IServerSession {
                 // Execute the remote method:
                 if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
                     // @ts-ignore
-                    result = await enhancedServerSession[remoteMethodName](...methodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
+                    result = await enhancedServerSession[remoteMethodName](...finalMethodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
                 }
                 else {
-                    result = await enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
+                    result = await enhancedServerSession.doCall(remoteMethodName, finalMethodArguments); // Call method with user's doCall interceptor;
                 }
             }, remoteMethodName);
 
@@ -1488,7 +1582,7 @@ export class ServerSession implements IServerSession {
                             const options = this.getRemoteMethodOptions(methodName);
                             const trimExtraProperties = options.trimArguments !== undefined?options.trimArguments:result.metaParams["trimArguments"] === "true";
 
-                            this.validateMethodArguments(methodName, result.methodArguments, trimExtraProperties);
+                            this.validateMethodArguments(methodName, {argsWithPlaceholders: result.methodArguments}, trimExtraProperties);
                         }
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
@@ -1542,9 +1636,9 @@ export class ServerSession implements IServerSession {
      * @param reflectedMethod
      * @param args
      */
-    protected static validateMethodArguments(methodName: string, args: unknown[], trimExtraproperties: boolean) {
+    protected static validateMethodArguments(methodName: string, args: SwappableArgs, trimExtraproperties: boolean) {
         const meta = this.getRemoteMethodMeta(methodName);
-        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args):meta.arguments.validateEquals(args);
+        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args.argsWithPlaceholders):meta.arguments.validateEquals(args.argsWithPlaceholders);
         if(validationResult.success) {
             return;
         }
@@ -1589,12 +1683,12 @@ export class ServerSession implements IServerSession {
      * @param evil_methodName
      * @param evil_args
      */
-    protected validateCall(evil_methodName: string, evil_args: unknown[], trimExtraProperites: boolean) {
+    protected validateCall(evil_methodName: string, evil_args: SwappableArgs, trimExtraProperites: boolean) {
         const options = this.clazz.options;
 
         // types were only for the caller. We go back to "unknown" so must check again:
         const methodName = <unknown> evil_methodName;
-        const args = <unknown> evil_args;
+        const args = <unknown>  evil_args.argsWithPlaceholders;
 
         // Check methodName:
         if(!methodName) {
@@ -1625,7 +1719,7 @@ export class ServerSession implements IServerSession {
         }
 
         if(remoteMethodOptions.validateArguments !== false) {
-            this.clazz.validateMethodArguments(methodName, args, trimExtraProperites);
+            this.clazz.validateMethodArguments(methodName, evil_args, trimExtraProperites);
         }
     }
 
@@ -2645,59 +2739,6 @@ export type RemoteMethodOptions = {
          */
         needsAuthorization?: boolean
     }
-}
-
-export type ClientCallbackOptions = {
-    /**
-     * Validates, that the arguments, which the server put into the callback (sends to the client), have the proper type at runtime.
-     * <p>
-     * Therefore, this client callback must be "inline" (=fully declared inside the brackets of the @remote method's arguments) and it must be compiled with the restfuncs-transformer plugin.
-     * </p>
-     * <p>
-     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
-     * </p>
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     */
-    validateArguments?: boolean
-
-    /**
-     * Trims away any extra properties and arguments that are not allowed otherwise.
-     *
-     * Default: <b>true</b>
-     *
-     * <p>
-     * <i>Note: trimArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
-     * </p>
-     * @see RemoteMethodOptions#trimArguments for an example
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    trimArguments?: boolean
-
-    /**
-     * Performs a check at runtime, to ensure, that the returned value from the client matches the type that is declared by the method (explicitly or implicitly).
-     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
-     *
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    validateResult?: boolean
-
-    /**
-     * Like {@link #trimArguments}, but for the result.
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     *
-     * <p>
-     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    trimResult?: boolean
 }
 
 /**

@@ -1956,32 +1956,32 @@ test('validateCall security', async () => {
        }
 
        // Make public
-       public validateCall(evil_methodName: string, evil_args: any[]){
-           return super.validateCall(evil_methodName, evil_args, false);
+       public testValidateCall(evil_methodName: string, evil_args: any[]){
+           return super.validateCall(evil_methodName, {argsWithPlaceholders: evil_args}, false);
        }
    }
 
     const service = new MyService();
 
-    expect(service.validateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
+    expect(service.testValidateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
 
     // Malformed method name:
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"does not have a @remote() decorator");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("validateCall", []),"does not have a @remote() decorator");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall(null, []),"methodName not set");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("", []),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall(null, []),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("", []),"methodName not set");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall({}, []),"not a string");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("x", []),"not a function");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("nonExistant", []),"does not exist");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall({}, []),"not a string");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("x", []),"not a function");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("nonExistant", []),"does not exist");
 
     // malformed args:
    // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", null),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", null),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", ""),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", ""),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", {}),"not an array");
     // Further rtti argschecking is done in runtime-typechecking.test.ts
 
 });

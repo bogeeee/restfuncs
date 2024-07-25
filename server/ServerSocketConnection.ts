@@ -1,4 +1,10 @@
-import {ClientCallback, ServerSession} from "./ServerSession";
+import {
+    ClientCallback,
+    ClientCallbackProperties,
+    ServerSession,
+    RemoteMethodCallbackMeta,
+    SwappableArgs, SwapPlaceholders_args
+} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
@@ -275,10 +281,11 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
+                    let swappableArgs: SwappableArgs = {argsWithPlaceholders: methodCall.args}
                     if(FEATURE_ENABLE_CALLBACKS) {
-                        this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
+                        swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
                     }
-                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
+                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {
@@ -383,11 +390,13 @@ export class ServerSocketConnection {
      *
      * @param methodCall
      */
-    handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall) {
+    handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall): SwappableArgs {
+        const swapperFns: ((args: SwapPlaceholders_args) => void)[] = [];
 
         visitReplace(methodCall.args, (item, visitChilds, context) => {
             if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
+                // Validity check:
                 if (typeof dtoItem._dtoType !== "string") {
                     throw new Error("_dtoType is not a string");
                 }
@@ -395,42 +404,61 @@ export class ServerSocketConnection {
                 if(typeof id !== "number") {
                     throw new Error("id is not a number");
                 }
-                if(dtoItem._dtoType === "ClientCallback") {
 
-                    //TODO: also for existing callback:
-                    //  -Always apply the strictest security settings, from the RemoteMethoOptions of the currently called function
-                    // - Also add the argumens and result validation of the current calls remoteMethod->callbackDTO to a set. So that multiple will be checked / security cannot be downgraded by using the callback instance on some less strict place
+                const swapValueTo = (newValue: unknown) => {
+                    //@ts-ignore
+                    context.parentObject[context.key] = newValue;
+                }
 
-                    const existingCallback = this.clientCallbacks.peek(id); // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
-                    if(existingCallback) {
-                        return existingCallback;
-                    }
+                if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
+                    swapperFns.push((args: SwapPlaceholders_args) => {
+                        // Determine / create callback:
+                        const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
+                        let callback: ClientCallback;
+                        if(existing) { // Already exists ?
+                            callback = existing;
+                        }
+                        else {
+                            // Create a new callback (function + properties):
+                            const callbackProperties: ClientCallbackProperties = {
+                                socketConnection: this,
+                                id: id,
+                                free: () => {
+                                    this.freeClientCallback(callback!)
+                                },
+                                useInRemoteMethod_meta: new Set<RemoteMethodCallbackMeta>(),
+                                validateArguments: false,
+                                validateResult: false,
 
-                    // Create the function:
-                    // @ts-ignore
-                    let callback: ClientCallback = (...args: unknown[])=> {
-                        // Validity check:
-                        if(this.clientCallbacks.get(callback.id) === undefined) {
-                            throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
+                                trimArguments: true,
+                                trimResult: true
+                            }
+                            callback = _.extend((...args: unknown[]) => {
+                                // Validity check:
+                                if (this.clientCallbacks.get(callback.id) === undefined) {
+                                    throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
+                                }
+
+                                // Execute the downcall
+                                const downCall: Socket_DownCall = {
+                                    callbackFnId: callback.id,
+                                    args: args,
+                                    diagnosis_awaitResult: true,
+                                }
+                                this.sendMessage({type: "downCall", payload: downCall})
+                            }, callbackProperties);
                         }
 
-                        // Execute the downcall
-                        const downCall: Socket_DownCall = {
-                            callbackFnId: callback.id,
-                            args: args,
-                            diagnosis_awaitResult: true,
-                        }
-                        this.sendMessage({type: "downCall", payload: downCall})
-                    }
-                    callback.socketConnection = this;
-                    callback.id = id;
-                    callback.options = {};
-                    callback.free = () => {this.freeClientCallback(callback)}
+                        // Security:
 
-                    // Register it on client's id, so that the function instance can be reused:
-                    this.clientCallbacks.set(id, callback);
+                        //TODO: also for existing callback:
+                        //  -Always apply the strictest security settings, from the RemoteMethoOptions of the currently called function
+                        // - Also add the argumens and result validation of the current calls remoteMethod->callbackDTO to a set. So that multiple will be checked / security cannot be downgraded by using the callback instance on some less strict place
 
-                    return callback;
+                        this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
+                        swapValueTo(callback);
+                    });
+                    return "_callback"; // replace with placeholder for now.
                 }
                 else {
                     throw new Error(`Unhandled dto type:${dtoItem._dtoType}`)
@@ -441,6 +469,11 @@ export class ServerSocketConnection {
                 return visitChilds(item, context)
             }
         });
+
+        return {
+            argsWithPlaceholders: methodCall.args,
+            swapCallbackPlaceholders: swapperFns.length > 0? (args) => {swapperFns.forEach(f => f(args))} :undefined // calls all swapperFns.
+        }
     }
 
     /**
