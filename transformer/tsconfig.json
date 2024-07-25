@@ -10,6 +10,7 @@
       "es7",
       "es6",
       "dom",
+      "es2021.string",
       "es2022.error",
       "es2021.weakref"
     ],

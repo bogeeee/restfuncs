@@ -12,7 +12,7 @@ export class A extends ServerSession {
 
 
     /**
-     * myJsDocComment
+     * myJsDocComment ä ü ي
      * @param a aaaa
      * @param b bb
      * @param c
@@ -28,8 +28,6 @@ export class A extends ServerSession {
     myMethod2(a,b) {
         "marker"
     }
-
-
 }
 
 throw new Error("test to see if line numbers are correct");

@@ -7,7 +7,7 @@ import ts, {
     PropertyAccessExpression,
     SyntaxKind, TypeNode, TypeReference, TypeReferenceNode
 } from 'typescript';
-import {FileTransformRun} from "./transformerUtil";
+import {FileTransformRun, TextPatch} from "./transformerUtil";
 import {transformerVersion} from "./index";
 import {visitReplace} from "restfuncs-common";
 
@@ -21,10 +21,14 @@ import {visitReplace} from "restfuncs-common";
  * </pre></code>
  */
 export class AddRemoteMethodsMeta extends FileTransformRun {
-
+    /**
+     * Should this transformer squeeze the added declarations (result) into one line to keep the line numbers in the source text intact ?
+     * Prevents the [broken source maps bug](https://github.com/bogeeee/restfuncs/issues/2)
+     */
+    static squeezeDeclarationsIntoOneLine = true;
     diagnosis_currentClass_instanceMethodsSeen?: Set<string>;
     currentClass_instanceMethodsMeta?: Record<string, ObjectLiteralExpression>; // The {...} that should be added below... see example in readme.md
-    astWasModified = false;
+    result = new TextPatch();
 
     /* Visitor Function */
     visit(node: Node): Node {
@@ -64,10 +68,18 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 let result = this.visitChilds(node) as ClassDeclaration
 
                 if(Object.keys(this.currentClass_instanceMethodsMeta).length > 0) { // Current class has @remote methods ?
-                    // add "static getRemoteMethodsMeta() {...}" method:
-                    // @ts-ignore yes, a bit hacky, but with factory.crateClassDeclation we might also miss some properties
-                    result.members = this.context.factory.createNodeArray([...result.members.values(), this.create_static_getRemoteMethodsMeta_expression()])
-                    this.astWasModified = true;
+                    // *** Create the "getRemoteMethodsMeta()" function and add a patch for the source file to the result: ***
+                    const methodDeclarationNodeToInsert = this.create_static_getRemoteMethodsMeta_expression();
+                    // Convert to typescript code:
+                    const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments: true});
+                    let methodDeclarationAsPlainText: string = printer.printNode(ts.EmitHint.Unspecified, methodDeclarationNodeToInsert, this.sourceFile);
+
+                    if(AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine) {
+                        methodDeclarationAsPlainText = '/* code squeezed into one line to keep line numbers intact. You can output it prettier by setting "pretty":true in the plugin configuration in tsconfig.json */' + methodDeclarationAsPlainText.replaceAll("\n","");
+                    }
+                    methodDeclarationAsPlainText = ";" + methodDeclarationAsPlainText; // prepend with semicolon to prevent syntax error if there's stuff in the same line of the closing bracket
+
+                    this.result.patches.push({position: node.end -1 /* insert before the closing bracket*/, contentToInsert: methodDeclarationAsPlainText}); // Add patch to result
                 }
 
 

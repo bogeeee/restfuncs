@@ -4,6 +4,11 @@ This transformer prepares `ServerSession` subclasses for Typia and adds jsDoc in
 ## Usage
 [Here's how to use it](https://github.com/bogeeee/restfuncs/tree/3.x/readme.md#setting-up-the-build-here-it-gets-a-bit-nasty-)
 
+## Debugging parameters
+Insert these into the `{ "transform": "restfuncs-transformer", ...}` block.
+- debug: Set to true to dump the output of transformed **and affected** files each into a file named ...after_restfuncs-transformer.tmp
+- pretty: Pretty print the output (normally it is squeezed into one line to preserve line numbers and keep source maps intact)
+
 
 ## How the transformer chain works
 Here is, how the restfuncs-transformer, typia transformer and typescript-rtti work together: 

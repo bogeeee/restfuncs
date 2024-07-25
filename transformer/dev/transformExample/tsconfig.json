@@ -14,7 +14,7 @@
     "esModuleInterop": true,
     "strictNullChecks": true,
     "plugins": [
-      { "transform": "../../index.ts",  "transformProgram": true},
+      { "transform": "../../index.ts",  "transformProgram": true, "debug": true, "pretty": true},
       { "transform": "typia/lib/transform" },
       { "transform": "typescript-rtti/dist/transformer" },
     ]
