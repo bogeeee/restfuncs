@@ -20,7 +20,7 @@ import {
     fixErrorStack,
     fixTextEncoding,
     getDestination,
-    getOrigin, isClientCallback,
+    getOrigin,
     isTypeInfoAvailable,
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
