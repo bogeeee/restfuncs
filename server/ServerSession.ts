@@ -2887,3 +2887,7 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
         throw new Error(`Illegal value for csrfProtectionMode: '${session.csrfProtectionMode}'`);
     }
 }
+
+export function isClientCallback(fn: UnknownFunction) {
+    return ((fn as ClientCallback).socketConnection !== undefined);
+}

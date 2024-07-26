@@ -1,6 +1,6 @@
-import {remote, UnknownFunction} from "../ServerSession";
-import {isClientCallback} from "../Util";
+import {remote, ServerSession, UnknownFunction,isClientCallback} from "../ServerSession";
 import {EventEmitter} from "node:events"
+import _ from "underscore"
 
 type VoidCallbackFn = (...args: unknown[]) => void
 
@@ -23,7 +23,7 @@ type VoidCallbackFn = (...args: unknown[]) => void
  * </code></pre>
  *
  */
-export class ClientAwareEventEmitter<T, E extends unknown[]> implements EventEmitter {
+export class ClientAwareEventEmitter<T, E extends unknown[]> {
     /**
      * Should the {@link #emitForSure} method allow, that a client has (silently) disconnected without calling removeListener ? Otherwise an error is thrown.
      * Enabling this will result in not freeing up unused topics (event-types).
@@ -40,8 +40,9 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> implements EventEmi
      *
      * @param options
      */
-    constructor(options?: EventEmitterOptions<T, E>) {
+    constructor(options?: EventEmitterOptions) {
         if(options) {
+            //@ts-ignore
             _.apply(this, options);
         }
     }
@@ -95,7 +96,7 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> implements EventEmi
         // TODO: check that listener.skippable is disabeld
     }
 
-    protected checkIsValidListener(fn: UnknownFunction) {
+    protected checkIsValidListener(fn: any) {
         if(typeof fn !== "function") {
             throw new Error("The passed argument is not a function.")
         }
@@ -105,7 +106,7 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> implements EventEmi
     }
 }
 
-export type EventEmitterOptions<T, E> = Partial<Pick<ClientAwareEventEmitter<T, E>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately">>
+export type EventEmitterOptions = Partial<Pick<ClientAwareEventEmitter<any, any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately">>
 
 //***** Usage example ******
 
@@ -113,8 +114,8 @@ export type EventEmitterOptions<T, E> = Partial<Pick<ClientAwareEventEmitter<T, 
 type User = {name: string}
 const chatJoinEmitter = new ClientAwareEventEmitter<string /* the chatroom name */, [user: User] /* the listener function's arguments */>(); // Create a global emitter for all chatrooms
 // const chatLeaveEmitter = ... // A separate one for each event type. More resource friendly and allows more precise type parameters.
-class MyServerSession {
-    currentUser: User; // Assuming, you'll set this in the login method
+class MyServerSession extends ServerSession{
+    currentUser?: User; // Assuming, you'll set this in the login method
 
     // Expose the .on and .off methods to the client:
     @remote() onJoinChat(chatRoomName: string, listener: (joiningUser: User) => void) {
@@ -126,6 +127,6 @@ class MyServerSession {
 
     // Call, when YOU join the chat
     @remote() joinChat(chatRoomName: string) {
-        chatJoinEmitter.emit(chatRoomName, this.currentUser); // Call the event
+        chatJoinEmitter.emit(chatRoomName, this.currentUser!); // Call the event
     }
 }

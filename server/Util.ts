@@ -9,7 +9,6 @@ import {Request} from "express";
 import URL from "url";
 import {CommunicationError} from "./CommunicationError";
 import {reflect} from "typescript-rtti";
-import {ClientCallback, UnknownFunction} from "./ServerSession";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -600,8 +599,4 @@ export function diagnosis_hasDeepNullOrUndefined(obj: any): boolean {
     }
 
     return false;
-}
-
-export function isClientCallback(fn: UnknownFunction) {
-    return ((fn as ClientCallbac).socketConnection !== undefined);
 }
