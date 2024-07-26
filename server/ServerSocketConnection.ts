@@ -3,7 +3,7 @@ import {
     ClientCallbackProperties,
     ServerSession,
     RemoteMethodCallbackMeta,
-    SwappableArgs, SwapPlaceholders_args
+    SwappableArgs, SwapPlaceholders_args, UnknownFunction
 } from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
@@ -426,34 +426,51 @@ export class ServerSocketConnection {
                                 free: () => {
                                     this.freeClientCallback(callback!)
                                 },
-                                useInRemoteMethod_meta: new Set<RemoteMethodCallbackMeta>(),
-                                validateArguments: false,
-                                validateResult: false,
+                                _handedUpViaRemoteMethods: new Map(),
+                                _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim: UnknownFunction | undefined): Promise<unknown> => {
+                                    // <- **** here, the callback gets called (yeah) ****
 
-                                trimArguments: true,
-                                trimResult: true
+                                    // Validity check:
+                                    if (this.clientCallbacks.get(callback.id) === undefined) {
+                                        throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
+                                    }
+
+                                    // Validate arguments for all "via"s:
+                                    for(const via of callback._handedUpViaRemoteMethods) {
+
+                                    }
+
+                                    // Execute the downcall:
+                                    const downCall: Socket_DownCall = {
+                                        callbackFnId: callback.id,
+                                        args: args,
+                                        diagnosis_awaitResult: true,
+                                    }
+                                    this.sendMessage({type: "downCall", payload: downCall})
+
+                                    return new Promise<undefined>((resolve, reject) => {
+                                       // TODO
+                                    });
+                                },
+
                             }
                             callback = _.extend((...args: unknown[]) => {
-                                // Validity check:
-                                if (this.clientCallbacks.get(callback.id) === undefined) {
-                                    throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
-                                }
-
-                                // Execute the downcall
-                                const downCall: Socket_DownCall = {
-                                    callbackFnId: callback.id,
-                                    args: args,
-                                    diagnosis_awaitResult: true,
-                                }
-                                this.sendMessage({type: "downCall", payload: downCall})
+                                return callback._validateAndCall(args, false, false);
                             }, callbackProperties);
                         }
 
-                        // Security:
-
-                        //TODO: also for existing callback:
-                        //  -Always apply the strictest security settings, from the RemoteMethoOptions of the currently called function
-                        // - Also add the argumens and result validation of the current calls remoteMethod->callbackDTO to a set. So that multiple will be checked / security cannot be downgraded by using the callback instance on some less strict place
+                        // Register that the callback was handed up here (for security validations):
+                        //@ts-ignore
+                        const remoteMethodInstance = args.serverSessionClass.prototype[args.remoteMethodName];
+                        if(!remoteMethodInstance || !(typeof remoteMethodInstance === "function")) {
+                            throw new Error("not a function");
+                        }
+                        if(!callback._handedUpViaRemoteMethods.has(remoteMethodInstance)) { // not yet registered
+                            callback._handedUpViaRemoteMethods.set(remoteMethodInstance, {
+                                name: args.remoteMethodName,
+                                serverSessionClass: args.serverSessionClass
+                            })                            
+                        }
 
                         this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
                         swapValueTo(callback);

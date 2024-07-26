@@ -20,7 +20,7 @@ import {
     fixErrorStack,
     fixTextEncoding,
     getDestination,
-    getOrigin,
+    getOrigin, isClientCallback,
     isTypeInfoAvailable,
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
@@ -75,71 +75,31 @@ export type ClientCallbackProperties = {
     /**
      * Advanced: Tells the client, that this callback is not used anymore and allows the client to free the reference to it.
      * Usually this is done automatically for you, when node reports that the callback has been garbage collected (on the server).
-     * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
+     * So use it only, when having trouble with memory consumption on the client and automatic reporting comes too late.
      * <p>
      *     Alias for <code>free(clientCallback)</code>
      * </p>
      */
-    free: ()=> void;
+    free: () => void;
 
     /**
-     * Trims away any extra properties and arguments that are not allowed otherwise.
-     *
-     * Default: <b>true</b>
-     *
-     * <p>
-     * <i>Note: trimArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
-     * </p>
-     * @see RemoteMethodOptions#trimArguments for an example
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     * Internal (security)
+     * They key is the remote method instance itsself. This is the easiest way to ensure uniqueness and not have duplicate entries
      */
-    trimArguments: boolean
-
-
+    _handedUpViaRemoteMethods: Map<object, {
+        name: string,
+        serverSessionClass: typeof ServerSession
+    }>
 
     /**
-     * Like {@link #trimArguments}, but for the result.
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     *
-     * <p>
-     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
+     * validates and executes the call
+     * @param args
+     * @param trimArguments
+     * @param trimResult
+     * @param useSignatureForTrim the remote method, where the signature should be used to call validate with trimming.
+     * @returns a Promise or undefined for callbacks where we know by the meta, that they are (sync) void
      */
-    trimResult: boolean
-
-    // **** Section: Security ******
-    /**
-     * The meta (=param and result- validator functions for the places where it has been used. All those will be applied
-     */
-    useInRemoteMethod_meta: Set<RemoteMethodCallbackMeta>
-
-    /**
-     * Validates, that the arguments, which the server puts into the callback, have the proper type at runtime.
-     * <p>
-     * Therefore, this client callback must be "inline" (=fully declared inside the brackets of the @remote method's arguments) and it must be compiled with the restfuncs-transformer plugin.
-     * </p>
-     * <p>
-     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
-     * </p>
-     * <p>
-     * Default: <b>Weakest value of all used place's RemoteMethodOptions#validateArguments, which is normally "true".</b>
-     * </p>
-     */
-    validateArguments: boolean
-
-    /**
-     * Performs a check at runtime, to ensure, that the returned value from the client matches the type that is declared by the method (explicitly or implicitly).
-     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
-     *
-     * <p>
-     * Default: <b>Weakest value of all used place's RemoteMethodOptions#validateResult, which is normally "true".</b>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    validateResult: boolean
+    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction) => unknown
 }
 
 /**
@@ -2753,6 +2713,34 @@ export type RemoteMethodOptions = {
      */
     trimResult?: boolean
 
+    /**
+     * Like {@link #validateArguments}, but for callback functions that get handed up via (/including) this remote method.
+     * <p>
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
+     * </p>
+     * <p>
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
+     * <p>
+     *     Note: What does "(/including)" Mean? -> Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions.
+     *     Therefore, the callback tracks all places, where it gets handed up. At the time of callback execution, restfuncs will ensure, that the strictest security requirements of all those places are met. That means i.e., arguments/results may get validated against **multiple** method signatures.
+     * </p>
+     */
+    validateCallbackArguments?: boolean
+
+    /**
+     * Like {@link #validateResult}, but for the result of callback functions (=what the client sends back) that get handed up via (/including) this remote method.
+     *
+     * <p>
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
+     * <p>
+     *     Note: What does "(/including)" Mean? -> Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions.
+     *     Therefore, the callback tracks all places, where it gets handed up. At the time of callback execution, restfuncs will ensure, that the strictest security requirements of all those places are met. That means i.e., arguments/results may get validated against **multiple** method signatures.
+     * </p>
+     */
+    validateCallbackResult?: boolean
+
     apiBrowserOptions?: {
         /**
          * Indicates this to the viewer by showing a lock symbol.
@@ -2797,6 +2785,46 @@ export function free(resource: (...args: any[]) => any) {
     }
     else {
         throw new Error("Unsupported resource type")
+    }
+}
+
+export type UnknownFunction = (...args: unknown[]) => unknown
+
+/**
+ * Usage:
+ * <pre><code>
+ *     // instead of:
+ *     await myCallback("a","b","c");
+ *
+ *     // do:
+ *     await withTrim(myCallback)("a","b","c");
+ *
+ * </code></pre>
+ *
+ * <p>
+ *     Note: withTrim creates a new function instance every time. So i.e. you can't hand these to addEventListener(...) + removeEventListener(...) registries then.
+ *     TODO: This could be improved for convenience. But is it really worth it ? Star this issue then: https://github.com/bogeeee/restfuncs/issues/8
+ *     TODO: In that case, also make the util/EventEmitter class's resource-freeing mechanism aware of these derivatives.
+ * </p>
+ * @param callbackFn
+ * @param trimArguments
+ * @param trimResult
+ * @param useSignatureFrom
+ */
+export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArguments= true, trimResult= true, useSignatureFrom?: UnknownFunction): CB {
+    // Validity checks:
+    if (typeof callbackFn !== "function") {
+        throw new Error("Unsupported resource type")
+    }
+    if(!isClientCallback(callbackFn)) {
+        throw new Error("The passed argument is not a client callback function.");
+    }
+
+    const clientCallback = callbackFn as any as ClientCallback;
+
+    //@ts-ignore
+    return (...args: unknown[]) => {
+        return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
     }
 }
 
