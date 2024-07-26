@@ -138,6 +138,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             )
         });
 
+        // ** Callbacks: **
         // Replace the (arrow-) function declarations inside methodParametersWithPlaceholders with "_callback" placeholders and create the callbackDeclarations array which contains the
         // declarations like in readme.md saying "[{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration ...}]"
         let callbackDeclarations: ObjectLiteralExpression[] = [];
@@ -237,6 +238,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                             factory.createIdentifier("awaitedResult"),
                             awaitedResultDeclaration
                         ),
+                        // source:
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("diagnosis_source"), this.createSourceNodeDiagnosisExpression(functionTypeNode)
+                        )
                     ],
                     true
                 );
@@ -247,7 +252,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             return visitChilds(value, context)
         });
 
-
+        // ** Obtain, what goes into typia.validateEquals<...> ***
         let typeParamForTypiaValidate: TypeNode = factory.createTupleTypeNode(methodParametersWithPlaceholders);
         if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
             if (callbackDeclarations.length > 0) {
@@ -270,6 +275,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             )
         }
 
+        // ** compose result **
         // @ts-ignore
         return factory.createObjectLiteralExpression(
             [
@@ -355,8 +361,13 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                         false
                     )
                 ),
+                // jsDoc:
                 factory.createPropertyAssignment(
                     factory.createIdentifier("jsDoc"), this.createJsDocExpression(node, methodName)
+                ),
+                // diagnosis_source:
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("diagnosis_source"), this.createSourceNodeDiagnosisExpression(node)
                 )
             ],
             true
@@ -569,5 +580,46 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     nodeToString(node: Node, removeComments= false): string {
         const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments});
         return  printer.printNode(ts.EmitHint.Unspecified, node, this.sourceFile) as string;
+    }
+
+    /**
+     * Creates a node, that declares a SourceNodeDiagnosis (defined in ServerSession.ts) object.
+     *
+     * To output the info at runtime: i.e. "MyServerSessionClass.ts:23:30, reading: async myRemoteMethod(param1:...): Promise<void> {}
+     * @param node
+     */
+    createSourceNodeDiagnosisExpression(node: Node) {
+        const factory = this.context.factory;
+        if((node as any).body !== undefined) {
+            // Empty the body
+            node = structuredClone(node);
+            (node as any).body = factory.createBlock([],false);
+        }
+
+        const lineAndChar = this.sourceFile.getLineAndCharacterOfPosition((node.getStart?.(this.sourceFile, false) || node.pos));
+
+
+        return factory.createObjectLiteralExpression(
+            [
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("file"),
+                    factory.createStringLiteral(this.sourceFile.fileName)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("line"),
+                    factory.createNumericLiteral(lineAndChar.line + 1)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("character"),
+                    factory.createNumericLiteral(lineAndChar.character + 1)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("signatureText"),
+                    factory.createStringLiteral(this.nodeToString(node, false))
+                )
+            ],
+            false
+        )
+
     }
 }

@@ -329,6 +329,7 @@ export type RemoteMethodCallbackMeta = {
         validateEquals: (result: unknown) => IValidation<unknown>
         validatePrune: (result: unknown) => IValidation<unknown>
     } | undefined
+    diagnosis_source: SourceNodeDiagnosis
 };
 
 type RemoteMethodsMeta = {
@@ -356,8 +357,30 @@ type RemoteMethodsMeta = {
                  */
                 tags: {name:string, comment?: string}[]
             }
+            diagnosis_source: SourceNodeDiagnosis
         }
     }
+}
+
+type SourceNodeDiagnosis = {
+    file: string,
+    line: number,
+    character: number,
+
+    /**
+     * The complete source code / for functions it does not include the body
+     */
+    signatureText: string
+}
+
+/**
+ *
+ * @param source
+ * @param withSignature
+ * @returns i.e. "MyServerSessionClass.ts:23:30, reading: async myRemoteMethod(param1:...): Promise<void> {}
+ */
+export function diag_sourceLocation(source: SourceNodeDiagnosis, withSignature: true) {
+    return `${source.file}:${source.line}:${source.character}${withSignature?`, reading ${source.signatureText}`:""}`
 }
 
 /**
