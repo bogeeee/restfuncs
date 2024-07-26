@@ -64,6 +64,8 @@ export default function transformProgram(
     const transformerFactoryOOP = new TransformerFactoryOOP(AddRemoteMethodsMeta);
     AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine = !((config as any).pretty);
 
+    // TODO: Do we still need all this transformer stuff or can we throw that out and use a simple file vistor ? Cause we don't actually **transform** a SourceFile anymore, but just patch text content and not an AST.
+
     /* Transform AST */
     tsInstance.transform(
         /* sourceFiles */ program.getSourceFiles().filter(sourceFile => rootFileNames.includes(sourceFile.fileName) && !sourceFile.fileName.includes("after_restfuncs-transformer")),

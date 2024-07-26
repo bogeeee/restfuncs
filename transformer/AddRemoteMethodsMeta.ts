@@ -69,11 +69,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
                 if(Object.keys(this.currentClass_instanceMethodsMeta).length > 0) { // Current class has @remote methods ?
                     // *** Create the "getRemoteMethodsMeta()" function and add a patch for the source file to the result: ***
-                    const methodDeclarationNodeToInsert = this.create_static_getRemoteMethodsMeta_expression();
-                    // Convert to typescript code:
-                    const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments: true});
-                    let methodDeclarationAsPlainText: string = printer.printNode(ts.EmitHint.Unspecified, methodDeclarationNodeToInsert, this.sourceFile);
-
+                    let methodDeclarationAsPlainText = this.nodeToString(this.create_static_getRemoteMethodsMeta_expression(), true);
                     if(AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine) {
                         methodDeclarationAsPlainText = '/* code squeezed into one line to keep line numbers intact. You can output it prettier by setting "pretty":true in the plugin configuration in tsconfig.json */' + methodDeclarationAsPlainText.replaceAll("\n","");
                     }
@@ -114,7 +110,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      */
     createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
         // Note: These `factory.create...` "pyramids of doom", which you see all along in this method's code, were mostly created by copying the example code from readme.md#how-it-works through the [AST viewer tool](https://ts-ast-viewer.com/)
-
+        // TODO: Argh, we don't need these "pyramids of doom" any more all over this file, because at the end, the file content gets patched wit a string content (and not an AST). We could just return a string with the source code while using this.nodeToString(...)
         const factory = this.context.factory;
 
         const arguments_typiaFuncs:Record<string, PropertyAccessExpression> = {
@@ -568,5 +564,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             )
         )
 
+    }
+
+    nodeToString(node: Node, removeComments= false): string {
+        const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments});
+        return  printer.printNode(ts.EmitHint.Unspecified, node, this.sourceFile) as string;
     }
 }
