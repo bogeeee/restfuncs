@@ -126,3 +126,27 @@ test("Race condition on client that callback-handle is cleaned up but still in u
 
 
 })
+
+describe("Error in an unawaited callback promise", () => {
+
+    for(const disableSecurity of [false, true]) {
+        test(`Throwing an Error in an unawaited callback promise should not lead to 'unhandledrejections' and crash the whole process - with disableSecurity=${disableSecurity}`, async () => {
+            class ServerAPI extends ServerSession {
+                static options: ServerSessionOptions = {devDisableSecurity: disableSecurity}
+
+                @remote()
+                myMethod(cb: () => Promise<void>) {
+                    cb(); // not awaiting the result
+                }
+            }
+
+            await runClientServerTests(new ServerAPI, async (apiProxy) => {
+                await apiProxy.myMethod(async () => {
+                    throw new Error("This error should not lead to an 'unhandledrejection' and crash the whole process");
+                })
+            }, {
+                useSocket: true,
+            });
+        });
+    }
+});

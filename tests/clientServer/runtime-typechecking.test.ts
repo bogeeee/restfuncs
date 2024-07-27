@@ -541,6 +541,11 @@ test('Test result validation with null and undefined', async () => {
 describe("callbacks", () => {
     class ServerAPI extends TypecheckingService {
         @remote()
+        async withSimpleCallbackParam(cb: (...args: any) => void) {
+
+        }
+
+        @remote()
         async callVoidPromiseCallback(callback: ()=> Promise<void>) {
             await callback();
         }
@@ -551,24 +556,47 @@ describe("callbacks", () => {
         }
 
         @remote()
-        async putArgsIntoCallback(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[], propertiesToSet: Partial<ClientCallback>) {
-            _.extend(callback, propertiesToSet);
+        async putArgsIntoCallback(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[]) {
             return await callback.call(undefined,...args);
+        }
+
+        @remote()
+        async putArgsIntoCallbackWithTrim(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[], trimArgs: boolean, trimResult: boolean) {
+            return await withTrim(callback, trimArgs, trimResult).call(undefined,...args);
         }
 
         @remote()
         async callWithTrim(callback: (a: string, b: number, c?: {myFlag: boolean})=> Promise<any>, args:any[]) {
             return await withTrim(callback).call(undefined,...args);
         }
-
         @remote()
-        async callObjectPromiseCallback(callback: ()=> Promise<{a: string, b?:number }>, propertiesToSet: Partial<ClientCallback>) {
-            _.extend(callback, propertiesToSet);
+
+        async callObjectPromiseCallback(callback: ()=> Promise<{a: string, b?:number }>) {
             return await callback();
         }
 
         @remote()
+        async callObjectPromiseCallbackWithTrim(callback: ()=> Promise<{a: string, b?:number }>, trimArgs: boolean, trimResult: boolean) {
+            return await withTrim(callback, trimArgs, trimResult)();
+        }
+
+        @remote()
         async alsoWithStringParam(callback1: ()=> void, someString: string) {
+        }
+
+        @remote()
+        async twoCallbacks(callback1: ()=> void, callback2: ()=> void) {
+            callback1();
+            callback2();
+        }
+
+        @remote()
+        async callbacksInDeepParam(p: {x: {cbs: ((p: string) => void)[]}}, argForCallbacks: any) {
+            if(p.x.cbs.length === 0) {
+                throw new Error("No callbacks seen");
+            }
+
+            p.x.cbs.forEach(cb => cb(argForCallbacks as string)); // call them
         }
 
 
@@ -577,7 +605,7 @@ describe("callbacks", () => {
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn();
 
-        await expect(async () => apiProxy.putArgsIntoCallback(mock, ["abc", 3, {myFlag: true}],{})).resolves.toReturn()
+        await expect(async () => apiProxy.putArgsIntoCallback(mock, ["abc", 3, {myFlag: true}])).resolves.toReturn()
 
     }, {
         useSocket: true
@@ -586,10 +614,10 @@ describe("callbacks", () => {
     it("should error when putting illegal args into a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn();
 
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [],{}), /invalid number of arguments/)
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3],{}), /invalid number of arguments/)
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [123,3],{}), /expected.*string.*123/)
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, ["abc","x"],{}), /expected.*number.*x/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, []), /invalid number of arguments/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3]), /invalid number of arguments/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [123,3]), /expected.*string.*123/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, ["abc","x"]), /expected.*number.*x/)
 
     }, {
         useSocket: true
@@ -598,7 +626,7 @@ describe("callbacks", () => {
     it("should trim extra properties", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         async function returnExact(...args:any[]) { return args}
 
-        expect(await apiProxy.putArgsIntoCallback(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}],{})).toStrictEqual(["abc", 3, {myFlag: true}])
+        expect(await apiProxy.putArgsIntoCallbackWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}], true, false)).toStrictEqual(["abc", 3, {myFlag: true}])
 
     }, {
         useSocket: true
@@ -607,7 +635,9 @@ describe("callbacks", () => {
     it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         async function returnExact(...args:any[]) { return args}
 
-        expectAsyncFunctionToThrow(() => apiProxy.callWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}]), /extraProperty/)
+        await expectAsyncFunctionToThrow(() => apiProxy.callWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}]), /extraProperty/)
+
+        await expectAsyncFunctionToThrow(() => apiProxy.putArgsIntoCallbackWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}],false /* !!!! */, true), /extraProperty/); // Minor: Lets just test the other way
 
     }, {
         useSocket: true
@@ -637,13 +667,15 @@ describe("callbacks", () => {
     }));
 
     it("should trim extra properties off the result", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
-        expect(await apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true} as any}, {} )).toStrictEqual({a: "123", b: 4})
+        expect(await apiProxy.callObjectPromiseCallbackWithTrim(async () => {return {a: "123", b: 4, extraProp: true} as any}, false,true )).toStrictEqual({a: "123", b: 4})
     }, {
         useSocket: true
     }));
 
     it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
-        await expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {return {a: "123", b: 4, extraProp: true} as any} ,{}), /extraProp/ );
+        await expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {
+            return {a: "123", b: 4, extraProp: true} as any
+        }), /extraProp.*withTrim/); // There should be a proper hint for withTrim in the error message
 
     }, {
         useSocket: true
@@ -655,6 +687,160 @@ describe("callbacks", () => {
     }, {
         useSocket: true
     }));
+
+    it("should fail when trying to inject a placeholder string into a callback param", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        //@ts-ignore
+        await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback") );
+        //@ts-ignore
+        await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback0") );
+    }, {
+        useSocket: true
+    }));
+
+    test("Two callback signatures should currently not be possible", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await expectAsyncFunctionToThrow(() => apiProxy.twoCallbacks(() => {}, () => {}) );
+    }, {
+        useSocket: true
+    }));
+
+    test("Callbacks deep in params", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await apiProxy.callbacksInDeepParam({x: {cbs: [(a:string) => {}, (a:string) => {}]}}, "");
+
+        await expectAsyncFunctionToThrow(() => apiProxy.callbacksInDeepParam({x: {cbs: [(a:string) => {}, (a:string) => {}]}}, 123));
+    }, {
+        useSocket: true
+    }));
+});
+
+describe("callbacks with mixed security requirements", () => {
+
+    class SecDisabledAPI extends ServerSession {
+        static options: ServerSessionOptions = {
+            devDisableSecurity: true,
+            logErrors: false,
+            exposeErrors: true
+        }
+
+        @remote()
+        async putInvalidValueIntoCallback(cb: (a: string) => Promise<string>) {
+            //@ts-ignore
+            await cb(123);
+        }
+    }
+
+    class ServerAPI extends TypecheckingService {
+        @remote({validateCallbackArguments: false})
+        async nonValidate_putInvalidValueIntoCallback(cb: (a: string) => Promise<string>) {
+            //@ts-ignore
+            await cb(123);
+        }
+
+        @remote({validateCallbackResult: false})
+        async nonValidateResult_putValueIntoCallback(cb: (a: string) => Promise<string>, value: string = "dummy") {
+            await cb(value);
+        }
+
+        @remote()
+        async putValueIntoCallback(cb: (a: string) => Promise<string>, value: string) {
+            return await cb(value);
+        }
+
+        @remote()
+        args_placeAWithValidationEnabled(cb: (a:string) => void) {
+
+        }
+
+        @remote({validateCallbackArguments: false})
+        args_placeBWithValidationDisabled(cb: (a:string) => void, valueForCall: any) {
+            cb(valueForCall);
+        }
+
+        @remote()
+        result_placeAWithValidationEnabled(cb: () => Promise<string>) {
+
+        }
+
+        @remote({validateCallbackResult: false})
+        async result_placeBWithValidationDisabled(cb: () => Promise<string>) {
+            await cb();
+        }
+
+
+        @remote()
+        differentSignatures_args_A(cb: (a:string) => void) {
+            cb("");
+        }
+
+        @remote()
+        differentSignatures_args_B(cb: (a:number) => void) {
+            cb(123);
+        }
+
+
+        @remote()
+        async differentSignatures_result_A(cb: () => Promise<string>) {
+            await cb();
+        }
+
+        @remote()
+        async differentSignatures_result_B(cb: () => Promise<number>) {
+            await cb();
+        }
+    }
+
+    it("should not validate arguments or params witch devDisableSecurity", () => runClientServerTests(new SecDisabledAPI, async (apiProxy) => {
+        await apiProxy.putInvalidValueIntoCallback(async (dummy) => ""); // Should work
+        //@ts-ignore
+        await apiProxy.putInvalidValueIntoCallback(async (dummy) => 123); // Returning a an invalid number should be ok
+    }, { useSocket: true }));
+
+    it("should not validate arguments when set in the remoteMethodOptions", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        await apiProxy.nonValidate_putInvalidValueIntoCallback((async (dummy) => "")); // Should work
+    }, { useSocket: true}));
+
+    it("should not validate result when set disabled the remoteMethodOptions", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        //@ts-ignore
+        await apiProxy.nonValidateResult_putValueIntoCallback((async (dummy) => 123)); // Returning a an invalid number should be ok
+        //@ts-ignore
+        await expectAsyncFunctionToThrow(() => apiProxy.nonValidateResult_putValueIntoCallback((async (dummy) => 123), 123)); // Minor importance: Lett's mix it: allow invalid result, but the arguments should still be validated
+    }, {useSocket: true}));
+
+    it("Args: should fail validation in mixed case", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        function myCallback(a: string) {}
+        await apiProxy.args_placeBWithValidationDisabled(myCallback, 123); // Should work with anvalid param for now
+        await apiProxy.args_placeAWithValidationEnabled(myCallback);
+        await expectAsyncFunctionToThrow(() =>  apiProxy.args_placeBWithValidationDisabled(myCallback, 123)); // Should not work anymore, after myCallback was not used in another place
+
+    }, {useSocket: true}));
+
+    it("Result: should fail validation in mixed case", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        async function myFaultyCallback(): Promise<string> {
+            //@ts-ignore
+            return 123;
+        }
+        await apiProxy.result_placeBWithValidationDisabled(myFaultyCallback); // Should work with anvalid param for now
+        await apiProxy.result_placeAWithValidationEnabled(myFaultyCallback);
+        await expectAsyncFunctionToThrow(() =>  apiProxy.args_placeBWithValidationDisabled(myFaultyCallback, 123)); // Should not work anymore, after myFaultyCallback was not used in another place
+
+    }, {useSocket: true}));
+
+    it("should fail with different arg signatures", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        function myReusableCallback(arg: any) {}
+
+        await apiProxy.differentSignatures_args_A(myReusableCallback) // should work
+        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_args_B(myReusableCallback), /.*a\\:string.*a\\:number/); // Expect the error message to properly explain it
+
+    }, {useSocket: true}));
+
+    it("should fail with different result signatures", () => runClientServerTests(new ServerAPI(), async (apiProxy) => {
+        async function myReusableCallback(): Promise<any> {
+            return ""
+        }
+
+        await apiProxy.differentSignatures_result_A(myReusableCallback) // should work
+        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_result_B(myReusableCallback), /.*Promise<string>.*Promise<number>/); // Expect the error message to properly explain it
+
+    }, {useSocket: true}));
 })
 
 /*
