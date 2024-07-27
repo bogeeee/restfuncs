@@ -10,6 +10,7 @@ import ts, {
 import {FileTransformRun, TextPatch} from "./transformerUtil";
 import {transformerVersion} from "./index";
 import {visitReplace} from "restfuncs-common";
+import {diag_sourceLocation} from "restfuncs-server/ServerSession";
 
 
 /**
@@ -50,7 +51,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
                 // Diagnosis: Check for overloads:
                 if(this.diagnosis_currentClass_instanceMethodsSeen?.has(methodName)) { // Seen twice ?
-                    throw new Error(`@remote methods cannot have multiple/overloaded signatures: ${methodName}`) // TODO: add diagnosis
+                    throw new Error(`@remote methods cannot have multiple/overloaded signatures: ${methodName}. Location: ${this.diag_sourceLocation(node)}`) // TODO: add diagnosis
                 }
 
                 this.currentClass_instanceMethodsMeta![methodName] = this.createMethodMetaExpression(methodDeclaration, methodName) // create the code:
@@ -187,7 +188,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                     if (functionTypeNode.type.kind == SyntaxKind.TypeReference && ((functionTypeNode.type as TypeReferenceNode).typeName as any).escapedText == "Promise") { // Returns via Promise
                         // Validity check:
                         if (!(functionTypeNode.type as TypeReferenceNode).typeArguments || (functionTypeNode.type as TypeReferenceNode).typeArguments!.length != 1) {
-                            throw new Error(`A callback function, declared in ${methodName}'s parameters, returns a Promise with an invalid number of type arguments.`);
+                            throw new Error(`A callback function, declared in ${methodName}'s parameters, returns a Promise with an invalid number of type arguments. Location: ${this.diag_sourceLocation(node)}`);
                         }
 
                         const awaitedType: TypeReferenceNode = (functionTypeNode.type as TypeReferenceNode).typeArguments![0] as TypeReferenceNode;
@@ -218,10 +219,8 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                             true
                         );
                     } else {
-                        throw new Error(`A callback function, declared in ${methodName}'s parameters, has neither void nor a Promise as return type`);
+                        throw new Error(`A callback function, declared in ${methodName}'s parameters, has neither void nor a Promise as return type. Location: ${this.diag_sourceLocation(node)}`);
                     }
-
-
                 }
 
                 // Compose result:
@@ -256,7 +255,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         let typeParamForTypiaValidate: TypeNode = factory.createTupleTypeNode(methodParametersWithPlaceholders);
         if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
             if (callbackDeclarations.length > 0) {
-                throw new Error(`Parameter ${(node.parameters.find(p => p.type === undefined) as any)!.name.escapedText} does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types.`) // TODO: add diagnosis
+                throw new Error(`Parameter '${(node.parameters.find(p => p.type === undefined) as any)!.name.escapedText}' does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types. Location: ${this.diag_sourceLocation(node)}`) // TODO: add diagnosis
             }
 
             // Use the old style: Parameters<typeof this.prototype["method name"]>. This worked very fine in old versions but we now want to battle-test the other style
@@ -405,7 +404,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
         const comment = jsdoc.comment || "";
         if(typeof comment !== "string") {
-            throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+            throw new Error(`Expected comment to be a string. Got: ${comment}. Location: ${this.diag_sourceLocation(node)}`); // TODO add to diagnostics instead
         }
 
         // Collect params and tags
@@ -415,7 +414,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             const name = (tag.tagName.escapedText as string).toLowerCase()
             const comment = tag.comment;
             if(comment && typeof comment !== "string") {
-                throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+                throw new Error(`Expected comment to be a string. Got: ${comment}. Location: ${this.diag_sourceLocation(node)}` ); // TODO add to diagnostics instead
             }
 
             if(name === "param") {
@@ -621,5 +620,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             false
         )
 
+    }
+
+    diag_sourceLocation(node: Node) {
+        const lineAndChar = this.sourceFile.getLineAndCharacterOfPosition((node.getStart?.(this.sourceFile, false) || node.pos));
+        return `${this.sourceFile.fileName}:${lineAndChar.line+1}:${lineAndChar.character+1}`
     }
 }
