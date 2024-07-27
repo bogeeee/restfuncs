@@ -2200,6 +2200,8 @@ export class ServerSession implements IServerSession {
             validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
             trimResult: (ownMethodOptions.trimResult !== undefined)?ownMethodOptions.trimResult: ownDefaultOptions.trimResult,
             trimArguments: (ownMethodOptions.trimArguments !== undefined)?ownMethodOptions.trimArguments : (parentResult.trimArguments !== undefined?parentResult.trimArguments : ownDefaultOptions.trimArguments),
+            validateCallbackArguments: (ownMethodOptions.validateCallbackArguments !== undefined)?ownMethodOptions.validateCallbackArguments: ownDefaultOptions.validateCallbackArguments,
+            validateCallbackResult: (ownMethodOptions.validateCallbackResult !== undefined)?ownMethodOptions.validateCallbackResult: ownDefaultOptions.validateCallbackResult,
             apiBrowserOptions: {
                 needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions.needsAuthorization : (parentResult.apiBrowserOptions?.needsAuthorization !== undefined?parentResult.apiBrowserOptions.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
             }
