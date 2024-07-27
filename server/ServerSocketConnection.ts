@@ -449,7 +449,7 @@ export class ServerSocketConnection {
                                     this.sendMessage({type: "downCall", payload: downCall})
 
                                     return new Promise<undefined>((resolve, reject) => {
-                                       // TODO
+                                        resolve(undefined); // TODO
                                     });
                                 },
 
