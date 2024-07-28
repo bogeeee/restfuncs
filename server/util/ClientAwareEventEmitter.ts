@@ -37,6 +37,11 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> {
     public freeOnClientImmediately = false;
 
     /**
+     * Undefined = unlimited (default)
+     */
+    public maxListenersPerClient?: number
+
+    /**
      *
      * @param options
      */
@@ -50,6 +55,7 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> {
     on(type: T, listener: (...eventArgs: E) => any) {
         this.checkIsValidListener(listener);
         throw new Error("TODO")
+        // TODO: regard this.maxListenersPerClient
         return this;
     }
 
@@ -106,7 +112,7 @@ export class ClientAwareEventEmitter<T, E extends unknown[]> {
     }
 }
 
-export type EventEmitterOptions = Partial<Pick<ClientAwareEventEmitter<any, any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately">>
+export type EventEmitterOptions = Partial<Pick<ClientAwareEventEmitter<any, any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately" | "maxListenersPerClient">>
 
 //***** Usage example ******
 
