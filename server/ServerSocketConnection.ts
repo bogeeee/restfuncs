@@ -22,7 +22,7 @@ import {
 import _ from "underscore";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {fixErrorStack} from "./Util";
+import {diagnisis_shortenValue, fixErrorStack} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
@@ -36,6 +36,8 @@ export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
+    public socketCloseReason?:CloseReason;
+
     lastSequenceNumberFromClient=-1;
 
     /**
@@ -78,7 +80,13 @@ export class ServerSocketConnection {
     // TODO Finalization registry for client initiated Readbles to signal GC to the client
     // TODO Finalization registry for client initiated UploadFiles to signal GC to the client
 
+    /**
+     * TODO: Imagine the case of a forgotten ClientCallbacksForEntities instance. Use an IterableWeakSet
+     * @protected
+     */
+    protected weakOnCloseListeners = new Set<OnCloseHandlerInterface>();
 
+    protected onCloseListeners = new Set<(reason?: CloseReason) => void>();
 
 
     /**
@@ -125,6 +133,20 @@ export class ServerSocketConnection {
                 this.socket.send("[Error] " + (e?.message || e));
             }
         })
+
+        socket.on("close", (message: string, obj?: object) => {
+            this.handleClose((message || obj)?{message, obj}:undefined);
+        });
+
+        socket.on("error", (error: Error) => {
+            // Make sure it is closed:
+            try {
+                socket.close()
+            }
+            catch (e) {
+            }
+            this.handleClose(error);
+        });
 
         // TODO: Performance: Could we just use the http cookie here ? At least for our own JWT cookie handler. There we also know how to do a validity check.
 
@@ -578,4 +600,53 @@ export class ServerSocketConnection {
             this.serverSessionClass2SecurityPropertiesOfHttpRequest!.set(serverSessionClass, answer.result);
         }
     }
+
+    /**
+     * Adds an listener that gets called on close / disconnect
+     * @param callback
+     */
+    public onClose(callback: (reason?: CloseReason) => void) {
+        this.onCloseListeners.add(callback);
+    }
+
+    /**
+     * Like onclose, but this time not a function but some instance that can be weakly referenced.
+     * Currently not working !! See https://github.com/bogeeee/restfuncs/issues/9
+     * @param handler
+     */
+    public onCloseWeak(handler: OnCloseHandlerInterface) {
+        this.weakOnCloseListeners.add(handler);
+    }
+
+    public close(reason?: CloseReason) {
+        this.socket.close();
+        this.socketCloseReason = reason;
+        this.handleClose();
+    }
+
+    protected handleClose(reason?: CloseReason) {
+        this.onCloseListeners.forEach(l => l(reason)); // Call listeners
+        this.weakOnCloseListeners.forEach(h => h.handleServerSocketConnectionClosed(this, reason));
+    }
+
+
+    /**
+     * See also: {@link #socketCloseReason}
+     */
+    public isClosed() {
+        return this.socket.readyState === "closing" || this.socket.readyState === "closed";
+    }
 }
+
+export type CloseReason = {message: string, obj?: object} | Error
+export function diagnosis_closeReasonToString(reason?: CloseReason) {
+    if(reason === undefined) {
+        return undefined;
+    }
+    if(reason instanceof Error) {
+        return reason.message;
+    }
+    return reason.message?(`${reason.message}` + (reason.obj?` obj=${diagnisis_shortenValue(reason.obj)}`:"")):diagnisis_shortenValue(reason.obj);
+}
+
+export type OnCloseHandlerInterface = { handleServerSocketConnectionClosed: ((conn: ServerSocketConnection, reason?: CloseReason) => void) };

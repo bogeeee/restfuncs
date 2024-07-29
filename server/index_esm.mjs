@@ -22,6 +22,15 @@ export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
 export const ClientCallback = cjsServerSession.ClientCallback
 export const free = cjsServerSession.free
 
+import cjsClientCallbacks from "./util/ClientCallbacks.js"
+export const ClientCallbacks = cjsClientCallbacks.ClientCallbacks
+
+import cjsClientCallbacksForEntities from "./util/ClientCallbacksForEntities.js"
+export const ClientCallbacksForEntities = cjsClientCallbacksForEntities.ClientCallbacksForEntities
+
+import cjsClientCallbacksCommon from "./util/ClientCallbacksCommon.js"
+export const ClientCallbacksCommon = cjsClientCallbacksCommon.ClientCallbacksCommon
+
 import cjsCommon from "restfuncs-common"
 export const UploadFile = cjsCommon.UploadFile
 

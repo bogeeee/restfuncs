@@ -70,7 +70,7 @@ export type ClientCallbackProperties = {
     /**
      * The connection to the client, that made the call via engine.io / websockets.
      */
-    socketConnection?: ServerSocketConnection
+    socketConnection: ServerSocketConnection
 
     /**
      * Advanced: Tells the client, that this callback is not used anymore and allows the client to free the reference to it.
@@ -99,7 +99,7 @@ export type ClientCallbackProperties = {
      * @param useSignatureForTrim the remote method, where the signature should be used to call validate with trimming.
      * @returns a Promise or undefined for callbacks where we know by the meta, that they are (sync) void
      */
-    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction) => unknown
+    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction, diagnosis?:{/*Note: the class / multiple*/isFromClientCallbacks?:boolean}) => unknown
 }
 
 /**
