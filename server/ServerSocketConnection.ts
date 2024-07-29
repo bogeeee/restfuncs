@@ -305,7 +305,7 @@ export class ServerSocketConnection {
                 try {
                     let swappableArgs: SwappableArgs = {argsWithPlaceholders: methodCall.args}
                     if(FEATURE_ENABLE_CALLBACKS) {
-                        swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
+                        swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them
                     }
                     const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
@@ -412,10 +412,10 @@ export class ServerSocketConnection {
      *
      * @param methodCall
      */
-    handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall): SwappableArgs {
+    handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
         const swapperFns: ((args: SwapPlaceholders_args) => void)[] = [];
 
-        visitReplace(methodCall.args, (item, visitChilds, context) => {
+        visitReplace(remoteMethodArgs, (item, visitChilds, context) => {
             if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
                 // Validity check:
@@ -510,7 +510,7 @@ export class ServerSocketConnection {
         });
 
         return {
-            argsWithPlaceholders: methodCall.args,
+            argsWithPlaceholders: remoteMethodArgs,
             swapCallbackPlaceholders: swapperFns.length > 0? (args) => {swapperFns.forEach(f => f(args))} :undefined // calls all swapperFns.
         }
     }
