@@ -108,4 +108,5 @@ Another advantage of this approach is, that all RestunfsClients can just share o
 
 # Callback functions
 Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions. 
-Therefore, the callback instance tracks all places, where it gets handed up. At the time of callback execution, restfuncs ensures, that the strictest security requirements of all those places are met. That means i.e., arguments/results may get validated against **multiple** method signatures.
+Therefore, the callback instance tracks all places, where it gets handed up. At the time of callback execution, restfuncs ensures, that the strictest security requirements of all those places are met. That means i.e., arguments/results will get validated against **all** method signatures.
+"strictest security requirements" Also means, that it's prevented to "downgrade" a callback from void to return-via-promise.

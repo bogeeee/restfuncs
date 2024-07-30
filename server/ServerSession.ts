@@ -87,8 +87,9 @@ export type ClientCallbackProperties = {
      * They key is the remote method instance itsself. This is the easiest way to ensure uniqueness and not have duplicate entries
      */
     _handedUpViaRemoteMethods: Map<object, {
-        name: string,
-        serverSessionClass: typeof ServerSession
+        serverSessionClass: typeof ServerSession,
+        remoteMethodName: string,
+        callbackIndex: number, // Index in the remoteMethodMeta->callbacks array
     }>
 
     /**
@@ -99,7 +100,7 @@ export type ClientCallbackProperties = {
      * @param useSignatureForTrim the remote method, where the signature should be used to call validate with trimming.
      * @returns a Promise or undefined for callbacks where we know by the meta, that they are (sync) void
      */
-    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction, diagnosis?:{/*Note: the class / multiple*/isFromClientCallbacks?:boolean}) => unknown
+    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction, diagnosis?:{isFromClientCallbacks?:boolean, isFromClientCallbacks_CallForSure: boolean}) => unknown
 }
 
 /**
@@ -340,7 +341,7 @@ type SourceNodeDiagnosis = {
  * @returns i.e. "MyServerSessionClass.ts:23:30, reading: async myRemoteMethod(param1:...): Promise<void> {}
  */
 export function diag_sourceLocation(source: SourceNodeDiagnosis, withSignature: true) {
-    return `${source.file}:${source.line}:${source.character}${withSignature?`, reading ${source.signatureText}`:""}`
+    return `${source.file}:${source.line}:${source.character}${withSignature?`, reading: ${source.signatureText}`:""}`
 }
 
 /**
@@ -2120,7 +2121,7 @@ export class ServerSession implements IServerSession {
 
     }
 
-    protected static getRemoteMethodMeta(methodName: string) {
+    static getRemoteMethodMeta(methodName: string) {
         const declaringClass = this.getDeclaringClass(methodName);
         if(!(declaringClass as object).hasOwnProperty("getRemoteMethodsMeta")) {
             throw new Error(`Class ${declaringClass.name} was not transformed with the restfuncs-transformer. ${this._diagnosis_HowToSetUpTheBuild()}`)
@@ -2166,6 +2167,7 @@ export class ServerSession implements IServerSession {
 
 
     /**
+     * TODO: Make this public in the next major release
      * You can override this as part of the Restfuncs API.
      * @see checkIfMethodHasRemoteDecorator
      * @param methodName
@@ -2175,6 +2177,14 @@ export class ServerSession implements IServerSession {
         let declaringClazz = this.getDeclaringClass(methodName);
 
         return declaringClazz.getRemoteMethodOptions_inner(methodName);
+    }
+
+    /**
+     * Internal. Exposes this method to other Restfuncs classes
+     * @param methodName
+     */
+    public static _public_getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+        return this.getRemoteMethodOptions(methodName);
     }
 
     /**

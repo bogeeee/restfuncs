@@ -475,8 +475,42 @@ export class ClientSocketConnection {
             throw new Error("Illegal state: fnItem is not a function");
         }
 
-        // Call it:
-        fnItem(...downCall.args);
+        const sendAnswer = (result: unknown, error?: unknown) => {
+            this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
+        }
+
+        // Call it and handle error/result and send it back:
+        try {
+            const syncResult = fnItem(...downCall.args); // Call it:
+
+            if(syncResult && (syncResult instanceof Promise)) {
+                syncResult.then(value => sendAnswer(value, undefined));
+                syncResult.catch(error => sendAnswer(undefined, error));
+            }
+            else { // non-promise ?
+                if (syncResult !== undefined) {
+                    console.error(`A callback function returned a non-void result directly / not via promise. It will be ignored ! If you want them to arrive at the server, please return the value via Promise (/async style).`, syncResult);
+                }
+                if(downCall.serverAwaitsAnswer) {
+                    sendAnswer(undefined, undefined);
+                }
+            }
+        }
+        catch (e) {
+            if(downCall.serverAwaitsAnswer) {
+                sendAnswer(undefined, undefined);
+            }
+
+            // Log the error (don't throw it, since it fails the connection)
+            if(downCall.diagnosis_resultWasDeclared) {
+                const message = "The callback function threw an error directly and not via promise. This error cannot be handed properly to the server."
+                console.error(message, e);
+                //throw fixErrorForJest(new Error(`${message} The previous console log shows, which function it was. Error message: ${e.message}`, {cause: e}));
+            }
+            else {
+                console.error(e);
+            }
+        }
     }
 
 

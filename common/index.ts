@@ -105,7 +105,7 @@ export type Socket_Client2ServerMessage = {
      * Incremented on every call (by the client) to help put things in the proper timely order and prevent race condition bugs.
      */
     sequenceNumber: number
-    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession"
+    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession" | "methodDownCallResult"
     payload: Socket_MethodCall | unknown
 }
 
@@ -270,6 +270,7 @@ export type ClientCallbackDTO = ChannelItemDTO & {
  * The server calls down a callback function
  */
 export type Socket_DownCall = {
+    id: number;
     /**
      * Client's id
      */
@@ -277,7 +278,12 @@ export type Socket_DownCall = {
 
     args: unknown[]
 
-    diagnosis_awaitResult: boolean;
+    serverAwaitsAnswer: boolean;
+
+    /**
+     * Whether the callback function was declared as non-void
+     */
+    diagnosis_resultWasDeclared: boolean;
 }
 
 export type Socket_ChannelItemNotUsedAnymore = {

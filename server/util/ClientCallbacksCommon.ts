@@ -39,7 +39,7 @@ export class ClientCallbacksCommon<PARAMS extends unknown[]> {
     }
 
     _call(callbacks: Set<ClientCallback>, args: PARAMS) {
-        callbacks.forEach(cb => cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true}));
+        callbacks.forEach(cb => cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: false}));
     }
 
     /**

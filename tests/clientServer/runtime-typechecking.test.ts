@@ -599,7 +599,10 @@ describe("callbacks", () => {
             p.x.cbs.forEach(cb => cb(argForCallbacks as string)); // call them
         }
 
+        @remote()
+        async wthStringSomewhere(p:{x: string}) {
 
+        }
     }
 
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
@@ -693,6 +696,13 @@ describe("callbacks", () => {
         await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback") );
         //@ts-ignore
         await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback0") );
+    }, {
+        useSocket: true
+    }));
+
+    it("should not be forbidden to use placeholder strings", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await apiProxy.wthStringSomewhere({x: "_callback"});
+        await apiProxy.wthStringSomewhere({x: "_callback0"});
     }, {
         useSocket: true
     }));
@@ -828,7 +838,7 @@ describe("callbacks with mixed security requirements", () => {
         function myReusableCallback(arg: any) {}
 
         await apiProxy.differentSignatures_args_A(myReusableCallback) // should work
-        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_args_B(myReusableCallback), /.*a\\:string.*a\\:number/); // Expect the error message to properly explain it
+        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_args_B(myReusableCallback), /.*a\\:string.*a\\:number/s); // Expect the error message to properly explain it
 
     }, {useSocket: true}));
 
@@ -838,7 +848,7 @@ describe("callbacks with mixed security requirements", () => {
         }
 
         await apiProxy.differentSignatures_result_A(myReusableCallback) // should work
-        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_result_B(myReusableCallback), /.*Promise<string>.*Promise<number>/); // Expect the error message to properly explain it
+        await expectAsyncFunctionToThrow(() => apiProxy.differentSignatures_result_B(myReusableCallback), /.*Promise<string>.*Promise<number>/s); // Expect the error message to properly explain it
 
     }, {useSocket: true}));
 })
