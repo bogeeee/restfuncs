@@ -586,7 +586,15 @@ export class ServerSocketConnection {
                             throw new Error("not a function");
                         }
                         if(!callback._handedUpViaRemoteMethods.has(remoteMethodInstance)) { // not yet registered
-                            const callbackIndex = 0; // I cannot imagine a safe way to determine this. So we must limit it to one allowed function declaration per remote method elsewhere.
+                            const callbackIndex = 0; // I cannot imagine a safe way to determine this. So we must limit it to one allowed function declaration per remote method. See the following check:
+
+                            // Safety check: Remote method has more than one callback declared ? (not supported)
+                            if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
+                                const possibleCallbackDeclarations = swapperArgs.serverSessionClass.getRemoteMethodMeta(swapperArgs.remoteMethodName).callbacks;
+                                if(possibleCallbackDeclarations.length > 1) {
+                                    throw new Error(`More than one callback declarations inside the line of a remote method are currently not supported (Hint: see RemoteMethodOptions#allowCallbacksAnywhere). The callbacks are declared at the following locations:\n${possibleCallbackDeclarations.map(decl => diag_sourceLocation(decl.diagnosis_source, true)).join("\n")}`);
+                                }
+                            }
 
                             // Safety check (mixed variants), to prevent against an attacker upgrading to non-void and provoke an unhandledrejection somewhere. Or against accidential unhandledrejections in user's code:
                             if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
