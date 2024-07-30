@@ -94,7 +94,7 @@ describe("callbacks", () => {
 
 test("Race condition on client that callback-handle is cleaned up but still in use", async () => {
     class ServerAPI extends ServerSession {
-        static options: ServerSessionOptions = {devDisableSecurity: true}
+        static options: ServerSessionOptions = {devDisableSecurity: false /* so Restfuncs will see that it does not await an answer for the void callbacks and we get a clear finish*/}
 
         @remote()
         myMethod(cb: () => void) {
