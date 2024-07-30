@@ -617,8 +617,8 @@ describe("callbacks", () => {
     it("should error when putting illegal args into a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn();
 
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, []), /invalid number of arguments/)
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3]), /invalid number of arguments/)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, []), /invalid number of arguments/i)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3]), /invalid number of arguments/i)
         await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [123,3]), /expected.*string.*123/)
         await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, ["abc","x"]), /expected.*number.*x/)
 

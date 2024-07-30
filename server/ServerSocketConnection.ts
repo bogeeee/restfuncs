@@ -475,9 +475,31 @@ export class ServerSocketConnection {
                                     const hasADeclaredResult = metas.some(entry => entry.awaitedResult !== undefined);
                                     const usedInSecDisabledServerSession = callback._handedUpViaRemoteMethods.size === 0 ||  [...callback._handedUpViaRemoteMethods.values()].some(entry => entry.serverSessionClass.isSecurityDisabled);
 
-                                    // Validate arguments for all "via"s:
-                                    for(const via of callback._handedUpViaRemoteMethods) {
-                                        // TODO:
+                                    // Validate arguments:
+                                    {
+                                        // Collect validationSpots: The places where the callback was declared, that definitely need validation:
+                                        const validationSpots: ValidationSpot[] = [];
+                                        for (const usage of handedUpViaRemoteMethods) {
+                                            if (usage.serverSessionClass.isSecurityDisabled) {
+                                                continue
+                                            }
+                                            if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackArguments === false) {
+                                                continue;
+                                            }
+                                            const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.callbackIndex];
+
+                                            // obtain trim (for this meta):
+                                            let trim = trimArguments;
+                                            if (trimArguments && useSignatureForTrim !== undefined) {
+                                                const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
+                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
+                                            }
+
+                                            validationSpots.push({meta, trim})
+                                        }
+
+                                        // Do the validation:
+                                        validationSpots.forEach(vs => this.validateDowncallArguments(args, vs, { allValidationSpots: validationSpots, plusOthers: handedUpViaRemoteMethods.length - validationSpots.length }));
                                     }
 
 
@@ -508,7 +530,7 @@ export class ServerSocketConnection {
                                             throw new Error(`The client threw an error: ${diagnisis_shortenValue(downCallResult.error)}\nTODO: format error. Thereby treat error as evil`);
                                         }
 
-                                        // Collect validationSpots: The places where the callback was delclared, that definitely need validation
+                                        // Collect validationSpots: The places where the callback was declared, that definitely need validation:
                                         const validationSpots: ValidationSpot[] = [];
                                         for(const usage of handedUpViaRemoteMethods) {
                                             if(usage.serverSessionClass.isSecurityDisabled) {
@@ -522,11 +544,11 @@ export class ServerSocketConnection {
                                                 continue;  // There could be void callbacks. That's ok. Filter them out
                                             }
 
-                                            // obtain trim (for this meta)
+                                            // obtain trim (for this meta):
                                             let trim = trimResult;
-                                            if(useSignatureForTrim !== undefined) {
+                                            if(trimResult && useSignatureForTrim !== undefined) {
                                                 const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
-                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta)
+                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
                                             }
 
                                             validationSpots.push({ meta, trim})
@@ -626,8 +648,6 @@ export class ServerSocketConnection {
         }
 
         // Validate:
-        const errors: Error[] = []
-
         const validationResult = trim?meta.awaitedResult.validatePrune(result):meta.awaitedResult.validateEquals(result);
         if(validationResult.success) {
             return;
@@ -669,8 +689,67 @@ export class ServerSocketConnection {
         }
 
         const separateLines = readableErrors.length > 1;
-        throw new Error(`The client callback returned an invalid value:${separateLines ? "\n" : " "}${readableErrors.join("\n")}\n${diagnosis_declaredSuffix}`);
+        throw new Error(`The client returned an invalid value:${separateLines ? "\n" : " "}${readableErrors.join("\n")}\n${diagnosis_declaredSuffix}`);
     }
+
+
+    /**
+     *
+     */
+    protected validateDowncallArguments(args: unknown[], validationSpot: ValidationSpot, diagnosis: {allValidationSpots: ValidationSpot[], plusOthers: number}) {
+        const {meta, trim} = validationSpot;
+
+        // Validate:
+        const validationResult = trim?meta.arguments.validatePrune(args):meta.arguments.validateEquals(args);
+        if(validationResult.success) {
+            return;
+        }
+
+        // *** Compose error message and throw it ***:
+
+        // *** Obtain diagnosis_declaredSuffix ***:
+        let diagnosis_declaredSuffix: string;
+        // Obtain diagnosis_hasDifferentSignatures:
+        let diagnosis_hasDifferentSignatures = false;
+        {
+            let sourceSignature: string | undefined;
+            for(const vs of diagnosis.allValidationSpots) {
+                const sig = vs.meta.diagnosis_source.signatureText; // TODO: use vs.meta.arguments.diagnosis_source instead
+                if(sourceSignature !== undefined && sourceSignature != sig) {
+                    diagnosis_hasDifferentSignatures = true;
+                    break;
+                }
+                sourceSignature = sig
+            }
+        }
+        if(diagnosis_hasDifferentSignatures) {
+            diagnosis_declaredSuffix = `The callback was handed up in multiple locations, which declared it with different parameter types. Therefore, all have to be validated. Locations:\n`;
+            // TODO: use vs.meta.arguments.diagnosis_source instead
+            diagnosis_declaredSuffix+= diagnosis.allValidationSpots.map(vs => `${diag_sourceLocation(vs.meta.diagnosis_source, true)}${vs.trim?" <-- extra properties get trimmed off":""}${vs === validationSpot?" <-- this one failed validation!":""}`).join("\n");
+            if(diagnosis.plusOthers) {
+                diagnosis_declaredSuffix+=`\n...plus ${diagnosis.plusOthers} other place(s), which don't require validation`;
+            }
+        }
+        else {
+            diagnosis_declaredSuffix = `The callback's parameters were declared in ${diag_sourceLocation(meta.diagnosis_source, true)}`; // TODO: use vs.meta.arguments.diagnosis_source instead
+        }
+
+        // Handle invalid number of arguments:
+        if(validationResult.errors.length == 1 && validationResult.errors[0].path === "$input") {
+            throw new Error(`Invalid number of arguments for the callback function.\n${diagnosis_declaredSuffix}`); // Hope that matches with the if condition
+        }
+
+        // Compose errors into readable messages:
+        // TODO: This is currently not the proper implementation (copyed from validteResult). Do like in ServerSession#validateMethodArguments.
+        const readableErrors: string[] = validationResult.errors.map(error => {
+            const improvedPath = error.path.replace(/^\$input/,"<result>")
+            return `${improvedPath !== "<result>"?`${improvedPath}: `: ""}expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+        })
+
+        const separateLines = readableErrors.length > 1;
+        throw new Error(`Invalid argument(s) for callback function:${separateLines ? "\n" : " "}${readableErrors.join("\n")}\n${diagnosis_declaredSuffix}`);
+    }
+
 
     /**
      * Unregister and inform the client
