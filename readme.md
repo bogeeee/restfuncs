@@ -326,8 +326,32 @@ await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile 
 
 You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
 
-# Callbacks
-**COMING SOON!** TODO
+# Event callbacks (sending **functions** to the server)
+**Tl;dr:** Have you tried, sending a **function** to the server? This works😎😎😎...imagine the opportunities! Mind cleaning up the references to them on client disconnect. The `ClientCallbacks` and `ClientCallbacksForKeys` util classes will help you with that. Args + results are safely type checked at runtime🛡🛡🛡.  
+
+TODO: Description
+TODO: Example
+TODO: use withTrim(...)
+TODO: Usage of util classes
+TODO: Limitations
+
+## Unreferencing callbacks (resource cleanup)
+On the server:
+TODO: gc is forwarded to the client
+TODO: Additionally, you can use free(callback)
+
+In the web. Clients may not always be so friendly to call removeEventListener but they just disconnect. To help you, cleaning those up to grow your precious memory,
+you can listen for disconnect events via:
+
+````typescript
+import {ClientCallback} from "restfuncs-server";
+
+(myCallbackFn as ClientCallback).socketConnection.onClose(() => {
+    // <- unregister / cleanup myCallbackFn here
+})
+````
+
+Restfuncs also has a nice util class named CCEventEmitter, where you can register your event listeners, and it will clean them up automatically for you.
 
 # Advanced
 
