@@ -608,7 +608,7 @@ describe("callbacks", () => {
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn();
 
-        await expect(async () => apiProxy.putArgsIntoCallback(mock, ["abc", 3, {myFlag: true}])).resolves.toReturn()
+        await apiProxy.putArgsIntoCallback(mock, ["abc", 3, {myFlag: true}])
 
     }, {
         useSocket: true
@@ -746,8 +746,8 @@ describe("callbacks with mixed security requirements", () => {
         }
 
         @remote({validateCallbackResult: false})
-        async nonValidateResult_putValueIntoCallback(cb: (a: string) => Promise<string>, value: string = "dummy") {
-            await cb(value);
+        async nonValidateResult_putValueIntoCallback(cb: (a: string) => Promise<string>, value?: string) {
+            await cb(value || "dummy");
         }
 
         @remote()
