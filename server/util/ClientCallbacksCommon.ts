@@ -53,7 +53,12 @@ export class ClientCallbacksCommon<PARAMS extends unknown[]> {
             throw new Error("When using emitForSure, you must explicitly define the emitForSureAllowsDisconnect parameter in the EventEmitter options. Usually, you'll want to set it to false.");
         }
 
-        // TODO: check that listener.skippable is disabeld
+        for(const cb of callbacks) {
+            // TODO: check that cb.skippable is disabeld
+            await cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: true});
+        }
+
+
     }
 
     checkIsValidClientCallback(fn: any) {
