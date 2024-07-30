@@ -461,7 +461,7 @@ export class ServerSocketConnection {
                                     this.freeClientCallback(callback!)
                                 },
                                 _handedUpViaRemoteMethods: new Map(),
-                                _validateAndCall: async (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim: UnknownFunction | undefined, diagnosis): Promise<unknown> => {
+                                _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim: UnknownFunction | undefined, diagnosis): Promise<unknown> | undefined => {
                                     // <- **** here, the callback gets called (yeah) ****
 
                                     // Validity check:
@@ -520,50 +520,56 @@ export class ServerSocketConnection {
                                             throw new Error(`Resource limit of ServerOptions#resourceLimits.maxDownCallsPerSocket=${this.server.serverOptions.resourceLimits?.maxDownCallsPerSocket} reached. Please make sure, that your callback functions return in time.`);
                                         }
 
-                                        // Await the downcall:
-                                        const downCallPromise = new ExternalPromise<Socket_DownCallResult>();
-                                        this.methodDownCallPromises.set(downCall.id, downCallPromise)
-                                        const downCallResult = await downCallPromise;
+                                        return (async () => {  // Note: here we go into async mode as late as possible
+                                            // Await the downcall:
+                                            const downCallPromise = new ExternalPromise<Socket_DownCallResult>();
+                                            this.methodDownCallPromises.set(downCall.id, downCallPromise)
+                                            const downCallResult = await downCallPromise;
 
-                                        // Handle, if client throw an error:
-                                        if(downCallResult.error) {
-                                            throw new Error(`The client threw an error: ${diagnisis_shortenValue(downCallResult.error)}\nTODO: format error. Thereby treat error as evil`);
-                                        }
-
-                                        // Collect validationSpots: The places where the callback was declared, that definitely need validation:
-                                        const validationSpots: ValidationSpot[] = [];
-                                        for(const usage of handedUpViaRemoteMethods) {
-                                            if(usage.serverSessionClass.isSecurityDisabled) {
-                                                continue
-                                            }
-                                            if(usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackResult === false) {
-                                                continue;
-                                            }
-                                            const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.callbackIndex];
-                                            if(usedInSecDisabledServerSession && meta.awaitedResult === undefined) {
-                                                continue;  // There could be void callbacks. That's ok. Filter them out
+                                            // Handle, if client throw an error:
+                                            if (downCallResult.error) {
+                                                throw new Error(`The client threw an error: ${diagnisis_shortenValue(downCallResult.error)}\nTODO: format error. Thereby treat error as evil`);
                                             }
 
-                                            // obtain trim (for this meta):
-                                            let trim = trimResult;
-                                            if(trimResult && useSignatureForTrim !== undefined) {
-                                                const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
-                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
+                                            // Collect validationSpots: The places where the callback was declared, that definitely need validation:
+                                            const validationSpots: ValidationSpot[] = [];
+                                            for (const usage of handedUpViaRemoteMethods) {
+                                                if (usage.serverSessionClass.isSecurityDisabled) {
+                                                    continue
+                                                }
+                                                if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackResult === false) {
+                                                    continue;
+                                                }
+                                                const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.callbackIndex];
+                                                if (usedInSecDisabledServerSession && meta.awaitedResult === undefined) {
+                                                    continue;  // There could be void callbacks. That's ok. Filter them out
+                                                }
+
+                                                // obtain trim (for this meta):
+                                                let trim = trimResult;
+                                                if (trimResult && useSignatureForTrim !== undefined) {
+                                                    const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
+                                                    trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
+                                                }
+
+                                                validationSpots.push({meta, trim})
                                             }
 
-                                            validationSpots.push({ meta, trim})
-                                        }
+                                            // Do the validation:
+                                            validationSpots.forEach(vs => this.validateDowncallResult(downCallResult.result, vs, {
+                                                allValidationSpots: validationSpots,
+                                                plusOthers: handedUpViaRemoteMethods.length - validationSpots.length
+                                            }));
 
-                                        // Do the validation:
-                                        validationSpots.forEach(vs => this.validateDowncallResult(downCallResult.result, vs, {allValidationSpots: validationSpots, plusOthers: handedUpViaRemoteMethods.length - validationSpots.length}));
-
-                                        return downCallResult.result;
+                                            return downCallResult.result;
+                                        })();
                                     }
                                     else { // Callback is definitely void ?
                                         if(diagnosis?.isFromClientCallbacks_CallForSure) {
                                             // In theory, we could allow this and pretend, that is it's a Promise<void>. But too much extra effort, just for this case.
                                             throw new Error(`callForSure(...) found a callback, that's declared as returning 'void'. You must declare it as returning 'Promise<void>' instead. Location(s):\n${metas.map(meta => diag_sourceLocation(meta.diagnosis_source, true)).join("\n")}`);
                                         }
+                                        return;
                                     }
                                 },
 
