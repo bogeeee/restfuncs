@@ -601,7 +601,7 @@ describe("callbacks", () => {
 
         @remote()
         async wthStringSomewhere(p:{x: string}) {
-
+            return p.x;
         }
     }
 
@@ -700,8 +700,9 @@ describe("callbacks", () => {
     }));
 
     it("should not be forbidden to use placeholder strings", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
-        await apiProxy.wthStringSomewhere({x: "_callback"});
-        await apiProxy.wthStringSomewhere({x: "_callback0"});
+        expect(await apiProxy.wthStringSomewhere({x: "_callback"})).toStrictEqual("_callback");
+        expect(await apiProxy.wthStringSomewhere({x: "_callback0"})).toStrictEqual("_callback0");
+        expect(await apiProxy.wthStringSomewhere({x: "_callbackAbc123"})).toStrictEqual("_callbackAbc123");
     }, {
         useSocket: true
     }));
