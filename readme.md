@@ -331,10 +331,14 @@ You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-inte
 
 TODO: Description
 TODO: Example
+
+
 TODO: Instance re-usage
-TODO: use withTrim(...)
 TODO: Usage of util classes
 TODO: Limitations
+
+## Trim off extra properties
+TODO
 
 ## Unreferencing callbacks (resource cleanup)
 On the server:

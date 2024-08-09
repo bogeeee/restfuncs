@@ -3,7 +3,7 @@ import {
     ClientCallbackProperties,
     ServerSession,
     CallbackMeta,
-    SwappableArgs, SwapPlaceholders_args, UnknownFunction, diag_sourceLocation
+    SwappableArgs, SwapPlaceholders_args, UnknownFunction, diag_sourceLocation, DOCS_READMEURL
 } from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
@@ -761,7 +761,12 @@ export class ServerSocketConnection {
                 return `Argument[${p1}]`;
             })
 
-            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+            let hint="";
+            if(error.expected === "undefined") {
+                hint=`. Hint: You can trim off extra properties, see ${DOCS_READMEURL}#trim-off-extra-properties`
+            }
+
+            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}${hint}`
         })
 
         const separateLines = readableErrors.length > 1;
