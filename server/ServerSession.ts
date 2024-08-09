@@ -123,10 +123,14 @@ export type SwappableArgs = {
     argsWithPlaceholders: unknown[],
 
     /**
-     * Replaces the "_callback" placeholders with the actual values (=a function).
-     * When there are zero callbacks in the args, this field should be set to undefined (and not a noop function)
+     * These replace the "_callback" placeholders inside argsWithPlaceholders with the actual values (=a function).
      */
-    swapCallbackPlaceholders?: (args: SwapPlaceholders_args) => void
+    swapCallbackPlaceholderFns?: ((args: SwapPlaceholders_args) => void)[]
+
+    /**
+     * These replace escaped strings / reserved string placeholders inside argsWithPlaceholders with the actual unescaped value.
+     */
+    swapEscapedStringFns?: (() => void)[]
 }
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -960,9 +964,9 @@ export class ServerSession implements IServerSession {
 
         serverSession.validateCall(remoteMethodName, methodArguments, remoteMethodOptions.trimArguments !== undefined?remoteMethodOptions.trimArguments:trimArguments_clientPreference);
         // Swap all placeholders to the final values:
-        methodArguments.swapCallbackPlaceholders?.({serverSessionClass: this, remoteMethodName, remoteMethodOptions});
+        methodArguments.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this, remoteMethodName, remoteMethodOptions}));
+        methodArguments.swapEscapedStringFns?.forEach(fn => fn ());
         const finalMethodArguments = methodArguments.argsWithPlaceholders; // i know, this reads strange :)
-
 
         {
             // *** Prepare serverSession for change tracking **

@@ -425,9 +425,14 @@ export class ServerSocketConnection {
      *
      */
     handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
-        const swapperFns: ((args: SwapPlaceholders_args) => void)[] = [];
+        const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: [], swapEscapedStringFns: []}
 
         visitReplace(remoteMethodArgs, (item, visitChilds, context) => {
+            const swapValueTo = (newValue: unknown) => {
+                //@ts-ignore
+                context.parentObject[context.key] = newValue;
+            }
+
             if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
                 // Validity check:
@@ -439,13 +444,8 @@ export class ServerSocketConnection {
                     throw new Error("id is not a number");
                 }
 
-                const swapValueTo = (newValue: unknown) => {
-                    //@ts-ignore
-                    context.parentObject[context.key] = newValue;
-                }
-
                 if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
-                    swapperFns.push((swapperArgs: SwapPlaceholders_args) => {
+                    result.swapCallbackPlaceholderFns!.push((swapperArgs: SwapPlaceholders_args) => {
                         // Determine / create callback:
                         const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                         let callback: ClientCallback;
@@ -623,15 +623,20 @@ export class ServerSocketConnection {
                 }
 
             }
+            else if(typeof item === "string") {
+                if(item.startsWith("_callback")) { // literally "_callbackXXX" ?
+                    // This should be allowed, but we must escape it and swap it after validation
+                    result.swapEscapedStringFns!.push(() => swapValueTo(item));
+                    return `_esc_${item.substring(5)}`; // prefix with an "_esc_" and keep the original string length
+                }
+                return item;
+            }
             else {
                 return visitChilds(item, context)
             }
         });
 
-        return {
-            argsWithPlaceholders: remoteMethodArgs,
-            swapCallbackPlaceholders: swapperFns.length > 0? (args) => {swapperFns.forEach(f => f(args))} :undefined // calls all swapperFns.
-        }
+        return result;
     }
 
     protected handleMethodDownCallResultMessage(resultFromClient: Socket_DownCallResult) {
