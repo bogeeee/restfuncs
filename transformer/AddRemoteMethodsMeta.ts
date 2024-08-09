@@ -70,13 +70,13 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
                 if(Object.keys(this.currentClass_instanceMethodsMeta).length > 0) { // Current class has @remote methods ?
                     // *** Create the "getRemoteMethodsMeta()" function and add a patch for the source file to the result: ***
-                    let methodDeclarationAsPlainText = this.nodeToString(this.create_static_getRemoteMethodsMeta_expression(), true);
+                    let methodDeclarationSourceText = this.create_static_getRemoteMethodsMeta_expression();
                     if(AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine) {
-                        methodDeclarationAsPlainText = '/* code squeezed into one line to keep line numbers intact. You can output it prettier by setting "pretty":true in the plugin configuration in tsconfig.json */' + methodDeclarationAsPlainText.replaceAll("\n","");
+                        methodDeclarationSourceText = '/* code squeezed into one line to keep line numbers intact. You can output it prettier by setting "pretty":true in the plugin configuration in tsconfig.json */' + methodDeclarationSourceText.replaceAll("\n","");
                     }
-                    methodDeclarationAsPlainText = ";" + methodDeclarationAsPlainText; // prepend with semicolon to prevent syntax error if there's stuff in the same line of the closing bracket
+                    methodDeclarationSourceText = ";" + methodDeclarationSourceText; // prepend with semicolon to prevent syntax error if there's stuff in the same line of the closing bracket
 
-                    this.result.patches.push({position: node.end -1 /* insert before the closing bracket*/, contentToInsert: methodDeclarationAsPlainText}); // Add patch to result
+                    this.result.patches.push({position: node.end -1 /* insert before the closing bracket*/, contentToInsert: methodDeclarationSourceText}); // Add patch to result
                 }
 
 
@@ -483,97 +483,20 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      * @param methodName
      * @private
      */
-    private create_static_getRemoteMethodsMeta_expression() : MethodDeclaration {
-        const factory = this.context.factory;
-
-
-        let instanceMethods = factory.createObjectLiteralExpression(
-            Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => factory.createPropertyAssignment(
-                factory.createStringLiteral(methodName), this.currentClass_instanceMethodsMeta![methodName]
-            )),
-            true
-        );
-
-        // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
-        return factory.createMethodDeclaration(
-            [factory.createToken(ts.SyntaxKind.StaticKeyword)],
-            undefined,
-            factory.createIdentifier("getRemoteMethodsMeta"),
-            undefined,
-            undefined,
-            [],
-            factory.createParenthesizedType(factory.createTypeQueryNode(
-                factory.createQualifiedName(
-                    factory.createIdentifier("this"),
-                    factory.createIdentifier("type_remoteMethodsMeta")
-                ),
-                undefined
-            )),
-            factory.createBlock(
-                [
-                    factory.createExpressionStatement(factory.createPropertyAccessExpression(
-                        factory.createThis(),
-                        factory.createIdentifier("__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession")
-                    )),
-                    factory.createVariableStatement(
-                        undefined,
-                        factory.createVariableDeclarationList(
-                            [factory.createVariableDeclaration(
-                                factory.createIdentifier("typia"),
-                                undefined,
-                                undefined,
-                                factory.createPropertyAccessExpression(
-                                    factory.createThis(),
-                                    factory.createIdentifier("typiaRuntime")
-                                )
-                            )],
-                            ts.NodeFlags.Let
-                        )
-                    ),
-                    // Const result =
-                    factory.createVariableStatement(
-                        undefined,
-                        factory.createVariableDeclarationList(
-                            [factory.createVariableDeclaration(
-                                factory.createIdentifier("result"),
-                                undefined,
-                                undefined,
-                                factory.createObjectLiteralExpression(
-                                    [
-                                        factory.createPropertyAssignment(
-                                            factory.createIdentifier("transformerVersion"),
-                                            factory.createObjectLiteralExpression(
-                                                [
-                                                    factory.createPropertyAssignment(
-                                                        factory.createIdentifier("major"),
-                                                        factory.createIdentifier(`${transformerVersion.major}`)
-                                                    ),
-                                                    factory.createPropertyAssignment(
-                                                        factory.createIdentifier("feature"),
-                                                        factory.createIdentifier(`${transformerVersion.feature}`)
-                                                    )
-                                                ],
-                                                false
-                                            )
-                                        ),
-                                        factory.createPropertyAssignment(
-                                            factory.createIdentifier("instanceMethods"),
-                                            instanceMethods
-                                        )
-                                    ],
-                                    true
-                                )
-                            )],
-                            ts.NodeFlags.Const | ts.NodeFlags.Constant | ts.NodeFlags.Constant
-                        )
-                    ),
-
-                    factory.createReturnStatement(factory.createIdentifier("result"))
-                ],
-                true
-            )
-        )
-
+    private create_static_getRemoteMethodsMeta_expression() : string {
+        return `` +
+            `static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
+                this.__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession; /* Give a friendly error message when this is not the case. Otherwise the following statement "const typia = ..." would fail and leaves the user wondering. */
+                let typia = this.typiaRuntime; /* We need a "typia" defined in the scope, but let restfuncs manage where that dependency comes from */
+                const result= {
+                    transformerVersion: {major: ${transformerVersion.major},  feature: ${transformerVersion.feature} },
+                    instanceMethods: {${Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => `
+                        ${methodName}: ${this.nodeToString(this.currentClass_instanceMethodsMeta![methodName], true)}`).join(",\n")}
+                    }
+                };
+        
+                return result; /* Code style note for this line: Why not do \`return {...}\` directly ? This tiny difference allows for extra properties which ensure backward compatibility with older "restfuncs-server" packages. */
+            }`
     }
 
     nodeToString(node: Node, removeComments= false): string {
