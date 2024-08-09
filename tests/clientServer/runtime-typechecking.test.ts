@@ -618,7 +618,7 @@ describe("callbacks", () => {
         const mock = jest.fn();
 
         await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, []), /invalid number of arguments/i)
-        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3]), /invalid number of arguments/i)
+        await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [1,2,3,4]), /invalid number of arguments/i)
         await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, [123,3]), /expected.*string.*123/)
         await expectAsyncFunctionToThrow(async () => apiProxy.putArgsIntoCallback(mock, ["abc","x"]), /expected.*number.*x/)
 
@@ -638,8 +638,7 @@ describe("callbacks", () => {
     it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         async function returnExact(...args:any[]) { return args}
 
-        await expectAsyncFunctionToThrow(() => apiProxy.callWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}]), /extraProperty/)
-
+        await expectAsyncFunctionToThrow(() => apiProxy.putArgsIntoCallback        (returnExact, ["abc", 3, {myFlag: true, extraProperty: true}]), /extraProperty/);
         await expectAsyncFunctionToThrow(() => apiProxy.putArgsIntoCallbackWithTrim(returnExact, ["abc", 3, {myFlag: true, extraProperty: true}],false /* !!!! */, true), /extraProperty/); // Minor: Lets just test the other way
 
     }, {
@@ -675,7 +674,7 @@ describe("callbacks", () => {
         useSocket: true
     }));
 
-    it("should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+    test("Result: should fail with extra properties when trimArguments is disabled", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         await expectAsyncFunctionToThrow(() => apiProxy.callObjectPromiseCallback(async () => {
             return {a: "123", b: 4, extraProp: true} as any
         }), /extraProp.*withTrim/); // There should be a proper hint for withTrim in the error message

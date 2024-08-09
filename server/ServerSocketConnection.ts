@@ -754,10 +754,14 @@ export class ServerSocketConnection {
         }
 
         // Compose errors into readable messages:
-        // TODO: This is currently not the proper implementation (copyed from validteResult). Do like in ServerSession#validateMethodArguments.
         const readableErrors: string[] = validationResult.errors.map(error => {
-            const improvedPath = error.path.replace(/^\$input/,"<result>")
-            return `${improvedPath !== "<result>"?`${improvedPath}: `: ""}expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+            // Replace $input[x] with <argument name>, if possible
+            const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, p1: string) => {
+
+                return `Argument[${p1}]`;
+            })
+
+            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
         })
 
         const separateLines = readableErrors.length > 1;
