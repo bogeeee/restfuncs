@@ -277,8 +277,8 @@ export type SecurityRelevantSessionFields = {
 type ClassOf<T> = {
     new(...args: unknown[]): T
 }
-// TODO: inline / does this need to be an extra type ?
-export type RemoteMethodCallbackMeta = {
+
+export type CallbackMeta = {
     arguments: {
         validateEquals: (args: unknown[]) => IValidation<unknown[]>
         validatePrune: (args: unknown[]) => IValidation<unknown[]>
@@ -308,7 +308,7 @@ type RemoteMethodsMeta = {
             /**
              * callback function declarations (arrow style) inside the remote method's parameters
              */
-            callbacks: RemoteMethodCallbackMeta[],
+            callbacks: CallbackMeta[],
             jsDoc?: {
                 comment: string,
                 params: Record<string, string>

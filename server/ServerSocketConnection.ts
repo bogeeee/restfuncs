@@ -2,7 +2,7 @@ import {
     ClientCallback,
     ClientCallbackProperties,
     ServerSession,
-    RemoteMethodCallbackMeta,
+    CallbackMeta,
     SwappableArgs, SwapPlaceholders_args, UnknownFunction, diag_sourceLocation
 } from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
@@ -931,4 +931,7 @@ export function diagnosis_closeReasonToError(reason?: CloseReason, hint?: string
 
 export type OnCloseHandlerInterface = { handleServerSocketConnectionClosed: ((conn: ServerSocketConnection, reason?: CloseReason) => void) };
 
-type ValidationSpot = { meta: RemoteMethodCallbackMeta, trim: boolean };
+/**
+ * A function declaration (a place in the source code), where the args or result should be validated against. A callback function **instance** can come from multiple of such, because instances can be re-used/shared.
+ */
+type ValidationSpot = { meta: CallbackMeta, trim: boolean };
