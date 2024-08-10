@@ -1,3 +1,4 @@
+import { tags } from "typia";
 import 'reflect-metadata'
 import {ClientCallback, ServerSession as ServerSession, withTrim} from "restfuncs-server/ServerSession";
 import express from "express";
@@ -121,6 +122,24 @@ test('Test arguments', async () => {
         }
     );
 })
+
+
+describe('Typia tags', () => {
+    class ServerAPI extends TypecheckingService{
+        @remote()
+        methodWithEmail(value: string & tags.Format<"email">) {
+        }
+    };
+
+    test("email", async () => {
+        await runClientServerTests(new ServerAPI(),
+            async (apiProxy) => {
+                await apiProxy.methodWithEmail("bla@blubb.xy");
+                await expectAsyncFunctionToThrow(async () => await apiProxy.methodWithEmail("12334"));
+            });
+    });
+})
+
 
 test('Test arguments with deep undefined', async () => {
     class ServerAPI extends TypecheckingService{
