@@ -524,10 +524,6 @@ Notes:
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
 - Set `ServerSessionOptions#csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 
-# Inline and advanced callbacks
-**Tl;dr:** Restfuncs will (security-) alert, when it can't analyze the type of a callback and tell you what options to adjust.
-TODO: long version
-
 # Performance
 
 To be honest here, this current Restfuncs release's first goal is to be stable and secure. Surely, it  will compete with a traditional express handcrafted handlers or usual frameworks, 
@@ -544,7 +540,7 @@ But it's no excuse to not take it sportive ;)... i will focus on this topic late
 ### Writes to the session fields have some overhead
 It costs an additional http roundtrip + 1 websocket roundtrip + (auto.) resend of unprocessed websocket calls. This is to ensure fail-safe commits to the http cookie and to ensure security. So keep that in mind.
 
-# Use up your own cookie handler
+# Use your own cookie handler
 The build-in cookie handler goes like this, as already mentioned in the set up: `const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original).`
 Alternatively (not recommended), you can still set up your own cookie handler, after using the classic express: `app = express()`, or by setting `ServerOptions#installSessionHandler` to `false`. Restfuncs will still synchronize the content to/from (Web-) Socket connections.
 
