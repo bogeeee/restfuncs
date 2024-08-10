@@ -164,10 +164,17 @@ test('Test arguments with deep undefined', async () => {
     );
 })
 
-test('User defined classes', async () => {
+describe('User defined classes', () => {
     class User {
         name: string
-        someMethod() {}
+        someMethod() {
+            return "original"
+        }
+    }
+
+    interface IUser {
+        name: string
+        someMethod(): string;
     }
 
     class ServerAPI extends TypecheckingService{
@@ -177,19 +184,64 @@ test('User defined classes', async () => {
         }
 
         @remote()
+        user_typeOfSomeMethod(user: User): any {
+            return typeof user.someMethod;
+        }
+
+        @remote()
+        iuser_typeOfSomeMethod(user: IUser): any {
+            return typeof user.someMethod;
+        }
+
+
+        @remote()
         returnUser(): any {
             const user = new User();
             user.name="someone"
             return user
         }
-    };
+    }
 
-    await runClientServerTests(new ServerAPI(),
-        async (apiProxy) => {
-            expect(await apiProxy.getObject({name: "bob"} as User)).toStrictEqual({name: "bob"}) // Expect it to work like this. But still questionable if it should be allowed in general
-            expect(await apiProxy.returnUser()).toStrictEqual({name: "someone"});
-        }
-    );
+    test("basic", async () => {
+        await runClientServerTests(new ServerAPI(),
+            async (apiProxy) => {
+                expect(await apiProxy.getObject({name: "bob"} as User)).toStrictEqual({name: "bob"}) // Expect it to work like this. But still questionable if it should be allowed in general
+                expect(await apiProxy.returnUser()).toStrictEqual({name: "someone"});
+            }
+        , {useSocket: true});
+    });
+
+    for(const typ of ["User", "IUser"]) {
+
+        it(`should not be allowed to replace a class method with something else: ${typ}`, async () => {
+            await runClientServerTests(new ServerAPI(),
+                async (apiProxy) => {
+                    const variousValues = ["", true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3]]
+                    for(const v of variousValues) {
+                        const user = {
+                            name: "dummy",
+                            someMethod: v
+                        }
+                        //@ts-ignore
+                        expect(typ == "User"?await apiProxy.user_typeOfSomeMethod(user):await apiProxy.iuser_typeOfSomeMethod(user)).toStrictEqual("undefined");
+                    }
+                }
+            );
+        });
+
+        it(`should not be allowed to replace a class method with a callback ${typ}`, async () => {
+            await runClientServerTests(new ServerAPI(),
+                async (apiProxy) => {
+                    const user = {
+                        name: "dummy",
+                        someMethod: () => {}
+                    }
+                    //@ts-ignore
+                    expect(typ == "User"?await apiProxy.user_typeOfSomeMethod(user):await apiProxy.iuser_typeOfSomeMethod(user)).toStrictEqual("undefined");
+                }
+            ,{useSocket: true});
+        });
+    }
 })
 
 test('Test arguments - extra properties value / trim arguments', async () => {
@@ -714,6 +766,17 @@ describe("callbacks", () => {
         await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback") );
         //@ts-ignore
         await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam("_callback0") );
+    }, {
+        useSocket: true
+    }));
+
+    it("should fail when trying to inject something else into a callback param", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const variousValues = ["", true, false, "string", {}, {a:1, b:"str", c:null, d: {nested: true}}, [], [1,2,3]]
+        for(const v of variousValues) {
+            //@ts-ignore
+            await expectAsyncFunctionToThrow(() => apiProxy.withSimpleCallbackParam(v) );
+        }
+
     }, {
         useSocket: true
     }));
