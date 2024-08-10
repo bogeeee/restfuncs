@@ -304,6 +304,13 @@ type RemoteMethodsMeta = {
             arguments: {
                 validateEquals: (args: unknown[]) => IValidation<unknown[]>
                 validatePrune:  (args: unknown[]) => IValidation<unknown[]>
+                /**
+                 * Only, if there are placeholders inside the args (for the callbacks below). Then the args need to be validates against here first.
+                 */
+                withPlaceholders?: {
+                    validateEquals: (args: unknown[]) => IValidation<unknown[]>
+                    validatePrune:  (args: unknown[]) => IValidation<unknown[]>
+                }
             }
             result: {
                 validateEquals: (result: unknown) => IValidation<unknown>

@@ -100,6 +100,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      *     arguments: {
      *        ...
      *     }
+     *     result: {
+     *         ...
+     *     }
+     *     callbacks:[...]
      *     jsDoc: {
      *         ...
      *     }
@@ -256,33 +260,28 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             return visitChilds(value, context)
         });
 
-        // ** Obtain, what goes into typia.validateEquals<...> ***
-        let typeParamForTypiaValidate: TypeNode = factory.createTupleTypeNode(methodParametersWithPlaceholders);
+        // ** Obtain, what goes into typia.validate...<...> ***
+        const hasPlaceholders = callbackDeclarations.length > 0;
+        let typeParamForTypiaValidate = `[${node.parameters.map(param => this.nodeToString(param, true, true)).join(", ")}]`; // [param1: type1, param2: type2, ...]
+        let typeParamForTypiaValidateWithPlaceholders: string = this.nodeToString(factory.createTupleTypeNode(methodParametersWithPlaceholders),true, true);
+
+
         if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
-            if (callbackDeclarations.length > 0) {
+            if (hasPlaceholders) {
                 throw new Error(`Parameter '${(node.parameters.find(p => p.type === undefined) as any)!.name.escapedText}' does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types. Location: ${this.diag_sourceLocation(node)}`) // TODO: add diagnosis
             }
-
             // Use the old style: Parameters<typeof this.prototype["method name"]>. This worked very fine in old versions but we now want to battle-test the other style
-            typeParamForTypiaValidate = factory.createTypeReferenceNode(
-                factory.createIdentifier("Parameters"),
-                [factory.createIndexedAccessTypeNode(
-                    factory.createTypeQueryNode(
-                        factory.createQualifiedName(
-                            factory.createIdentifier("this"),
-                            factory.createIdentifier("prototype")
-                        ),
-                        undefined
-                    ),
-                    factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
-                )]
-            )
+            typeParamForTypiaValidate = typeParamForTypiaValidateWithPlaceholders = `Parameters<typeof this.prototype["${methodName}"]>`;
         }
 
         // ** compose result **
         return `{
                             arguments: {${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
-                                ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${this.nodeToString(typeParamForTypiaValidate, true, true)}>(args)`).join(",")}
+                                ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidate}>(args)`).join(",")}
+                                ,
+                                withPlaceholders: ${hasPlaceholders?`{${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
+                                    ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidateWithPlaceholders}>(args)`).join(",")}                                    
+                                }`:"undefined"}
                             },
                             result: {${/* for validateEquals + validatePrune */ Object.keys(result_typiaFuncs).map((typiaFnName) => `
                                 ${typiaFnName}: (value: unknown) => ${result_typiaFuncs[typiaFnName]}<Awaited<ReturnType<typeof this.prototype["${methodName}"]>>>(value)`).join(",")}

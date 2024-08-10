@@ -33,8 +33,12 @@ static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
         instanceMethods: {
             "myMethod": {
                 arguments: {
-                    validateEquals: (args: unknown) => typia.validateEquals<[param1: string, someCallback: "_callback"]>(args), // Note: Can be 
-                    validatePrune: ...
+                    validateEquals: (args: unknown) => typia.validateEquals<[param1: string, someCallback: (p:number) => Promise<string>]>(args),
+                    validatePrune: ...,
+                    withPlaceholders: {
+                        validateEquals: (args: unknown) => typia.validateEquals<[param1: string, someCallback: "_callback"]>(args), // the callback declaration is replaced with "_callback" here
+                        ...
+                    }
                 },                
                 result: {
                     validateEquals: (value: unknown) => typia.validateEquals<Awaited<ReturnType<typeof this.prototype["myMethod"]>>>(value),
