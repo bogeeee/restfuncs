@@ -28,7 +28,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      */
     static squeezeDeclarationsIntoOneLine = true;
     diagnosis_currentClass_instanceMethodsSeen?: Set<string>;
-    currentClass_instanceMethodsMeta?: Record<string, ObjectLiteralExpression>; // The {...} that should be added below... see example in readme.md
+    currentClass_instanceMethodsMeta?: Record<string, string>; // The {...} that should be added below... see example in readme.md
     result = new TextPatch();
 
     /* Visitor Function */
@@ -109,12 +109,18 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      * @param methodName
      * @private
      */
-    createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
+    createMethodMetaExpression(node: MethodDeclaration, methodName: string): string {
         // Note: These `factory.create...` "pyramids of doom", which you see all along in this method's code, were mostly created by copying the example code from readme.md#how-it-works through the [AST viewer tool](https://ts-ast-viewer.com/)
-        // TODO: Argh, we don't need these "pyramids of doom" any more all over this file, because at the end, the file content gets patched wit a string content (and not an AST). We could just return a string with the source code while using this.nodeToString(...)
+        // TODO: remove them und use plain strings
         const factory = this.context.factory;
 
-        const arguments_typiaFuncs:Record<string, PropertyAccessExpression> = {
+        const arguments_typiaFuncs:Record<string, string> = {
+            "validateEquals": "typia.validateEquals",
+            "validatePrune": "typia.misc.validatePrune"
+        }
+        const result_typiaFuncs = {...arguments_typiaFuncs};
+
+        const old_typiaFuncs:Record<string, PropertyAccessExpression> = {
             /**
              * typia.validateEquals
              */
@@ -127,7 +133,6 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 factory.createIdentifier("misc")
             ), factory.createIdentifier("validatePrune"))
         }
-        const result_typiaFuncs = {...arguments_typiaFuncs};
 
         // Clone parameters and convert all ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
         const methodParametersWithPlaceholders = structuredClone(node.parameters).map(paramDecl => {
@@ -165,7 +170,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 )],
                                 undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
+                                factory.createCallExpression(old_typiaFuncs[typiaFnName],
                                     [factory.createTupleTypeNode(structuredClone(functionTypeNode.parameters).map(paramDecl => { // Must convert ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
                                         return factory.createNamedTupleMember(
                                             paramDecl.dotDotDotToken,
@@ -210,7 +215,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                         )],
                                         undefined,
                                         factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                        factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
+                                        factory.createCallExpression(old_typiaFuncs[typiaFnName],
                                             [awaitedType],
                                             [factory.createIdentifier("value")]
                                         )
@@ -275,102 +280,19 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         }
 
         // ** compose result **
-        // @ts-ignore
-        return factory.createObjectLiteralExpression(
-            [
-                // arguments: {...}
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("arguments"),
-                    factory.createObjectLiteralExpression(
-                        Object.keys(arguments_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier(typiaFnName),
-                                factory.createArrowFunction(
-                                    undefined,
-                                    undefined,
-                                    [factory.createParameterDeclaration(
-                                        undefined,
-                                        undefined,
-                                        factory.createIdentifier("args"),
-                                        undefined,
-                                        factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
-                                        undefined
-                                    )],
-                                    undefined,
-                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                    factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
-                                        [typeParamForTypiaValidate],
-                                        [factory.createIdentifier("args")]
-                                    )
-                                )
-                            )),
-                        true
-                    )
-                ),
-
-                // result: {...}
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("result"),
-                    factory.createObjectLiteralExpression(
-                        Object.keys(result_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier(typiaFnName),
-                                factory.createArrowFunction(
-                                    undefined,
-                                    undefined,
-                                    [factory.createParameterDeclaration(
-                                        undefined,
-                                        undefined,
-                                        factory.createIdentifier("value"),
-                                        undefined,
-                                        factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
-                                        undefined
-                                    )],
-                                    undefined,
-                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                    factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
-                                        [factory.createTypeReferenceNode(
-                                            factory.createIdentifier("Awaited"), [factory.createTypeReferenceNode(
-                                                factory.createIdentifier("ReturnType"),
-                                                [factory.createIndexedAccessTypeNode(
-                                                    factory.createTypeQueryNode(
-                                                        factory.createQualifiedName(
-                                                            factory.createIdentifier("this"),
-                                                            factory.createIdentifier("prototype")
-                                                        ),
-                                                        undefined
-                                                    ),
-                                                    factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
-                                                )]
-                                            )]
-                                        )],
-                                        [factory.createIdentifier("value")]
-                                    )
-                                )
-                            )),
-                        true
-                    )
-                ),
-
-                // callbacks: [...]:
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("callbacks"),
-                    factory.createArrayLiteralExpression(
-                        callbackDeclarations,
-                        false
-                    )
-                ),
-                // jsDoc:
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("jsDoc"), this.createJsDocExpression(node, methodName)
-                ),
-                // diagnosis_source:
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("diagnosis_source"), this.createSourceNodeDiagnosisExpression(node)
-                )
-            ],
-            true
-        );
+        return `{
+                            arguments: {${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
+                                ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${this.nodeToString(typeParamForTypiaValidate, true, true)}>(args)`).join(",")}
+                            },
+                            result: {${/* for validateEquals + validatePrune */ Object.keys(result_typiaFuncs).map((typiaFnName) => `
+                                ${typiaFnName}: (value: unknown) => ${result_typiaFuncs[typiaFnName]}<Awaited<ReturnType<typeof this.prototype["${methodName}"]>>>(value)`).join(",")}
+                            },
+                            callbacks: [${callbackDeclarations.map(cbd => `
+                                ${this.nodeToString(cbd, true)}`).join(",")}
+                            ],
+                            jsDoc: ${this.nodeToString(this.createJsDocExpression(node, methodName), true)},
+                            diagnosis_source: ${this.nodeToString(this.createSourceNodeDiagnosisExpression(node), true)},
+                        }`;
     }
 
     /**
@@ -491,7 +413,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 const result= {
                     transformerVersion: {major: ${transformerVersion.major},  feature: ${transformerVersion.feature} },
                     instanceMethods: {${Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => `
-                        ${methodName}: ${this.nodeToString(this.currentClass_instanceMethodsMeta![methodName], true)}`).join(",\n")}
+                        ${methodName}: ${this.currentClass_instanceMethodsMeta![methodName]}`).join(",")}
                     }
                 };
         
@@ -499,9 +421,13 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             }`
     }
 
-    nodeToString(node: Node, removeComments= false): string {
+    nodeToString(node: Node, removeComments= false, removeLineBreaks = false): string {
         const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments});
-        return  printer.printNode(ts.EmitHint.Unspecified, node, this.sourceFile) as string;
+        let result = printer.printNode(ts.EmitHint.Unspecified, node, this.sourceFile) as string;
+        if(removeLineBreaks) {
+            result = result.replaceAll(/\n\s*/g," ")
+        }
+        return  result;
     }
 
     /**
