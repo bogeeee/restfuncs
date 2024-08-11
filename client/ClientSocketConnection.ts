@@ -486,8 +486,7 @@ export class ClientSocketConnection {
             const syncResult = fnItem(...downCall.args); // Call it:
 
             if(syncResult && (syncResult instanceof Promise)) {
-                syncResult.then(value => sendAnswer(value, undefined));
-                syncResult.catch(error => sendAnswer(undefined, error));
+                syncResult.then(value => sendAnswer(value, undefined), error => sendAnswer(undefined, error));
             }
             else { // non-promise ?
                 if (syncResult !== undefined) {
