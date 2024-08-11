@@ -36,6 +36,7 @@ import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 import {WeakValueMap} from "restfuncs-common";
+import clone from "clone";
 
 const FEATURE_ENABLE_CALLBACKS = true;
 
@@ -499,6 +500,9 @@ export class ServerSocketConnection {
                                         }
 
                                         // Do the validation:
+                                        if(validationSpots.some(spot => spot.trim)) {
+                                            args = clone(args, true); // Use the "clone" lib, cause it references prototypes instead of cloning them (like structuredClone would do) for better performance. Typia's prune doesn't touch prototypes anyway.
+                                        }
                                         validationSpots.forEach(vs => this.validateDowncallArguments(args, vs, { allValidationSpots: validationSpots, plusOthers: handedUpViaRemoteMethods.length - validationSpots.length }));
                                     }
 
