@@ -200,6 +200,11 @@ describe('User defined classes', () => {
             user.name="someone"
             return user
         }
+
+        @remote()
+        withCallbackAndUser(cb: () => void, user: User) {
+
+        }
     }
 
     test("basic", async () => {
@@ -242,6 +247,30 @@ describe('User defined classes', () => {
             ,{useSocket: true});
         });
     }
+
+    it("should not delete/replace methods on the client side when serializing them", async () => {
+
+        await runClientServerTests(new ServerAPI(), async (apiProxy) => {
+                // With a class instance:
+                {
+                    const user = new User();
+                    user.name = "dummy";
+                    await apiProxy.withCallbackAndUser(() => {
+                    }, user);
+                    expect(typeof user.someMethod).toStrictEqual("function");
+                }
+
+                // With an objet with methods:
+                {
+                    const user:User  = {name: "dummy", someMethod() {return "x"}};
+
+                    await apiProxy.withCallbackAndUser(() => {}, user);
+                    expect(typeof user.someMethod).toStrictEqual("function");
+                }
+            }
+            , {useSocket: true});
+
+    });
 })
 
 test('Test arguments - extra properties value / trim arguments', async () => {
@@ -610,6 +639,13 @@ test('Test result validation with null and undefined', async () => {
 })
 
 describe("callbacks", () => {
+    class User {
+        name: string
+        someMethod() {
+            return "fromServer"
+        }
+    }
+
     class ServerAPI extends TypecheckingService {
         @remote()
         async withSimpleCallbackParam(cb: (...args: any) => void) {
@@ -673,6 +709,17 @@ describe("callbacks", () => {
         @remote()
         async wthStringSomewhere(p:{x: string}) {
             return p.x;
+        }
+
+        @remote()
+        async withUser(user: User) {
+            if(user.someMethod === undefined) {
+                return;
+            }
+
+            if(user.someMethod() !== "fromServer") {
+                throw new Error("Unexpected result");
+            }
         }
     }
 
@@ -799,6 +846,20 @@ describe("callbacks", () => {
         await apiProxy.callbacksInDeepParam({x: {cbs: [(a:string) => {}, (a:string) => {}]}}, "");
 
         await expectAsyncFunctionToThrow(() => apiProxy.callbacksInDeepParam({x: {cbs: [(a:string) => {}, (a:string) => {}]}}, 123));
+    }, {
+        useSocket: true
+    }));
+
+    test("Client's class instances with functions should not be allowed", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        class ClientUser extends User {
+            name = "dummy"
+            someMethod():string {
+                throw new Error("this should not be called");
+            }
+        }
+        const user = new ClientUser()
+
+        await expectAsyncFunctionToThrow(() => apiProxy.withUser(user), /.*allowCallbacksAnywhere.*/); // there should be the hint for that option
     }, {
         useSocket: true
     }));
