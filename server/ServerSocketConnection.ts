@@ -120,7 +120,7 @@ export class ServerSocketConnection {
     }
 
     get id() {
-        return nacl_util.encodeBase64(this._id); // TODO: use from socket
+        return nacl_util.encodeBase64(this._id); // TODO: use id from the socket
     }
 
     constructor(server: RestfuncsServer, socket: Socket) {
@@ -532,7 +532,7 @@ export class ServerSocketConnection {
 
                                             // Handle, if client throw an error:
                                             if (downCallResult.error) {
-                                                throw new Error(`The client threw an error: ${diagnisis_shortenValue(downCallResult.error)}\nTODO: format error. Thereby treat error as evil`);
+                                                throw new DownCallError(downCallResult.error, {});
                                             }
 
                                             // Collect validationSpots: The places where the callback was declared, that definitely need validation:
@@ -955,3 +955,32 @@ export type OnCloseHandlerInterface = { handleServerSocketConnectionClosed: ((co
  * A function declaration (a place in the source code), where the args or result should be validated against. A callback function **instance** can come from multiple of such, because instances can be re-used/shared.
  */
 type ValidationSpot = { meta: CallbackMeta, trim: boolean };
+
+/**
+ * Thrown when there was an Error/exception thrown on the client during downcall
+ */
+export class DownCallError extends Error {
+    name= "DownCallError"
+    /**
+     * The Error or exception string that was thrown on the client. We can't keep the orginal class hierarchy, so Errors will just become plain objects.
+     */
+    cause: unknown
+
+    static formatError(evil_e: any): string {
+        if (evil_e !== null && typeof (evil_e) == "object") {
+            return (evil_e.name ? ("" + evil_e.name + ": ") : "") + (evil_e.message || evil_e) +
+                (evil_e.stack ? `\nClient stack:\n ${evil_e.stack}` : '') +
+                (evil_e.fileName ? `\nFile: ${evil_e.fileName}` : '') + (evil_e.lineNumber ? `, Line: ${evil_e.lineNumber}` : '') + (evil_e.columnNumber ? `, Column: ${evil_e.columnNumber}` : '') +
+                (evil_e.cause ? `\nCause: ${DownCallError.formatError(evil_e.cause)}` : '')
+        } else {
+            return diagnisis_shortenValue(evil_e);
+        }
+    }
+
+    constructor(rawErrorObject: unknown, options: ErrorOptions) {
+        let message = DownCallError.formatError(rawErrorObject)
+        message+= "\n*** End of client stack."
+        super(message, {cause: rawErrorObject ,...options});
+        this.cause = rawErrorObject;
+    }
+}

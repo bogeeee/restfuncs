@@ -3,8 +3,8 @@ import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Uti
 import {RestfuncsClient, ServerError} from "./index";
 import {
     _testForRaceCondition_breakPoints,
-    ClientCallbackDTO,
-    CookieSessionState,
+    ClientCallbackDTO, cloneError,
+    CookieSessionState, fixErrorStack,
     GetCookieSessionAnswerToken,
     IServerSession, ServerPrivateBox, Socket_ChannelItemNotUsedAnymore,
     Socket_Client2ServerMessage, Socket_DownCall,
@@ -478,6 +478,10 @@ export class ClientSocketConnection {
         }
 
         const sendAnswer = (result: unknown, error?: unknown) => {
+            if(error && error instanceof Error) {
+                fixErrorStack(error);
+                error = cloneError(error);
+            }
             this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
         }
 

@@ -7,6 +7,7 @@ import 'reflect-metadata' // Must import
 
 export {RestfuncsServer, ServerOptions, restfuncsExpress, getServerInstance, SessionValidator} from "./Server"
 export {ServerSession, ServerSessionOptions, remote, RemoteMethodOptions, ClientCallback} from "./ServerSession";
+export {DownCallError} from "./ServerSocketConnection";
 export {ClientCallbacks} from "./util/ClientCallbacks"
 export {ClientCallbacksForEntities} from "./util/ClientCallbacksForEntities"
 export {ClientCallbacksCommon} from "./util/ClientCallbacksCommon"

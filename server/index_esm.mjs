@@ -22,6 +22,9 @@ export const RemoteMethodOptions = cjsServerSession.RemoteMethodOptions
 export const ClientCallback = cjsServerSession.ClientCallback
 export const free = cjsServerSession.free
 
+import cjsServerSocketConnection from "./ServerSocketConnection.js";
+export const DownCallError = cjsServerSocketConnection.DownCallError
+
 import cjsClientCallbacks from "./util/ClientCallbacks.js"
 export const ClientCallbacks = cjsClientCallbacks.ClientCallbacks
 

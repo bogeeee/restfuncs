@@ -28,12 +28,12 @@ export class ServerError extends Error {
 
     httpStatusCode?: Number
 
-    static formatError(e: any): string {
+    static formatError(e: any, isServerStack=true): string {
         if (typeof (e) == "object") {
             return (e.name ? (e.name + ": ") : "") + (e.message || e) +
-                (e.stack ? `\nServer stack:\n ${e.stack}` : '') +
+                (e.stack ? `\n${isServerStack?"Server stack:":"Stack"}\n ${e.stack}` : '') +
                 (e.fileName ? `\nFile: ${e.fileName}` : '') + (e.lineNumber ? `, Line: ${e.lineNumber}` : '') + (e.columnNumber ? `, Column: ${e.columnNumber}` : '') +
-                (e.cause ? `\nCause: ${ServerError.formatError(e.cause)}` : '')
+                (e.cause ? `\nCause: ${ServerError.formatError(e.cause, false)}` : '')
         } else {
             return e;
         }
