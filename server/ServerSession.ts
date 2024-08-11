@@ -129,7 +129,10 @@ export type SwappableArgs = {
     swapCallbackPlaceholderFns?: ((args: SwapPlaceholders_args) => void)[]
 
     /**
-     * These replace escaped strings / reserved string placeholders inside argsWithPlaceholders with the actual unescaped value.
+     * These replace escaped strings / reserved string placeholders inside argsWithPlaceholders with the actual value.
+     * <p>
+     * If you add them, take care that the replacements don't differ too much in length and content so they don't slip through / exploit the regular validation methods.
+     * </p>
      */
     swapEscapedStringFns?: (() => void)[]
 }
@@ -1683,8 +1686,6 @@ export class ServerSession implements IServerSession {
 
             // Swap callback placeholders
             args.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this, remoteMethodName: methodName, remoteMethodOptions: this.getRemoteMethodOptions(methodName)}));
-
-            args.swapEscapedStringFns?.forEach(fn => fn ()); // Swap other placeholders
         }
         else {
             // safety check:
@@ -1692,6 +1693,8 @@ export class ServerSession implements IServerSession {
                 throw new CommunicationError(`You've sent one or more functions inside the method arguments. These could either come from class instances (if this is the case, then see RemoteMethodOptions#allowCallbacksAnywhere). Or otherwise, make sure to declare all your callback functions 'inline' (=not in a user type). ${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path?`${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path}`:""}`);
             }
         }
+
+        args.swapEscapedStringFns?.forEach(fn => fn ()); // Swap these placeholders. They should be safe, as it's only a string->string replacement
 
         // Validate:
         const validationResult= trimExtraproperties?meta.arguments.validatePrune(args.argsWithPlaceholders):meta.arguments.validateEquals(args.argsWithPlaceholders);
