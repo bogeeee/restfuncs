@@ -970,10 +970,7 @@ export class ServerSession implements IServerSession {
         let serverSession: ServerSession = new this();
 
         serverSession.validateCall(remoteMethodName, methodArguments, remoteMethodOptions.trimArguments !== undefined?remoteMethodOptions.trimArguments:trimArguments_clientPreference);
-        // Swap all placeholders to the final values:
-        methodArguments.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this, remoteMethodName, remoteMethodOptions}));
-        methodArguments.swapEscapedStringFns?.forEach(fn => fn ());
-        const finalMethodArguments = methodArguments.argsWithPlaceholders; // i know, this reads strange :)
+        const finalMethodArguments = methodArguments.argsWithPlaceholders;
 
         {
             // *** Prepare serverSession for change tracking **
@@ -1628,53 +1625,87 @@ export class ServerSession implements IServerSession {
      * <p>
      * Internal / not part of the API (for now, may be later). Do not override
      * </p>
-     * @param reflectedMethod
-     * @param args
+     * <p>
+     *     Side effect: Swaps/modifies values inside args
+     * </p>
      */
     protected static validateMethodArguments(methodName: string, args: SwappableArgs, trimExtraproperties: boolean) {
-        const meta = this.getRemoteMethodMeta(methodName);
-        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args.argsWithPlaceholders):meta.arguments.validateEquals(args.argsWithPlaceholders);
-        if(validationResult.success) {
-            return;
-        }
+        /**
+         * Turn validationResult into throwing a (good readable) CommunicationError
+         */
+        const checkValidationResult = (validationResult: IValidation<unknown[]>) => {
+            if(validationResult.success) {
+                return;
+            }
 
-        const prefix = `Invalid argument(s) for method ${methodName}`;
+            const prefix = `Invalid argument(s) for method ${methodName}`;
 
-        const errors = validationResult.errors;
+            const errors = validationResult.errors;
 
-        // Handle invalid number of arguments:
-        if(errors.length == 1 && errors[0].path === "$input") {
-            throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
-        }
+            // Handle invalid number of arguments:
+            if(errors.length == 1 && errors[0].path === "$input") {
+                throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
+            }
 
-        // Compose errors into readable messages:
-        const readableErrors: string[] = errors.map(error => {
-            // Replace $input[x] with <argument name>, if possible
-            const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, index: string) => {
+            // Compose errors into readable messages:
+            const readableErrors: string[] = errors.map(error => {
+                // Replace $input[x] with <argument name>, if possible
+                const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, index: string) => {
 
-                try {
-                    const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
-                    if(reflectedMethod) {
-                        return reflectedMethod.parameters[Number(index)].name;
+                    try {
+                        const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
+                        if(reflectedMethod) {
+                            return reflectedMethod.parameters[Number(index)].name;
+                        }
                     }
-                }
-                catch (e) {
+                    catch (e) {
 
-                }
-                return orig;
+                    }
+                    return orig;
+                })
+
+                return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
             })
 
-            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
-        })
+            const separateLines = readableErrors.length > 1;
+            throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
+        }
 
-        const separateLines = readableErrors.length > 1;
-        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
+
+        const meta = this.getRemoteMethodMeta(methodName);
+
+        // Handle the way with callback placeholders:
+        if(meta.arguments.withPlaceholders !== undefined) { // There are placeholders expected ?
+            // Validate, using the withPlaceholders version:
+            const validationResult= trimExtraproperties?meta.arguments.withPlaceholders.validatePrune(args.argsWithPlaceholders):meta.arguments.withPlaceholders.validateEquals(args.argsWithPlaceholders);
+            checkValidationResult(validationResult);
+
+            // Swap callback placeholders
+            args.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this, remoteMethodName: methodName, remoteMethodOptions: this.getRemoteMethodOptions(methodName)}));
+
+            args.swapEscapedStringFns?.forEach(fn => fn ()); // Swap other placeholders
+        }
+        else {
+            // safety check:
+            if(args.swapCallbackPlaceholderFns !== undefined && args.swapCallbackPlaceholderFns.length > 0) {
+                throw new CommunicationError(`You've sent one or more functions inside the method arguments. These could either come from class instances (if this is the case, then see RemoteMethodOptions#allowCallbacksAnywhere). Or otherwise, make sure to declare all your callback functions 'inline' (=not in a user type). ${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path?`${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path}`:""}`);
+            }
+        }
+
+        // Validate:
+        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args.argsWithPlaceholders):meta.arguments.validateEquals(args.argsWithPlaceholders);
+        checkValidationResult(validationResult);
     }
+
+
 
 
     /**
      * Security checks the method name and args.
      * <p>Internal. API may change</p>
+     * <p>
+     *     Side effect: Swaps/modifies values inside evil_args
+     * </p>
      * @param evil_methodName
      * @param evil_args
      */
@@ -1710,6 +1741,9 @@ export class ServerSession implements IServerSession {
         const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName);
 
         if(this.clazz.isSecurityDisabled) {
+            // Swap placeholders:
+            evil_args.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this.clazz, remoteMethodName: methodName, remoteMethodOptions}));
+            evil_args.swapEscapedStringFns?.forEach(fn => fn ());
             return;
         }
 

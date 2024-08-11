@@ -445,7 +445,7 @@ export class ServerSocketConnection {
                 }
 
                 if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
-                    result.swapCallbackPlaceholderFns!.push((swapperArgs: SwapPlaceholders_args) => {
+                    const swapperFn = (swapperArgs: SwapPlaceholders_args) => {
                         // Determine / create callback:
                         const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                         let callback: ClientCallback;
@@ -615,7 +615,9 @@ export class ServerSocketConnection {
 
                         this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
                         swapValueTo(callback);
-                    });
+                    };
+                    (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
+                    result.swapCallbackPlaceholderFns!.push(swapperFn);
                     return "_callback"; // replace with placeholder for now.
                 }
                 else {
