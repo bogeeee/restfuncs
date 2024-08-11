@@ -52,6 +52,7 @@ import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
 import {errorToString} from "restfuncs-common";
+import clone from "clone";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
@@ -1001,7 +1002,7 @@ export class ServerSession implements IServerSession {
 
             // Validate the result:
             if(remoteMethodOptions.validateResult !== false) {
-                serverSession.validateAndTrimResult(result, remoteMethodName);
+                result = serverSession.validateAndTrimResult(result, remoteMethodName);
             }
         }
         catch (e) {
@@ -1754,15 +1755,16 @@ export class ServerSession implements IServerSession {
 
     /**
      * Validates the result of a remote method call.
-     * Also trims it, if set by in the options.
+     * Also trims it, if set in the options.
      * <p>Internal. API may change</p>
      * @param result the awaited result
      * @param remoteMethodName
      * @protected
+     * @returns the trimmed result (cloned) (if it was trimmed at all)
      */
     protected validateAndTrimResult(result: unknown, remoteMethodName: string) {
         if(this.clazz.isSecurityDisabled) {
-            return;
+            return result;
         }
 
         // obtain reflectedMethod:
@@ -1789,21 +1791,25 @@ export class ServerSession implements IServerSession {
                 throw new Error("Cannot obtain typeRef. This may be due to nasty unsupported API usage of typescript-rtti by restfuncs and the API has may be changed. Report this as a bug to the restfuncs devs and try to go back to a bit older (minor) version of 'typescript-rtti'.")
             }
             if(typeRef === Buffer) {
-                return; // Skip validation of Buffer
+                return result; // Skip validation of Buffer
             }
         }
         if(result instanceof Readable) {
             return result;
         }
 
+        const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
+
+        if(shouldTrimResult) {
+            result = clone(result, true); // Use the "clone" lib, cause it references prototypes instead of cloning them (like structuredClone would do) for better performance. Typia's prune doesn't touch prototypes anyway.
+        }
+
         // Validate:
         const errors: Error[] = []
-
         const meta = this.clazz.getRemoteMethodMeta(remoteMethodName);
-        const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
         const validationResult = shouldTrimResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
         if(validationResult.success) {
-            return;
+            return result;
         }
 
         // *** Compose error message and throw it ***:
