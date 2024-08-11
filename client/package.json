@@ -27,7 +27,9 @@
     "underscore": "^1.13.3",
     "@types/underscore": "^1.11.4",
     "@brillout/json-serializer": "^0.5.3",
-    "engine.io-client": "^6.5.2"
+    "engine.io-client": "^6.5.2",
+    "clone": "^2.1.2",
+    "@types/clone": "^2.1.4"
   },
   "devDependencies": {
     "typescript": "5.x",

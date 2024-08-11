@@ -15,6 +15,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import _ from "underscore";
 import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
+import clone from "clone";
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
@@ -322,6 +323,7 @@ export class ClientSocketConnection {
     async doCall(client: RestfuncsClient<IServerSession>, serverSessionClassId: string, methodName: string, args: any[]): Promise<unknown> {
         this.checkFatal();
 
+        args = clone(args); // The following line "should not delete/replace methods on the client side when serializing them". So we must clone it first. using the "clone" lib because: - it clones functions as well. It preserves the __proto__ (for, if the user sends class instances). //TODO: with future life-objects, we cannot clone the whole object tree but must stop when hitting life-objects / do both steps at once.
         this.docall_exec_insertChannelItemDTOs(args);
 
         const exec = async () => {
