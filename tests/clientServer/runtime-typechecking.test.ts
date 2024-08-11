@@ -384,7 +384,10 @@ test('trim result', async () => {
 it('should trim result but not modify the original objects', async () => {
 
 
-    const myObj: {a: boolean} = {a:true, extra: "something"} as any
+    const myObj: {a: boolean} = {
+        a:true, extra: "something",
+        //extraMethod() {} // this does not work in the first place: "Cannot serialize `value['a']['extra']['extraMethod']` because it is a function"
+    } as any
     class ServerAPI extends ServerSession {
         @remote()
         getMyObjTrimmed() {
@@ -402,6 +405,42 @@ it('should trim result but not modify the original objects', async () => {
             expect(await apiProxy.getOriginalMyObj()).toStrictEqual({a:true, extra: "something"})
             expect(await apiProxy.getMyObjTrimmed()).toStrictEqual({a:true})
             expect(await apiProxy.getOriginalMyObj()).toStrictEqual({a:true, extra: "something"}) // Should still have the extra property
+        }
+    );
+})
+
+
+it('should trim result but not modify prototype fields', async () => {
+
+    const protoObject = {
+        extra: "something",
+        extraMethod() {
+        }
+    }
+
+    const myObj={a: true};
+    Object.setPrototypeOf(myObj, protoObject);
+
+    class ServerAPI extends ServerSession {
+        @remote()
+        getMyObjTrimmed() {
+            return myObj
+        }
+
+        @remote({trimResult: false, validateResult: false})
+        getOriginalMyObj() {
+            return myObj
+        }
+    }
+
+    await runClientServerTests(new ServerAPI(),
+        async (apiProxy) => {
+            const result = await apiProxy.getOriginalMyObj();
+            //expect((result as any).extra).toStrictEqual("something") // Should still have the extra property ideally. But this does not work: No known json serializer seems to include the prototype properties, nor does jest's expect(someObj).toStrictEqual. And it's not common to use such / rather a bad practice.
+
+            expect(await apiProxy.getMyObjTrimmed()).toStrictEqual({a:true})
+            expect((myObj as any).extra).toStrictEqual("something") // Should still have the extra property
+            expect((myObj as any).extraMethod).toBeDefined() // Should still have the extra method
 
         }
     );
