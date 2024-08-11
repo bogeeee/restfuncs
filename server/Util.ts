@@ -68,32 +68,6 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
 }
 
 /**
- * Properties of a usual error
- */
-export const ERROR_PROPERTIES = ["message", "name", "cause", "fileName", "lineNumber", "columnNumber", "stack"]
-
-/**
- * Clones an error with hopefully all properties. You can't list / clone them normally.
- * Using https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#instance_properties to guess the properties
- * @param e
- */
-export function cloneError(e: any): ErrorWithExtendedInfo {
-    const copiedProps = {}
-
-    // Copy ERROR_PROPERTIES from e to copiedProps
-    ERROR_PROPERTIES.forEach((propName) => {if(e[propName] !== undefined) {
-        // @ts-ignore
-        copiedProps[propName] = e[propName]
-    } });
-
-    return {
-        ...copiedProps,
-        cause: e.cause instanceof Error?cloneError(e.cause):e.cause,
-        ...e // try everything else that's accessible as properties
-    }
-}
-
-/**
  * @return Value with big "V"
  */
 export function Camelize(value: string) {
@@ -123,31 +97,6 @@ export function errorToHtml(e: any): string {
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
-
-const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*CommunicationError.*\n/;
-
-/**
- * Removes redundant info from the error.stack + error.cause properties
- * @param error
- */
-export function fixErrorStack(error: Error) {
-    //Redundantly fix error.cause's
-    if(error.cause && typeof error.cause === "object") {
-        fixErrorStack(<Error> error.cause);
-    }
-
-    if(typeof error.stack !== "string") {
-        return;
-    }
-
-    // Remove repeated title from the stack:
-    let title= (error.name ? `${error.name}: `: "") + (error.message || String(error))
-    if(error.stack?.startsWith(title + "\n")) {
-        error.stack=error.stack.substring(title.length + 1);
-    }
-
-    error.stack = error.stack.replace(RESTERRORSTACKLINE,"") // Remove "at new Resterror..." line
-}
 
 export function diagnisis_shortenValue(evil_value: any) : string {
     if(evil_value === undefined) {

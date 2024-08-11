@@ -29,13 +29,13 @@ import {
 import _ from "underscore";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {diagnisis_shortenValue, fixErrorStack} from "./Util";
+import {diagnisis_shortenValue} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
-import {WeakValueMap} from "restfuncs-common";
+import {WeakValueMap, fixErrorStack} from "restfuncs-common";
 import clone from "clone";
 
 const FEATURE_ENABLE_CALLBACKS = true;
