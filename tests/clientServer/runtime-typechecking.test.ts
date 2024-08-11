@@ -721,6 +721,13 @@ describe("callbacks", () => {
                 throw new Error("Unexpected result");
             }
         }
+
+        @remote()
+        withTrimLeavesOriginalObjectIntact(cb: (obj: {x: string}) => void) {
+            const objWithExtraProps = {x: "123", extraProp: "extra"}
+            withTrim(cb)(objWithExtraProps);
+            return objWithExtraProps.extraProp === "extra"; // is still intact ?
+        }
     }
 
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
@@ -860,6 +867,12 @@ describe("callbacks", () => {
         const user = new ClientUser()
 
         await expectAsyncFunctionToThrow(() => apiProxy.withUser(user), /.*allowCallbacksAnywhere.*/); // there should be the hint for that option
+    }, {
+        useSocket: true
+    }));
+
+    test("withTrim should not modify the original object", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.withTrimLeavesOriginalObjectIntact((dumny: any) => {})).toBeTruthy();
     }, {
         useSocket: true
     }));
