@@ -1,6 +1,6 @@
 import {ServerSession as ServerSession, ServerSessionOptions} from "restfuncs-server";
 import express from "express";
-import {ClientSocketConnection, RestfuncsClient} from "restfuncs-client";
+import {ClientSocketConnection, RestfuncsClient, ServerError} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
@@ -2480,6 +2480,27 @@ describe("callbacks", () => {
     test("Callback with Promise<string>", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn().mockResolvedValue("hello from client");
         expect(await apiProxy.callPromiseStringCallback(mock)).toBe("hello from client");
+    }, {
+        useSocket: true
+    }));
+
+    test("Properly retrieve error from a callback with result promise", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const clientFn = async () => {
+            throw new Error("Some error on the client");
+        }
+        try {
+            async function callFromClient() { // Give this stack element a name "callFromClient", so we have it in the error message
+                await apiProxy.callPromiseStringCallback(clientFn as any);
+            }
+            await callFromClient();
+            fail("function did not throw an error");
+        }
+        catch (e) {
+            // Check, that the error has all the helpful components in the description / stack:
+            expect(e instanceof ServerError).toBeTruthy();
+            expect((e as ServerError).message).toMatch(/DownCallError.*Error.*Some error on the client.*clientFn.*callPromiseStringCallback.*/s);
+            expect(e.stack).toMatch(/.*callFromClient.*/s)
+        }
     }, {
         useSocket: true
     }));
