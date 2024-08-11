@@ -3,7 +3,6 @@ import {Buffer} from 'node:buffer'; // *** If you web packager complains about t
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 import escapeHtml from "escape-html";
-import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import crypto from "node:crypto"
 import {Request} from "express";
 import URL from "url";
@@ -150,18 +149,18 @@ export function fixErrorStack(error: Error) {
     error.stack = error.stack.replace(RESTERRORSTACKLINE,"") // Remove "at new Resterror..." line
 }
 
-export function diagnisis_shortenValue(value: any) : string {
-    if(value === undefined) {
+export function diagnisis_shortenValue(evil_value: any) : string {
+    if(evil_value === undefined) {
         return "undefined";
     }
 
-    if(value === null) {
+    if(evil_value === null) {
         return "null";
     }
 
     let objPrefix = "";
-    if(typeof value == "object" && value.constructor?.name && value.constructor?.name !== "Object") {
-        objPrefix = `class ${value.constructor?.name} `;
+    if(typeof evil_value == "object" && evil_value.constructor?.name && evil_value.constructor?.name !== "Object") {
+        objPrefix = `class ${evil_value.constructor?.name} `;
     }
 
 
@@ -175,19 +174,48 @@ export function diagnisis_shortenValue(value: any) : string {
     }
 
     try {
-        return shorten(objPrefix + brilloutJsonStringify(value));
+        return shorten(objPrefix + betterJsonStringify(evil_value));
     }
     catch (e) {
     }
 
-    if(typeof value == "string") {
-        return shorten(value)
+    if(typeof evil_value == "string") {
+        return shorten(evil_value)
     }
-    else if(typeof value == "object") {
+    else if(typeof evil_value == "object") {
         return `${objPrefix}{...}`;
     }
     else {
         return "unknown"
+    }
+
+    /**
+     * Like JSON.stringify, but support for some additional types.
+     *
+     * @param value
+     */
+    function betterJsonStringify(value: unknown) {
+        return JSON.stringify(value,(key, val) => {
+            if(val === undefined){
+                return "undefined"
+            }
+            else if(typeof val === 'number' && isNaN(val)){
+                return "NaN";
+            }
+            else if(val !== null && JSON.stringify(val) === "null") {
+                return "-unknown type-";
+            }
+            else if(val instanceof Set) {
+                return "-Set(...)-";
+            }
+            else if(val instanceof Map) {
+                return "-Map(...)-";
+            }
+            else if(val instanceof RegExp) {
+                return "-Regexp(...)-";
+            }
+            return val;
+        });
     }
 
 }
