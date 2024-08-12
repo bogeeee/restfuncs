@@ -528,7 +528,19 @@ export class ServerSocketConnection {
                                             // Await the downcall:
                                             const downCallPromise = new ExternalPromise<Socket_DownCallResult>();
                                             this.methodDownCallPromises.set(downCall.id, downCallPromise)
-                                            const downCallResult = await downCallPromise;
+                                            let downCallResult: Socket_DownCallResult;
+                                            try {
+                                                downCallResult = await downCallPromise;
+                                            }
+                                            catch (e) { // Error, awaiting the promise (i.e. the connection was closed and all promises got rejected ?)
+                                                if(hasADeclaredResult) {
+                                                    throw e;
+                                                }
+                                                else {
+                                                    return undefined; // Ignore it, to prevent an unhandledrejection, cause there's likely no awaiter
+                                                }
+                                            }
+
 
                                             // Handle, if client throw an error:
                                             if (downCallResult.error) {
