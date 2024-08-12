@@ -10,7 +10,6 @@ import ts, {
 import {FileTransformRun, TextPatch} from "./transformerUtil";
 import {transformerVersion} from "./index";
 import {visitReplace} from "restfuncs-common";
-import {diag_sourceLocation} from "restfuncs-server/ServerSession";
 
 
 /**
