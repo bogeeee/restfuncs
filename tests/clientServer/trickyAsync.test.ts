@@ -127,6 +127,25 @@ test("Race condition on client that callback-handle is cleaned up but still in u
 
 })
 
+test("Unawaited void callback should not lead to 'unhandledrejection' after client disconnect and crash the whole process in development", async () => {
+    class ServerAPI extends ServerSession {
+        static options: ServerSessionOptions = {devDisableSecurity: true}
+
+        @remote()
+        myMethod(cb: () => void) {
+            cb();
+        }
+    }
+
+    await runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await apiProxy.myMethod(() => {
+            // don't throw an error here
+        })
+    }, {
+        useSocket: true,
+    });
+});
+
 describe("Error in an unawaited callback promise", () => {
 
     for(const disableSecurity of [false, true]) {
