@@ -90,7 +90,10 @@ export type ClientCallbackProperties = {
     _handedUpViaRemoteMethods: Map<object, {
         serverSessionClass: typeof ServerSession,
         remoteMethodName: string,
-        callbackIndex: number, // Index in the remoteMethodMeta->callbacks array
+        /**
+         *  Index in the remoteMethodMeta->callbacks array. Can be undefined if security is disabled
+         */
+        declarationIndex?: number,
     }>
 
     /**
@@ -105,12 +108,16 @@ export type ClientCallbackProperties = {
 }
 
 /**
- * TODO: may be eliminate this type for simpler readability and list the args directly
+ *
  */
 export type SwapPlaceholders_args = {
     serverSessionClass: typeof ServerSession
     remoteMethodName: string
     remoteMethodOptions: RemoteMethodOptions,
+    /**
+     * Which one inside the remote method's method declaration ? Undefined = we have no runtime info / security disabled
+     */
+    declarationIndex?: number,
 }
 
 /**
@@ -124,9 +131,9 @@ export type SwappableArgs = {
     argsWithPlaceholders: unknown[],
 
     /**
-     * These replace the "_callback" placeholders inside argsWithPlaceholders with the actual values (=a function).
+     * These replace the "_callbackXXXXX" placeholders inside argsWithPlaceholders with the actual values (=a function).
      */
-    swapCallbackPlaceholderFns?: ((args: SwapPlaceholders_args) => void)[]
+    swapCallbackPlaceholderFns?: Map<string, ((args: SwapPlaceholders_args) => void)>
 
     /**
      * These replace escaped strings / reserved string placeholders inside argsWithPlaceholders with the actual value.
@@ -301,6 +308,14 @@ export type CallbackMeta = {
     diagnosis_source: SourceNodeDiagnosis
 };
 
+/**
+ *
+ * @param onValidateCallbackArg called, whenever the validator hits a callback placeholder.
+ * - placeholderId: the (string) value that was spotted (and is now validated). I.e. "_callback_8sdfsdf988sdf"
+ * - declarationIndex: index of the callback declaration inside <getRemoteMethodsMeta's result>.instanceMethods[<methodName>].callbacks.
+ */
+type ValidateFnWithPlaceholders = (args: unknown[], onValidateCallbackArg: (placeholderId: string, declarationIndex: number) => boolean) => IValidation<unknown[]>
+
 type RemoteMethodsMeta = {
     transformerVersion: {major: number,  feature: number },
     instanceMethods: {
@@ -312,8 +327,8 @@ type RemoteMethodsMeta = {
                  * Only, if there are placeholders inside the args (for the callbacks below). Then the args need to be validates against here first.
                  */
                 withPlaceholders?: {
-                    validateEquals: (args: unknown[]) => IValidation<unknown[]>
-                    validatePrune:  (args: unknown[]) => IValidation<unknown[]>
+                    validateEquals: ValidateFnWithPlaceholders
+                    validatePrune:  ValidateFnWithPlaceholders
                 }
             }
             result: {
@@ -434,6 +449,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Transformer: Serve reference to typia for generated code. Cause adding the "import ..." clause is too much effort
+     * @deprecated we need the typia.tags.TagBase type anyways, and this can't be handed via a field. So there must be an "import..."
      * @protected
      */
     protected static typiaRuntime = typia;
@@ -1679,19 +1695,44 @@ export class ServerSession implements IServerSession {
         const meta = this.getRemoteMethodMeta(methodName);
 
         // Handle the way with callback placeholders:
+        const swapCallbackPlaceholderFns = args.swapCallbackPlaceholderFns || new Map<string, (args: SwapPlaceholders_args) => void>();
         if(meta.arguments.withPlaceholders !== undefined) { // There are placeholders expected ?
-            // Validate, using the withPlaceholders version:
-            const validationResult= trimExtraproperties?meta.arguments.withPlaceholders.validatePrune(args.argsWithPlaceholders):meta.arguments.withPlaceholders.validateEquals(args.argsWithPlaceholders);
-            checkValidationResult(validationResult);
+            // *** Validate, using the withPlaceholders version: ***
+            const execTheseAfterValidation:(()=>void)[] = [];
+            const onValidateCallbackArg = (placeholderId: string, declarationIndex: number) => {
+                // Safety check:
+                if(typeof placeholderId !== "string") {
+                    throw new Error("placeholderId should be a string")
+                }
 
-            // Swap callback placeholders
-            args.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this, remoteMethodName: methodName, remoteMethodOptions: this.getRemoteMethodOptions(methodName)}));
+                if(!placeholderId.startsWith("_callback")) { // no placeholder ?
+                    return false; // Fail validation
+                }
+
+                // safety check:
+                if(!swapCallbackPlaceholderFns.has(placeholderId)) {
+                    throw new Error("Illegal placeholder: " + placeholderId);
+                }
+
+                execTheseAfterValidation.push(() => { // exec later to not swap any placeholders in the middle of validation
+                    const swapperFn = swapCallbackPlaceholderFns.get(placeholderId);
+                    // Safety check:
+                    if(!swapperFn) {
+                        return; // Yes, it could happen, that onValidateCallbackArg was called twice. Don't expect Typia's validator to be godlike efficient.
+                    }
+                    // Call the swapper (swaps the placeholder and do other stuff):
+                    swapperFn({serverSessionClass: this, remoteMethodName: methodName, remoteMethodOptions: this.getRemoteMethodOptions(methodName), declarationIndex})
+
+                    swapCallbackPlaceholderFns.delete(placeholderId); // remove entry, so we can check if there are some left at the end
+                });
+                return true;
+            };
+            const validationResult= trimExtraproperties?meta.arguments.withPlaceholders.validatePrune(args.argsWithPlaceholders,onValidateCallbackArg):meta.arguments.withPlaceholders.validateEquals(args.argsWithPlaceholders, onValidateCallbackArg);
+            checkValidationResult(validationResult);
+            execTheseAfterValidation.forEach(fn => fn()); // exec these
         }
-        else {
-            // safety check:
-            if(args.swapCallbackPlaceholderFns !== undefined && args.swapCallbackPlaceholderFns.length > 0) {
-                throw new CommunicationError(`You've sent one or more functions inside the method arguments. These could either come from class instances (if this is the case, then see RemoteMethodOptions#allowCallbacksAnywhere). Or otherwise, make sure to declare all your callback functions 'inline' (=not in a user type). ${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path?`${(args.swapCallbackPlaceholderFns[0] as any).diagnosis_path}`:""}`);
-            }
+        if(swapCallbackPlaceholderFns.size > 0) { // There are still placeholders left that did not get handled ?
+            throw new CommunicationError(`You've sent a (callback-) function inside your method arguments which was not declared 'inline' (inline means: directly inside the remote method's parameter declaration / not in a user type). To allow this (security relevant!!!), see RemoteMethodOptions#allowCallbacksAnywhere`);
         }
 
         args.swapEscapedStringFns?.forEach(fn => fn ()); // Swap these placeholders. They should be safe, as it's only a string->string replacement
@@ -1745,8 +1786,10 @@ export class ServerSession implements IServerSession {
         const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName);
 
         if(this.clazz.isSecurityDisabled) {
-            // Swap placeholders:
-            evil_args.swapCallbackPlaceholderFns?.forEach(fn => fn ({serverSessionClass: this.clazz, remoteMethodName: methodName, remoteMethodOptions}));
+            // Swap all placeholders:
+            if(evil_args.swapCallbackPlaceholderFns) {
+                [...evil_args.swapCallbackPlaceholderFns.values()].forEach(fn => fn ({serverSessionClass: this.clazz, remoteMethodName: methodName, remoteMethodOptions}));
+            }
             evil_args.swapEscapedStringFns?.forEach(fn => fn ());
             return;
         }

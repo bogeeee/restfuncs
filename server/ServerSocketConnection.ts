@@ -29,7 +29,7 @@ import {
 import _ from "underscore";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {diagnisis_shortenValue} from "./Util";
+import {createSecureId, diagnisis_shortenValue} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
@@ -426,7 +426,7 @@ export class ServerSocketConnection {
      *
      */
     handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
-        const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: [], swapEscapedStringFns: []}
+        const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: new Map<string, ((args: SwapPlaceholders_args) => void)>(), swapEscapedStringFns: []}
 
         visitReplace(remoteMethodArgs, (item, visitChilds, context) => {
             const swapValueTo = (newValue: unknown) => {
@@ -472,7 +472,7 @@ export class ServerSocketConnection {
 
                                     // It' better, to record these at the point of time **before** the call (at least before the await...the downcall line)
                                     const handedUpViaRemoteMethods = [...callback._handedUpViaRemoteMethods.values()]
-                                    const metas = handedUpViaRemoteMethods.filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex]);
+                                    const metas = handedUpViaRemoteMethods.filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!]);
                                     const hasADeclaredResult = metas.some(entry => entry.awaitedResult !== undefined);
                                     const usedInSecDisabledServerSession = callback._handedUpViaRemoteMethods.size === 0 ||  [...callback._handedUpViaRemoteMethods.values()].some(entry => entry.serverSessionClass.isSecurityDisabled);
 
@@ -487,13 +487,13 @@ export class ServerSocketConnection {
                                             if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackArguments === false) {
                                                 continue;
                                             }
-                                            const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.callbackIndex];
+                                            const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.declarationIndex!];
 
                                             // obtain trim (for this meta):
                                             let trim = trimArguments;
                                             if (trimArguments && useSignatureForTrim !== undefined) {
                                                 const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
-                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
+                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!] === meta) // signature is for this meta ?
                                             }
 
                                             validationSpots.push({meta, trim})
@@ -556,7 +556,7 @@ export class ServerSocketConnection {
                                                 if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackResult === false) {
                                                     continue;
                                                 }
-                                                const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.callbackIndex];
+                                                const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.declarationIndex!];
                                                 if (usedInSecDisabledServerSession && meta.awaitedResult === undefined) {
                                                     continue;  // There could be void callbacks. That's ok. Filter them out
                                                 }
@@ -565,7 +565,7 @@ export class ServerSocketConnection {
                                                 let trim = trimResult;
                                                 if (trimResult && useSignatureForTrim !== undefined) {
                                                     const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
-                                                    trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex] === meta) // signature is for this meta ?
+                                                    trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!] === meta) // signature is for this meta ?
                                                 }
 
                                                 validationSpots.push({meta, trim})
@@ -602,7 +602,7 @@ export class ServerSocketConnection {
                             throw new Error("not a function");
                         }
                         if(!callback._handedUpViaRemoteMethods.has(remoteMethodInstance)) { // not yet registered
-                            const callbackIndex = 0; // I cannot imagine a safe way to determine this. So we must limit it to one allowed function declaration per remote method. See the following check:
+                            const declarationIndex = swapperArgs.declarationIndex;
 
                             // Safety check: Remote method has more than one callback declared ? (not supported)
                             if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
@@ -614,8 +614,8 @@ export class ServerSocketConnection {
 
                             // Safety check (mixed variants), to prevent against an attacker upgrading to non-void and provoke an unhandledrejection somewhere. Or against accidential unhandledrejections in user's code:
                             if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
-                                const existingCallbackMetas = [...callback._handedUpViaRemoteMethods.values()].filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.callbackIndex]);
-                                const newMeta = swapperArgs.serverSessionClass.getRemoteMethodMeta(swapperArgs.remoteMethodName).callbacks[callbackIndex];
+                                const existingCallbackMetas = [...callback._handedUpViaRemoteMethods.values()].filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!]);
+                                const newMeta = swapperArgs.serverSessionClass.getRemoteMethodMeta(swapperArgs.remoteMethodName).callbacks[declarationIndex!];
                                 if(existingCallbackMetas.length > 0 && (existingCallbackMetas[0].awaitedResult === undefined) !== (newMeta.awaitedResult === undefined) ) {
                                     throw new Error("A callback, that you're handing up, was declared in mixed variants: Returning void + returning a Promise. We don't allow this, to save you from possible unhandledrejections in your application code (not awaiting + error-handling in one of the places). The callback was declared at the following places:\n" + [newMeta, ...existingCallbackMetas].map(m => diag_sourceLocation(m.diagnosis_source, true)).join("\n"));
                                 }
@@ -625,7 +625,7 @@ export class ServerSocketConnection {
                             callback._handedUpViaRemoteMethods.set(remoteMethodInstance, {
                                 serverSessionClass: swapperArgs.serverSessionClass,
                                 remoteMethodName: swapperArgs.remoteMethodName,
-                                callbackIndex,
+                                declarationIndex,
                             })
                         }
 
@@ -633,8 +633,10 @@ export class ServerSocketConnection {
                         swapValueTo(callback);
                     };
                     (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
-                    result.swapCallbackPlaceholderFns!.push(swapperFn);
-                    return "_callback"; // replace with placeholder for now.
+
+                    const placeholderId = `_callback_${createSecureId()}`;
+                    result.swapCallbackPlaceholderFns!.set(placeholderId, swapperFn);
+                    return placeholderId; // replace with placeholder for now.
                 }
                 else {
                     throw new Error(`Unhandled dto type:${dtoItem._dtoType}`)

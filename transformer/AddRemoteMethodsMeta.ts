@@ -68,6 +68,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 let result = this.visitChilds(node) as ClassDeclaration
 
                 if(Object.keys(this.currentClass_instanceMethodsMeta).length > 0) { // Current class has @remote methods ?
+                    if(this.result.patches.length === 0) { // First patch
+                        this.result.patches.push({position: 0, contentToInsert: '/* inserted by restfuncs-transformer:*/import _rf_typia from "typia";'}); // add the type import, which is needed by the following
+                    }
+
                     // *** Create the "getRemoteMethodsMeta()" function and add a patch for the source file to the result: ***
                     let methodDeclarationSourceText = this.create_static_getRemoteMethodsMeta_expression();
                     if(AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine) {
@@ -118,8 +122,8 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
         const factory = this.context.factory;
 
         const arguments_typiaFuncs:Record<string, string> = {
-            "validateEquals": "typia.validateEquals",
-            "validatePrune": "typia.misc.validatePrune"
+            "validateEquals": "_rf_typia.validateEquals",
+            "validatePrune": "_rf_typia.misc.validatePrune"
         }
         const result_typiaFuncs = {...arguments_typiaFuncs};
 
@@ -128,11 +132,11 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
              * typia.validateEquals
              */
             validateEquals: factory.createPropertyAccessExpression(
-                factory.createIdentifier("typia"),
+                factory.createIdentifier("_rf_typia"),
                 factory.createIdentifier("validateEquals")
             ),
             "validatePrune": factory.createPropertyAccessExpression(factory.createPropertyAccessExpression(
-                factory.createIdentifier("typia"),
+                factory.createIdentifier("_rf_typia"),
                 factory.createIdentifier("misc")
             ), factory.createIdentifier("validatePrune"))
         }
@@ -227,7 +231,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                             true
                         );
                     } else {
-                        throw new Error(`A callback function, declared in ${methodName}'s parameters, has neither void nor a Promise as return type. Location: ${this.diag_sourceLocation(node)}`);
+                        throw new Error(`A callback function, declared in ${methodName}'s parameters, declares that it returns a value directly (sync) and not via Promise (this is not possible over the wire). Please use Promise<${this.nodeToString(functionTypeNode.type, true, true)}> instead. Location: ${this.diag_sourceLocation(functionTypeNode.type)}`);
                     }
                 }
 
@@ -254,7 +258,8 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 );
 
                 callbackDeclarations.push(callbackDeclaration);
-                return factory.createLiteralTypeNode(factory.createStringLiteral("_callback")); // replace with "_callback"
+                const declarationIndex = callbackDeclarations.length -1;
+                return factory.createExpressionWithTypeArguments(factory.createIdentifier("CallbackPlaceholder"),[factory.createLiteralTypeNode(factory.createNumericLiteral(declarationIndex))]); // replace with CallbackPlaceholder<n>
             }
             return visitChilds(value, context)
         });
@@ -279,7 +284,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidate}>(args)`).join(",")}
                                 ,
                                 withPlaceholders: ${hasPlaceholders?`{${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
-                                    ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidateWithPlaceholders}>(args)`).join(",")}                                    
+                                    ${typiaFnName}: (args: unknown, onValidateCallbackArg: (placeholderId: string, declarationIndex: number) => boolean) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidateWithPlaceholders}>(args)`).join(",")}                                    
                                 }`:"undefined"}
                             },
                             result: {${/* for validateEquals + validatePrune */ Object.keys(result_typiaFuncs).map((typiaFnName) => `
@@ -395,7 +400,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     /**
      * Crates the following expression like in readme.md#how-it-works
      * <code><pre>
-     * static getRemoteMethodsMeta() {
+     * static getRemoteMethodsMeta(...) :... {
      *     ....
      * }
      * </pre></code>
@@ -406,8 +411,8 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     private create_static_getRemoteMethodsMeta_expression() : string {
         return `` +
             `static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
-                this.__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession; /* Give a friendly error message when this is not the case. Otherwise the following statement "const typia = ..." would fail and leaves the user wondering. */
-                let typia = this.typiaRuntime; /* We need a "typia" defined in the scope, but let restfuncs manage where that dependency comes from */
+                this.__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession;` /* Attempt to give a friendly error message when this is not the case. Otherwise the previous line would fail and leaves the user wondering. */ + `
+                type CallbackPlaceholder<DECL_INDEX extends number>  = string & _rf_typia.tags.TagBase<{kind: "callbackFn", target: "string", value: undefined, validate: \`onValidateCallbackArg($input, \${DECL_INDEX})\`}>;
                 const result= {
                     transformerVersion: {major: ${transformerVersion.major},  feature: ${transformerVersion.feature} },
                     instanceMethods: {${Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => `

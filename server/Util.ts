@@ -8,6 +8,8 @@ import {Request} from "express";
 import URL from "url";
 import {CommunicationError} from "./CommunicationError";
 import {reflect} from "typescript-rtti";
+import nacl from "tweetnacl";
+import nacl_util from "tweetnacl-util";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -576,4 +578,9 @@ export function diagnosis_hasDeepNullOrUndefined(obj: any): boolean {
     }
 
     return false;
+}
+
+
+export function createSecureId() {
+    return nacl_util.encodeBase64(nacl.randomBytes(32))
 }
