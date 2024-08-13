@@ -418,8 +418,8 @@ export class ServerSocketConnection {
     }
 
     /**
-     * Replaces all ClientCallback objects in the arguments with functions that do the down call
-     *
+     * Replaces all ClientCallback DTOs in the arguments with "_callback_XXX" placeholders and registers swapper functions for them, which bring them to life
+     * The placeholder+swapping functions is a preparation for {@link ServerSession#validateMethodArguments}.
      */
     handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
         const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: new Map<string, ((args: SwapPlaceholders_args) => void)>(), swapEscapedStringFns: []}
