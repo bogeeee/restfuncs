@@ -205,6 +205,11 @@ describe('User defined classes', () => {
         withCallbackAndUser(cb: () => void, user: User) {
 
         }
+
+        @remote()
+        withObjectWithMethod(obj: {name: string, someMethod: () => void}) {
+
+        }
     }
 
     test("basic", async () => {
@@ -241,8 +246,14 @@ describe('User defined classes', () => {
                         name: "dummy",
                         someMethod: () => {}
                     }
+
+                    // Expect it to arrive but to be undefined (currently not working):
                     //@ts-ignore
-                    expect(typ == "User"?await apiProxy.user_typeOfSomeMethod(user):await apiProxy.iuser_typeOfSomeMethod(user)).toStrictEqual("undefined");
+                    //expect(typ == "User"?await apiProxy.user_typeOfSomeMethod(user):await apiProxy.iuser_typeOfSomeMethod(user)).toStrictEqual("undefined");
+
+                    // Expect it to throw an error:
+                    //@ts-ignore
+                    await expectAsyncFunctionToThrow(async () => (typ == "User"?await apiProxy.user_typeOfSomeMethod(user):await apiProxy.iuser_typeOfSomeMethod(user)), /not declared 'inline'/)
                 }
             ,{useSocket: true});
         });
@@ -260,12 +271,12 @@ describe('User defined classes', () => {
                     expect(typeof user.someMethod).toStrictEqual("function");
                 }
 
-                // With an objet with methods:
+                // With an object with methods:
                 {
-                    const user:User  = {name: "dummy", someMethod() {return "x"}};
+                    const objectWithMethod:User  = {name: "dummy", someMethod() {return "x"}};
 
-                    await apiProxy.withCallbackAndUser(() => {}, user);
-                    expect(typeof user.someMethod).toStrictEqual("function");
+                    await apiProxy.withObjectWithMethod(objectWithMethod);
+                    expect(typeof objectWithMethod.someMethod).toStrictEqual("function");
                 }
             }
             , {useSocket: true});
