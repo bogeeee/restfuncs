@@ -38,8 +38,6 @@ import {ExternalPromise} from "restfuncs-common";
 import {WeakValueMap, fixErrorStack} from "restfuncs-common";
 import clone from "clone";
 
-const FEATURE_ENABLE_CALLBACKS = true;
-
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
@@ -317,10 +315,8 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    let swappableArgs: SwappableArgs = {argsWithPlaceholders: methodCall.args}
-                    if(FEATURE_ENABLE_CALLBACKS) {
-                        swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them
-                    }
+                    const swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them, or insert placeholders. Plays together with validateMethodArguments.
+
                     const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
