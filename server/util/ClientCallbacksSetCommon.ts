@@ -3,9 +3,9 @@ import {EventEmitter} from "node:events"
 import _ from "underscore"
 
 /**
- * Common stuff for both ClientCallbacks + ClientCallbacksForEntities classes
+ * Common stuff for both ClientCallbackSet + ClientCallbackSetPerItem classes
  */
-export class ClientCallbacksCommon<PARAMS extends unknown[]> {
+export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
 
     /**
      * Should the {@link #emitForSure} method allow, that a client has (silently) disconnected without calling removeListener ? Otherwise an error is thrown.
@@ -31,7 +31,7 @@ export class ClientCallbacksCommon<PARAMS extends unknown[]> {
      *
      * @param options
      */
-    constructor(options?: ClientCallbacksOptions) {
+    constructor(options?: ClientCallbackSetOptions) {
         if(options) {
             //@ts-ignore
             _.apply(this, options);
@@ -73,8 +73,4 @@ export class ClientCallbacksCommon<PARAMS extends unknown[]> {
 }
 
 
-export type ClientCallbacksOptions = Partial<Pick<ClientCallbacksCommon<any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately" | "maxListenersPerClient" | "trimArguments" | "trimFromSignature">>
-
-export interface ClientCallback_CleanupInterface {
-
-}
+export type ClientCallbackSetOptions = Partial<Pick<ClientCallbacksSetCommon<any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately" | "maxListenersPerClient" | "trimArguments" | "trimFromSignature">>

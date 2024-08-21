@@ -300,7 +300,7 @@ await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile 
 You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
 
 # Server events via callback functions
-**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbacks` and `ClientCallbacksForKeys` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
+**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbackSet` and `ClientCallbacksForKeys` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
 
 Now to the content:
 

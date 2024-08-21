@@ -89,7 +89,7 @@ export class ServerSocketConnection {
     // TODO Finalization registry for client initiated UploadFiles to signal GC to the client
 
     /**
-     * TODO: Imagine the case of a forgotten ClientCallbacksForEntities instance. Use an IterableWeakSet
+     * TODO: Imagine the case of a forgotten ClientCallbackSetPerItem instance. Use an IterableWeakSet
      * @protected
      */
     protected weakOnCloseListeners = new Set<OnCloseHandlerInterface>();

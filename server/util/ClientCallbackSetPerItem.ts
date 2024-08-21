@@ -1,7 +1,7 @@
 import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback} from "../ServerSession";
 import {EventEmitter} from "node:events"
 import _ from "underscore"
-import {ClientCallbacksCommon, ClientCallbacksOptions} from "./ClientCallbacksCommon";
+import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
 import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
 
 /**
@@ -30,7 +30,7 @@ import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
  * </p>
  *
  */
-export class ClientCallbacksForEntities<E, PARAMS extends unknown[]> {
+export class ClientCallbackSetPerItem<E, PARAMS extends unknown[]> {
 
     /**
      * The callbacks, with associations. Type will (lazily) depend on, what's used as an entity.
@@ -46,12 +46,12 @@ export class ClientCallbacksForEntities<E, PARAMS extends unknown[]> {
 
     /**
      * Common stuff from both classes.
-     * Composition, because the ClientCallbacks class also needs to use it via composition we always use do composition cause protected stuff there must be now public.
+     * Composition, because the ClientCallbackSet class also needs to use it via composition we always use do composition cause protected stuff there must be now public.
      */
-    protected common: ClientCallbacksCommon<PARAMS>;
+    protected common: ClientCallbacksSetCommon<PARAMS>;
 
-    constructor(options?: ClientCallbacksOptions) {
-        this.common = new ClientCallbacksCommon<PARAMS>(options);
+    constructor(options?: ClientCallbackSetOptions) {
+        this.common = new ClientCallbacksSetCommon<PARAMS>(options);
     }
 
     /**
@@ -236,7 +236,7 @@ export class ClientCallbacksForEntities<E, PARAMS extends unknown[]> {
 
 // Example with id-as-topic style, like you would use it in a web-application with lots of such entities:
 type User = {name: string}
-const chatJoinCallbacksForRooms = new ClientCallbacksForEntities<string /* the chatroom name */, [user: User] /* the listener function's arguments */>(); // Create a global emitter for all chatrooms
+const chatJoinCallbacksForRooms = new ClientCallbackSetPerItem<string /* the chatroom name */, [user: User] /* the listener function's arguments */>(); // Create a global emitter for all chatrooms
 // const chatLeaveCallbacksForRooms = ... // A separate one for each event type. Allows more precise type parameters.
 class MyServerSession extends ServerSession{
     currentUser?: User; // Assuming, you'll set this in the login method

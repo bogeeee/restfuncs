@@ -1,18 +1,18 @@
-import {ClientCallbacksCommon, ClientCallbacksOptions} from "./ClientCallbacksCommon";
+import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
 import {ClientCallback} from "../ServerSession";
 import {ServerSocketConnection} from "../ServerSocketConnection";
 
 /**
  * A Set of ClientCallback functions which automatically forgets them, when their client disconnects.
  * Use it as a collection for event listeners.
- * Also it as has some convenient features, see {@link #callForSure} and the {@link ClientCallbacksCommon options} in the constructor.
+ * Also it as has some convenient features, see {@link #callForSure} and the {@link ClientCallbacksSetCommon options} in the constructor.
  */
-export class ClientCallbacks<PARAMS extends unknown[]> extends Set<(...args: PARAMS) => unknown> {
+export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: PARAMS) => unknown> {
 
     /**
-     * We cannot inherit from ClientCallbacksCommon (already inheriting from Set) so we use composition
+     * We cannot inherit from ClientCallbacksSetCommon (already inheriting from Set) so we use composition
      */
-    common: ClientCallbacksCommon<PARAMS>;
+    common: ClientCallbacksSetCommon<PARAMS>;
 
     /**
      * TODO: Use an iterable WeakSet in place of the Set
@@ -21,9 +21,9 @@ export class ClientCallbacks<PARAMS extends unknown[]> extends Set<(...args: PAR
     protected entriesPerClient: WeakMap<ServerSocketConnection, Set<ClientCallback>> = new WeakMap();
 
 
-    constructor(options?: ClientCallbacksOptions) {
+    constructor(options?: ClientCallbackSetOptions) {
         super();
-        this.common = new ClientCallbacksCommon<PARAMS>(options);
+        this.common = new ClientCallbacksSetCommon<PARAMS>(options);
     }
 
     add(callback: ClientCallback): this {
