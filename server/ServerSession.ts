@@ -2863,10 +2863,31 @@ export type RemoteMethodOptions = {
 
 /**
  * Allows this method to be called from the outside via http / websockets
+ * <p>
+ * If you want to pass options, use it like:
+ * </p>
+ * <code>@remote({... my RemoteMethodOptions...})</code>
+ */
+export function remote(target: ServerSession, methodName: string, descriptor: PropertyDescriptor) : void;
+/**
+ * Allows this method to be called from the outside via http / websockets
  * @param options
  */
-export function remote(options?: RemoteMethodOptions) {
-    return function (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
+export function remote(options?: RemoteMethodOptions): (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) => void;
+export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, methodName?: string, descriptor?: PropertyDescriptor) {
+    let options: RemoteMethodOptions | undefined;
+    if(targetOrOptions != null && targetOrOptions instanceof ServerSession) { // Used directly: `@remote` / no brackets ?
+        if(!methodName || !descriptor) {
+            throw new Error("Illegal arguments: methodName / descriptor not set");
+        }
+        return decoratorFn(targetOrOptions, methodName, descriptor);
+    }
+    else { // Used via call-first: `@remote(...)` ?
+        options = targetOrOptions;
+        return decoratorFn;
+    }
+
+    function decoratorFn (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
         // TODO: handle static methods (if we choose to support them)
         const clazz = target.clazz;
         if(!Object.getOwnPropertyDescriptor(clazz,"remoteMethod2Options")?.value) { // clazz does not have it's OWN .remoteMethod2Options initialized yet ?
@@ -2918,7 +2939,16 @@ export type UnknownFunction = (...args: unknown[]) => unknown
  * @param callbackFn
  * @param trimArguments
  * @param trimResult
- * @param useSignatureFrom
+ * @param useSignatureFrom Advanced: The remote method instance (that defined the callback) who's declaration is used. If not specified, then trim is done against ALL declarations where callbackFn was handed up. Example:
+ * <pre><code>
+ *     @remote() myRemoteMethod(myCallback: (myObj: {a: string, b: number}) => void) {
+ *         withTrim(myCallback, true, true, this.myRemoteMethod)({a: "x", b:"y"}) // Will trim against '{a: string, b: number}' (=it leaves the a and b properties intact). Even if the myCallback was used in `someOtherRemoteMethod`
+ *     }
+ *
+ *     @remote() someOtherRemoteMethod(myCallback: (myObj: object) => void) {
+ *
+ *     }
+ * </code></pre>
  */
 export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArguments= true, trimResult= true, useSignatureFrom?: UnknownFunction): CB {
     // Validity checks:

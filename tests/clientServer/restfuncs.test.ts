@@ -51,7 +51,7 @@ describe("getRemoteMethodOptions", () => {
 
     test("No @remote decorator but at parent ", () => {
         class MyServiceParent extends BaseService {
-            @remote()
+            @remote
             myMethod() {
             }
         }
