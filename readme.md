@@ -87,34 +87,33 @@ But besides RPC, Restfuncs deals with much more aspects around http-communicatio
 ## Intro + features
 
 With restfuncs, you write your http API endpoints just as **plain typescript func**tion**s**. Or better say: methods.  
-Per-endpoint boilerplate is basically:
+Per-endpoint boilerplate is no more than, i.e.:
 ````typescript
-@remote()
-greet(name: string) {
+@remote greet(name: string) {
     return  `Hello ${name}` 
 }
 ````
-See, it uses natural parameters and natual `return` and `throw` flow, instead of dealing with `req` and `res` and Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
+See, it uses natural parameters and natural `return` (and `throw`) flow, instead of you having to deal with `req` and `res` on a lower level. And Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
 - 🛡️ **Automatic arguments validation** against **native typescript types**  
-  Like here, you used typescript to say "name must be a `string`" Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
+  Like here, you used typescript to say "name must be a `string`". Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
   _Now you may ask how this works, because usually all types are erased at runtime. Answer: Your files go through a set of transformer plugins during compilation which add that information and emit fast precompiled validator code. 
   This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
   - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
     _In cases where the full power of Typescript is still not enough for you ;)_
-- 🔌 **Zero conf [REST interface](#rest-interface)** for your remote methods  
-  Especially it comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them!
-- 🍾 **RPC client** (this is the best part 😄😄😄)  
-  Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
+- 🔌 Can i cURL it? **Zero conf [REST interface](#rest-interface)**    
+   Yes, you can cURL it in all ways you can imagine! And it does not even need any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them and say hello to zero-conf.
+- 🍾 **RPC client** (this is the best part 😎😎😎)  
+  Just **call your remote methods** from the client/browser **as if they were local**, like i.e. `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets**
-    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
+    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push event features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
 - **🔐 Security first approach**  
   All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
   Restfuncs is designed to handle setups with different security settings per ServerSession class _while they (always) share one cookie-session_. I.e, think of serving a subset of your APIs (ServerSessions) to ALL origins for third party browser apps or for SSO. _[How it works internally](server/Security%20concept.md)_
   - 🛡️ **[CSRF protection](#csrf-protection) with zero-conf**  
-    Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the socket connection._
+    Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the websocket connection._
   - **🔓CORS**  
-    of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` and that's it.
+    of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` option and that's it.
 - **⛲ Serve / stream resources**  
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
 - COMING SOON  
@@ -271,8 +270,7 @@ export class MyServerSession extends ServerSession {
 
   myLogonUserId?: string // This value gets stored in the session under the key "myLogonUserId".
 
-  @remote()
-  whoIsLoggedIn() {
+  @remote whoIsLoggedIn() {
     const user = getUser(this.myLogonUserId); // Read a session field
   }
 }
@@ -304,8 +302,7 @@ export class MyServerSession extends ServerSession {
    * @param someotherField
    * @param myUploadFile You can pass UploadFile objects anywhere/deeply and also as ...rest arguments. As soon as you read from the the stream, the restfuncs client will send that file in an extra http request in the background/automatically.
    */
-  @remote({/* RemoteMethodOptions */})
-  myRemoteMethodWithUploadFile(someotherField: string, myUploadFile: UploadFile) {
+  @remote myRemoteMethodWithUploadFile(someotherField: string, myUploadFile: UploadFile) {
     // TODO
     return "Your file was uploaded"
   }
@@ -365,10 +362,10 @@ Restfuncs also has a nice util class named CCEventEmitter, where you can registe
 There's a virtual runtime field named `call` where you can access your runtime context. Use intellisense for docs. Example:
 
 ````typescript
-@remote()
-myRemoteMethod() {
+@remote myRemoteMethod() {
   const req = this.call.req; // Express's req object
   const res = this.call.res; // Express's res object 
+  const conn = this.call.socketConnection; // Restfuncs's connection. Wraps the engine.io socket.
   
   res!.header("Content-Type", "text/plain")
   
@@ -618,14 +615,12 @@ type IUser=  {
   password: string,
 }
 
-@remote()
-returnsPublicUser(): Pick<IUser, "name" | "age"> { // This will return the user without password
+@remote returnsPublicUser(): Pick<IUser, "name" | "age"> { // This will return the user without password
     const user = {name: "Franz", age: 45, password: "geheim!"} // got it from the db somewhere
     return user;
 }
 
-@remote()
-returnsPublicUser(): Omit<IUser, "password">{  // Also this will return the user without password
+@remote returnsPublicUser(): Omit<IUser, "password">{  // Also this will return the user without password
    ...
 }
 ````
