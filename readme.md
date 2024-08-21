@@ -101,12 +101,15 @@ That is (features):
   This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
   - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
     _In cases where the full power of Typescript is still not enough for you ;)_
+    
+  _Btw: Restfuncs validates not only arguments, but also the result and also args + result of callbacks = just everything ;)._  
 - 🔌 Can i cURL it? **Zero conf [REST interface](#rest-interface)**    
    Yes, you can cURL it in all ways you can imagine! And it does not even need any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them and say hello to zero-conf.
-- 🍾 **RPC client** (this is the best part 😎😎😎)  
+- 🍾 **RPC client** 😎😎😎  
   Just **call your remote methods** from the client/browser **as if they were local**, like i.e. `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets**
-    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push event features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
+    
+    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push event (callback) features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
 - **🔐 Security first approach**  
   All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
   Restfuncs is designed to handle setups with different security settings per ServerSession class _while they (always) share one cookie-session_. I.e, think of serving a subset of your APIs (ServerSessions) to ALL origins for third party browser apps or for SSO. _[How it works internally](server/Security%20concept.md)_
@@ -116,13 +119,10 @@ That is (features):
     of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` option and that's it.
 - **⛲ Serve / stream resources**  
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
+- [**Push events via callback functions**](#server-events-via-callback-functions)   
+  It's as simple as sending a callback function in between your usual parameters and you can react to server side events. Great for progress bars, chat rooms, games, realtime data, event subscriptions of any kind...
 - COMING SOON  
   _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
-- COMING [very](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) SOON: **Callback functions**  
-  as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
-  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.  
-  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !  
-  [Here](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) 's an alpha version of that feature which you can already start using in development.
 - COMING SOON: Simple **file uploads**  
   You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**  
@@ -158,7 +158,7 @@ Here's how to set up a server that serves a remote method, named `myRemoteMethod
 **MyServerSession.ts**
 
 ````typescript
-import {ServerSession, ServerSessionOptions, UploadFile, remote, ClientCallback} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, remote, UploadFile, ClientCallback, free, withTrim} from "restfuncs-server";
 
 export class MyServerSession extends ServerSession {
 
@@ -323,37 +323,67 @@ await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile 
 
 You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
 
-# Event callbacks (sending **functions** to the server)
-**Tl;dr:** Have you tried, sending a (callback-) **function** to the server? This works😎😎😎...imagine the opportunities! Mind cleaning up the references to them on client disconnect. The `ClientCallbacks` and `ClientCallbacksForKeys` util classes will help you with that. Args + results are safely type checked at runtime🛡🛡🛡.  
+# Server events via callback functions
+**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbacks` and `ClientCallbacksForKeys` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
 
-TODO: Description
-TODO: Example
+Now to the content:
+
+You want your client to react to a certain event that happens on the server ? Restfuncs solves this very elegantly: You can have functions in the remote method parameters. Even nested. Just think of callback functions in your daily javascript life _(but not about callback-hell from the old days before async/await/Promise was introduced 😆😆😆)_.
+You call them on the server (any time and as often as you want) and they get executed on the client ;) _All via (web-)socket push events of course_. Example:
+
+````typescript
+// On the server:
+@remote notifyMeWhenSomeoneEntersTheChatroom(chatroom: string, onUserEntersChat (user: User) => void) {
+    // ...later, somewhere in your code:
+    onUserEntersChat(someUser) // Call the callback
+}
+
+// on the client:
+myRemoteSession.notifyMeWhenSomeoneEntersTheChatroom("#restfuncs_is_great", (user) => { console.log(`${user.name} entered the chatroom`) })
+````
+
+Callbacks can also return some result (via Promise) and the server can await it.
+The callack's arguments and the result are validated at runtime, just like with a normal remote method. Except the [automatic trimming](#trim-off-extra-properties) is not enabled by default.
+In the `RemoteMethodOptions` you'll find some options for changing the default behaviour.
 
 
-TODO: Instance re-usage
-TODO: Usage of util classes
-TODO: Limitations
+### Worry free instance remembering
+_It's propably not worth mentioning, but: Same function instances on the client result in same function instances on the server. The server remembers them. 
+This allows for worry free use of `addEventListener(somefunction)` + `removeEventListener(somefunction)` style code_ 
 
-## Trim off extra properties
-TODO
+### Trim off extra properties
+This is not done by default. If you want to trim off extra properties, similar to `RemoteMethodOptions#trimArguments`, you have to use the `withTrim` function:
 
-## Unreferencing callbacks (resource cleanup)
-On the server:
-TODO: gc is forwarded to the client
-TODO: Additionally, you can use free(callback)
+````typescript
+import {withTrim} from "restfuncs-server";
+// ...later, somewhere in your code:
+withTrim(onUserEntersChat)(someUser) // Call the callback
+````
+for more info, see the JSDoc of `withTrim`.
 
-In the web. Clients may not always be so friendly to call removeEventListener but they just disconnect. To help you, cleaning those up to grow your precious memory,
+### Limitations
+Callbacks can only be declared 'inline' in the line of your remote method's declaration. Like: `@remote myRemoteMethod(...the arrow(s) => must be somewhere inside here...)`. Deeply nested in some (inline) object structure is also fine. But not in an external type and then **refer** to it. _This is for the restfuncs-transformer to be able to scan them and generate the security validation code. At that transformation stage, it only sees the syntax tree and can't follow into types_. 
+
+### Prevent resource exhaustion on the server
+In the world wide web. Clients may not always be so friendly to call removeEventListener but instead just disconnect. To help you, clean those up to now grow your precious memory,
 you can listen for disconnect events via:
 
 ````typescript
 import {ClientCallback} from "restfuncs-server";
 
 (myCallbackFn as ClientCallback).socketConnection.onClose(() => {
-    // <- unregister / cleanup myCallbackFn here
+    // <- unregister myCallbackFn here
 })
 ````
 
-Restfuncs also has a nice util class named CCEventEmitter, where you can register your event listeners, and it will clean them up automatically for you.
+TODO: List util classes
+
+### Advanced: Resource cleanup on the client
+Just in case you have a very heavy and rich client, you may at some point wonder, how and when the references to the callback functions are cleaned up:
+
+- Garbage collection of your (callback-) function on the server is automatically reported to the client.
+- If that is too late or too unpredictable for you, you can use `free(myCallbackFn)` (`import {free} from "restfuncs-server"`) to tell the client, that the function is not held anymore.
+
 
 # Advanced
 
@@ -575,9 +605,6 @@ Notes:
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
 - Set `ServerSessionOptions#csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 
-# Inline and advanced callbacks
-**Tl;dr:** Restfuncs will (security-) alert, when it can't analyze the type of a callback and tell you what options to adjust.
-TODO: long version
 
 # Performance
 
