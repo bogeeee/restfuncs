@@ -90,7 +90,7 @@ With restfuncs, you write your http API endpoints just as **plain typescript fun
 Per-endpoint boilerplate is no more than, i.e.:
 ````typescript
 @remote greet(name: string) {
-    return  `Hello ${name}` 
+    return `Hello ${name}` 
 }
 ````
 See, it uses natural parameters and natural `return` (and `throw`) flow, instead of you having to deal with `req` and `res` on a lower level. And Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
@@ -101,8 +101,6 @@ That is (features):
   This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
   - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
     _In cases where the full power of Typescript is still not enough for you ;)_
-    
-  _Btw: Restfuncs validates not only arguments, but also the result and also args + result of callbacks = just everything ;)._  
 - 🔌 Can i cURL it? **Zero conf [REST interface](#rest-interface)**    
    Yes, you can cURL it in all ways you can imagine! And it does not even need any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them and say hello to zero-conf.
 - 🍾 **RPC client** 😎😎😎  
@@ -134,13 +132,16 @@ That is (features):
   - FUTURE:  ... + can also download the **OpenAPI spec** from there.
 
 Smaller features:
-- **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. 
+- **Validation everywhere** (by default): Restfuncs validates not only remote method's arguments, but also the result and also args + result of **callbacks** = just everything ;).
 - **Argment and result trimming**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
 - Proper **error handling** and logging.
 - **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
-- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
+- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application. [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts) 
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on < 3 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
+
+Negative features (downside):
+  - Needs some special [build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) with typescript compiling + running with plain node for **production**. You need to do a production run from time to time and take some care that things don't break. Just stick strongly to the well tested scripts in package.json and the tsconfig.json, and you're fine. _And for **development**, you're still free to run it how you like (with tsx, bun, ...) 😊._
 
 # Getting started
 
@@ -181,7 +182,7 @@ export class MyServerSession extends ServerSession {
 **server.ts**
 ````typescript
 import {restfuncsExpress} from "restfuncs-server";
-import {MyServerSession} from "./MyServerSession.js";
+import {MyServerSession} from "./MyServerSession.js"; // For node, you must use use ".js" instead of ".ts" in your imports (yes, strange) !
 
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). It installs a jwt session cookie middleware and the websockets listener. Recommended.
 app.use("/myAPI", MyServerSession.createExpressHandler())
