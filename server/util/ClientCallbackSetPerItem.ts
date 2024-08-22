@@ -1,5 +1,4 @@
-import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback} from "../ServerSession";
-import {EventEmitter} from "node:events"
+import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback, free} from "../ServerSession";
 import _ from "underscore"
 import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
 import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
@@ -120,25 +119,13 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
 
             // Add to this.entriesPerClient:
             if(entriesForThisClient.has(clientCallback)) {
-                throw new Error(`The same callback instance was already used for another item. You must use a unique one for each one. If think, this should be improved, submit an issue in GitHub with a detailed description of your use case.`)
+                throw new Error(`The same callback instance was already used for another item. You must use a unique one for each one. If you think, this should be improved, submit an issue in GitHub with a detailed description of your use case.`)
             }
             entriesForThisClient.set(clientCallback, (typeof item === "object") ? new WeakRef(item as object) as any : item);
 
             // Add to this.members:
             callbackSet.add(clientCallback);
         }
-    }
-
-    once(item: ITEM, listener: (...args: PARAMS) => unknown) {
-        // arguments check:
-        if(item === undefined || item === null) {
-            throw new Error("Item param must not be undefined/null");
-        }
-        this.common.checkIsValidClientCallback(listener);
-        
-        this.common.checkIsValidClientCallback(listener);
-        throw new Error("TODO")
-        return this;
     }
 
     /**
@@ -153,22 +140,24 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         }
         const clientCallback = this.common.checkIsValidClientCallback(callback);
 
-        if(this.members === undefined) {
-            return;
+        if(this.members !== undefined) {
+            const forItem = this.members.get(item);
+            if (forItem) {
+                forItem.delete(clientCallback);
+                if (forItem.size === 0) {
+                    this.members.delete(item);
+                }
+
+                const entriesForClient = this.entriesPerClient.get(clientCallback.socketConnection);
+                entriesForClient!.delete(clientCallback); // also remove here
+                if (entriesForClient!.size === 0) { // Was the last one for the client?
+                    this.entriesPerClient.delete(clientCallback.socketConnection);
+                }
+            }
         }
 
-        const forItem = this.members.get(item);
-        if(forItem) {
-            forItem.delete(clientCallback);
-            if(forItem.size === 0) {
-                this.members.delete(item);
-            }
-
-            const entriesForClient = this.entriesPerClient.get(clientCallback.socketConnection);
-            entriesForClient!.delete(clientCallback); // also remove here
-            if(entriesForClient!.size === 0) { // Was the last one for the client?
-                this.entriesPerClient.delete(clientCallback.socketConnection);
-            }
+        if(this.common.freeOnClientImmediately) {
+            free(callback);
         }
     }
 
@@ -199,7 +188,7 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         this.getCallbacksFor(item).forEach(cb => this.delete(item, cb));
         // Validity check:
         if(this.members?.has(item)) {
-            throw new Error("Assertion failed. Entty key should not exist anymore");
+            throw new Error("Assertion failed. Item should not exist anymore");
         }
     }
 
@@ -222,6 +211,10 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
     }
 
     protected handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
+        if(this.common.removeOnDisconnect === false) {
+            return;
+        }
+
         const entriesMap = this.entriesPerClient.get(conn);
         if(entriesMap) {
             for(const [callback,keyOrItemRef] of entriesMap.entries()) {

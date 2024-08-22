@@ -1,5 +1,4 @@
 import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback, withTrim} from "../ServerSession";
-import {EventEmitter} from "node:events"
 import _ from "underscore"
 
 /**
@@ -8,13 +7,15 @@ import _ from "underscore"
 export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
 
     /**
-     * Should the {@link #emitForSure} method allow, that a client has (silently) disconnected without calling removeListener ? Otherwise an error is thrown.
-     * Enabling this will result in not freeing up unused topics (event-types).
+     * Removes the callbacks / unused items when the client disconnects. You want to disable this usually only when using the callForSure method.
+     * <p>
+     * Default: true
+     * </p>
      */
-    emitForSureAllowsDisconnect: boolean | undefined = undefined;
+    removeOnDisconnect: boolean | undefined = undefined;
 
     /**
-     * Advanced: Immediately reports to the client that the listeners are not used anymore after the remove.../once... methods. Otherwise this is done after a while after garbage collection.
+     * Advanced: Immediately reports to the client that the listeners are not used anymore after the remove... method. Otherwise this is done after a while after garbage collection.
      * Only enable this, when having trouble with memory consumption on the client and when using the listeners exclusively.
      */
     freeOnClientImmediately = false;
@@ -34,7 +35,7 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
     constructor(options?: ClientCallbackSetOptions) {
         if(options) {
             //@ts-ignore
-            _.apply(this, options);
+            _.extend(this, options);
         }
     }
 
@@ -49,8 +50,8 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
      */
     async _callForSure(callbacks: Set<ClientCallback>, args: PARAMS): Promise<void> {
         // Validity check
-        if(this.emitForSureAllowsDisconnect === undefined) {
-            throw new Error("When using emitForSure, you must explicitly define the emitForSureAllowsDisconnect parameter in the EventEmitter options. Usually, you'll want to set it to false.");
+        if(this.removeOnDisconnect === undefined) {
+            throw new Error("When using callForSure, you must explicitly define the removeOnDisconnect field in the ClientCallbackSetOptions. Usually, you'll want to set it to false.");
         }
 
         for(const cb of callbacks) {
@@ -73,4 +74,4 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
 }
 
 
-export type ClientCallbackSetOptions = Partial<Pick<ClientCallbacksSetCommon<any>, "emitForSureAllowsDisconnect" | "freeOnClientImmediately" | "maxListenersPerClient" | "trimArguments" | "trimFromSignature">>
+export type ClientCallbackSetOptions = Partial<Pick<ClientCallbacksSetCommon<any>, "removeOnDisconnect" | "freeOnClientImmediately" | "maxListenersPerClient" | "trimArguments" | "trimFromSignature">>

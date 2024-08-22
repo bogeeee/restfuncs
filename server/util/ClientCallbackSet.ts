@@ -1,5 +1,5 @@
 import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
-import {ClientCallback} from "../ServerSession";
+import {ClientCallback, free} from "../ServerSession";
 import {ServerSocketConnection} from "../ServerSocketConnection";
 
 /**
@@ -65,7 +65,7 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
         // Check if maxListenersPerClient is reached:
         const entriesForThisClient = this.entriesPerClient.get(socketConnection)!;
         if(this.common.maxListenersPerClient !== undefined && entriesForThisClient.size >= this.common.maxListenersPerClient) {
-            throw new Error(`Max listeners per client socket connection reached: ${this.common.maxListenersPerClient}. You can adjust the setting by the 'maxListenersPerClient' option in the constructor if ${this.constructor.name}` );
+            throw new Error(`Max listeners per client socket connection reached: ${this.common.maxListenersPerClient}. You can adjust the setting by the 'maxListenersPerClient' option in the constructor of ${this.constructor.name}` );
         }
 
         entriesForThisClient.add(clientCallback);
@@ -83,7 +83,13 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
             }
         }
 
-        return super.delete(callback);
+        const result = super.delete(callback);
+
+        if(this.common.freeOnClientImmediately) {
+            free(callback);
+        }
+
+        return result;
     }
 
     /**
@@ -111,6 +117,10 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
     }
 
     protected handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
+        if(this.common.removeOnDisconnect === false) {
+            return;
+        }
+
         const entriesMap = this.entriesPerClient.get(conn);
         entriesMap?.forEach(cb => this.delete(cb));
     }
