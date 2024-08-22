@@ -25,8 +25,30 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
      */
     maxListenersPerClient?: number;
 
+    /**
+     * Trim the arguments when doing the call / callForSure. See {@link RemoteMethodOptions#trimArguments} for an explanation, what trimming means.
+     */
     trimArguments= false;
+
+    /**
+     * Additional to {@link trimArguments}.
+     * See The {@link withTrim} function's useSignatureFrom parameter for a description.
+     */
     trimFromSignature?: UnknownFunction;
+
+    /**
+     * Configures every callback, that is added, to skip outdated calls
+     * Default: false
+     * TODO: implement
+     */
+    skipOutdated?: boolean
+
+    /**
+     * In case a client has missed some events during a disconnect phase, the client can still keep up.
+     * Default: 0
+     * TODO: implement
+     */
+    keepLast?: number
 
     /**
      *

@@ -34,7 +34,7 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
     common: ClientCallbacksSetCommon<PARAMS>;
 
     /**
-     * TODO: Use an iterable WeakSet in place of the Set
+     * TODO: Use an iterable WeakSet in place of the Set. Review note: Do we really need that, cause we hold strong references to the same amount of callbacks anyway via 'class ClientCallbackSet extends Set' = strong Set.
      * @protected
      */
     protected entriesPerClient: WeakMap<ServerSocketConnection, Set<ClientCallback>> = new WeakMap();

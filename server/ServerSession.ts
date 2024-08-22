@@ -2921,6 +2921,11 @@ export function free(resource: (...args: any[]) => any) {
 export type UnknownFunction = (...args: unknown[]) => unknown
 
 /**
+ * Returns a version where, during call, extra properties get trimmed off the arguments or result, so they don't produce a validation error.
+ * <p>
+ * See {@link RemoteMethodOptions#trimArguments} for an explaination, what trimming means
+ * </p>
+ *
  * Usage:
  * <pre><code>
  *     // instead of:
