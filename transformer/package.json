@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-transformer",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Enhances your classes with typescript-rtti, to make them usable with Restfuncs",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -13,6 +13,7 @@
   "scripts": {
     "clean": "tsc --build --clean && rimraf dist LICENSE",
     "build": "tsc --build",
+    "test": "npm run build && jest --runInBand --testPathIgnorePatterns=\".*\\.ts\" --testNamePattern=\".*\"",
     "dev:playgrund": "tsx devPlayground.ts"
   },
   "exports": {
@@ -21,13 +22,16 @@
     }
   },
   "dependencies": {
-    "typescript": "5.0 || 5.1 || 5.3"
+    "typescript": "5.0 || 5.1 || 5.3",
+    "restfuncs-common": "^3.1.0"
   },
   "peerDependencies": {
     "restfuncs-server": ">=2"
   },
   "devDependencies": {
     "@types/ts-expose-internals": "npm:ts-expose-internals@5.3.3",
-    "rimraf": "=5.0.5"
+    "rimraf": "=5.0.5",
+    "ts-jest": "^29.0.3",
+    "@types/jest": "^29.2.2"
   }
 }

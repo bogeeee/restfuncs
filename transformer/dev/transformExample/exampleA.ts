@@ -12,7 +12,7 @@ export class A extends ServerSession {
 
 
     /**
-     * myJsDocComment
+     * myJsDocComment ä ü ي
      * @param a aaaa
      * @param b bb
      * @param c
@@ -20,11 +20,14 @@ export class A extends ServerSession {
      * @returns bla xy
      */
     @remote()
-    myMethod(a: any, b: B, ...c: B[]) {
+    myMethod(a: any, myCallback1: (a: string) => Promise<string>, b: B, ...c: ((a:number) => void)[]) {
         "marker"
     }
 
-
+    @remote()
+    myMethod2(a,b) {
+        "marker"
+    }
 }
 
 throw new Error("test to see if line numbers are correct");

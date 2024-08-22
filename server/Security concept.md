@@ -106,3 +106,21 @@ The main source of truth of the cookieSession is always the http side. After a w
 
 Another advantage of this approach is, that all RestunfsClients can just share one connection, so they don't exhaust connections. The pulled `SecurityPropertiesOfHttpRequest` is simply associated to the ServerSession class id (or group of such with same security settings = `SecurityGroup`).
 
+# Callbacks
+##Preventing injection of functions
+When there's a function inside the client data to be sent (as arguments), it creates a DTO object fort it, which can be sent to the server.
+Then, the servers unwraps ("swaps") those and replaces them with a function, that does the callback. So far, so happy.
+But this would allow an attacker to inject functions in places where they're not wanted. Therefore, instead of swapping them immediately,
+we first swap them for placeholder strings: "_callback_\<unguessable random id\>". Ids must be unguessable, otherwise the client could send such placeholder strings and approve with one placeholder in the right spot a second callback with the same id in an evil location.  
+Then there is an extra validator function for remote methods with callbacks, [See here, to get an idea of that](../transformer/readme.md#how-the-transformer-chain-works).
+Like you see, it has the callback function declarations: `(...)=>...` replaced with typia special tags `CallbackPlaceholder\<n\>`.
+On actual validation, when the withPlaceholders.validateEquals function is called and fed with the "_callback_\<ID\>" placeholders and they hit such a special tag,
+this tag calls* `onValidateCallbackArg`, which approves for the "_callback_\<ID\>", that is at an allowed place, and also marks, at **which** place (=which typescript function signature) it is. 
+This is important later, when validation input/output of the callback. Now, these approved "_callback_\<ID\>"s can savely be swapped to the functions.
+
+_* "this tag calls ...": A tag can **call** something ? -> Yes, this is a [customized Typia validator special tag](https://typia.io/docs/validators/tags/#customization) and you can give it a javascript snippet._ 
+
+##instance re-usage:
+Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions.
+Therefore, the callback instance tracks all places, where it gets handed up. At the time of callback execution, restfuncs ensures, that the strictest security requirements of all those places are met. That means i.e., arguments/results will get validated against **all** method signatures.
+"strictest security requirements" Also means, that it's prevented to "downgrade" a callback from void to return-via-promise.

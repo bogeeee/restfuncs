@@ -3,12 +3,13 @@ import {Buffer} from 'node:buffer'; // *** If you web packager complains about t
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 import escapeHtml from "escape-html";
-import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import crypto from "node:crypto"
 import {Request} from "express";
 import URL from "url";
 import {CommunicationError} from "./CommunicationError";
 import {reflect} from "typescript-rtti";
+import nacl from "tweetnacl";
+import nacl_util from "tweetnacl-util";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -69,32 +70,6 @@ export async function enhanceViaProxyDuringCall<F extends Record<string, any>>(f
 }
 
 /**
- * Properties of a usual error
- */
-export const ERROR_PROPERTIES = ["message", "name", "cause", "fileName", "lineNumber", "columnNumber", "stack"]
-
-/**
- * Clones an error with hopefully all properties. You can't list / clone them normally.
- * Using https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#instance_properties to guess the properties
- * @param e
- */
-export function cloneError(e: any): ErrorWithExtendedInfo {
-    const copiedProps = {}
-
-    // Copy ERROR_PROPERTIES from e to copiedProps
-    ERROR_PROPERTIES.forEach((propName) => {if(e[propName] !== undefined) {
-        // @ts-ignore
-        copiedProps[propName] = e[propName]
-    } });
-
-    return {
-        ...copiedProps,
-        cause: e.cause instanceof Error?cloneError(e.cause):e.cause,
-        ...e // try everything else that's accessible as properties
-    }
-}
-
-/**
  * @return Value with big "V"
  */
 export function Camelize(value: string) {
@@ -125,43 +100,18 @@ export function errorToHtml(e: any): string {
 }
 
 
-const RESTERRORSTACKLINE = /^\s*at\s*(new)?\s*CommunicationError.*\n/;
-
-/**
- * Removes redundant info from the error.stack + error.cause properties
- * @param error
- */
-export function fixErrorStack(error: Error) {
-    //Redundantly fix error.cause's
-    if(error.cause && typeof error.cause === "object") {
-        fixErrorStack(<Error> error.cause);
-    }
-
-    if(typeof error.stack !== "string") {
-        return;
-    }
-
-    // Remove repeated title from the stack:
-    let title= (error.name ? `${error.name}: `: "") + (error.message || String(error))
-    if(error.stack?.startsWith(title + "\n")) {
-        error.stack=error.stack.substring(title.length + 1);
-    }
-
-    error.stack = error.stack.replace(RESTERRORSTACKLINE,"") // Remove "at new Resterror..." line
-}
-
-export function diagnisis_shortenValue(value: any) : string {
-    if(value === undefined) {
+export function diagnisis_shortenValue(evil_value: any) : string {
+    if(evil_value === undefined) {
         return "undefined";
     }
 
-    if(value === null) {
+    if(evil_value === null) {
         return "null";
     }
 
     let objPrefix = "";
-    if(typeof value == "object" && value.constructor?.name && value.constructor?.name !== "Object") {
-        objPrefix = `class ${value.constructor?.name} `;
+    if(typeof evil_value == "object" && evil_value.constructor?.name && evil_value.constructor?.name !== "Object") {
+        objPrefix = `class ${evil_value.constructor?.name} `;
     }
 
 
@@ -175,19 +125,48 @@ export function diagnisis_shortenValue(value: any) : string {
     }
 
     try {
-        return shorten(objPrefix + brilloutJsonStringify(value));
+        return shorten(objPrefix + betterJsonStringify(evil_value));
     }
     catch (e) {
     }
 
-    if(typeof value == "string") {
-        return shorten(value)
+    if(typeof evil_value == "string") {
+        return shorten(evil_value)
     }
-    else if(typeof value == "object") {
+    else if(typeof evil_value == "object") {
         return `${objPrefix}{...}`;
     }
     else {
         return "unknown"
+    }
+
+    /**
+     * Like JSON.stringify, but support for some additional types.
+     *
+     * @param value
+     */
+    function betterJsonStringify(value: unknown) {
+        return JSON.stringify(value,(key, val) => {
+            if(val === undefined){
+                return "undefined"
+            }
+            else if(typeof val === 'number' && isNaN(val)){
+                return "NaN";
+            }
+            else if(val !== null && JSON.stringify(val) === "null") {
+                return "-unknown type-";
+            }
+            else if(val instanceof Set) {
+                return "-Set(...)-";
+            }
+            else if(val instanceof Map) {
+                return "-Map(...)-";
+            }
+            else if(val instanceof RegExp) {
+                return "-Regexp(...)-";
+            }
+            return val;
+        });
     }
 
 }
@@ -599,4 +578,9 @@ export function diagnosis_hasDeepNullOrUndefined(obj: any): boolean {
     }
 
     return false;
+}
+
+
+export function createSecureId() {
+    return nacl_util.encodeBase64(nacl.randomBytes(32))
 }

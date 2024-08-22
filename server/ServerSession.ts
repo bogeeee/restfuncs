@@ -8,16 +8,13 @@ import URL from "url"
 import {
     browserMightHaveSecurityIssuseWithCrossOriginRequests,
     Camelize,
-    cloneError,
     couldBeSimpleRequest,
     diagnisis_shortenValue, diagnosis_hasDeepNullOrUndefined,
     diagnosis_looksLikeHTML,
     diagnosis_looksLikeJSON,
     enhanceViaProxyDuringCall,
-    ERROR_PROPERTIES,
     errorToHtml,
     ErrorWithExtendedInfo,
-    fixErrorStack,
     fixTextEncoding,
     getDestination,
     getOrigin,
@@ -45,30 +42,106 @@ import {
     IServerSession,
     SecurityPropertiesOfHttpRequest,
     ServerPrivateBox,
-    WelcomeInfo
+    WelcomeInfo,
+    fixErrorStack,
+    cloneError,
+    ERROR_PROPERTIES,
 } from "restfuncs-common";
 import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
 import {errorToString} from "restfuncs-common";
+import clone from "clone";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
 
 const COMPATIBLE_TRANSFORMER_MAJOR_VERSION = 1;
-const REQUIRED_TRANSFORMER_FEATURE_VERSION = 1;
+const REQUIRED_TRANSFORMER_FEATURE_VERSION = 2;
 
 
-export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackOptions & {
-    options: ClientCallbackOptions
+export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackProperties;
+export type ClientCallbackProperties = {
+
     /**
      * Chosen by the client
      */
     id: number;
+
     /**
      * The connection to the client, that made the call via engine.io / websockets.
      */
-    socketConnection?: ServerSocketConnection
+    socketConnection: ServerSocketConnection
+
+    /**
+     * Advanced: Tells the client, that this callback is not used anymore and allows the client to free the reference to it.
+     * Usually this is done automatically for you, when node reports that the callback has been garbage collected (on the server).
+     * So use it only, when having trouble with memory consumption on the client and automatic reporting comes too late.
+     * <p>
+     *     Alias for <code>free(clientCallback)</code>
+     * </p>
+     */
+    free: () => void;
+
+    /**
+     * Internal (security)
+     * They key is the remote method instance itsself. This is the easiest way to ensure uniqueness and not have duplicate entries
+     */
+    _handedUpViaRemoteMethods: Map<object, {
+        serverSessionClass: typeof ServerSession,
+        remoteMethodName: string,
+        /**
+         *  Index in the remoteMethodMeta->callbacks array. Can be undefined if security is disabled
+         */
+        declarationIndex?: number,
+    }>
+
+    /**
+     * validates and executes the call
+     * @param args
+     * @param trimArguments
+     * @param trimResult
+     * @param useSignatureForTrim the remote method, where the signature should be used to call validate with trimming.
+     * @returns a Promise or undefined for callbacks where we know by the meta, that they are (sync) void
+     */
+    _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction, diagnosis?:{isFromClientCallbacks?:boolean, isFromClientCallbacks_CallForSure: boolean}) => unknown
+}
+
+/**
+ *
+ */
+export type SwapPlaceholders_args = {
+    serverSessionClass: typeof ServerSession
+    remoteMethodName: string
+    remoteMethodOptions: RemoteMethodOptions,
+    /**
+     * Which one inside the remote method's method declaration ? Undefined = we have no runtime info / security disabled
+     */
+    declarationIndex?: number,
+}
+
+/**
+ * Arguments array, but with placeholders for validation that can be swapped/replaced after validation.
+ */
+export type SwappableArgs = {
+    /**
+     * args where i.e. callback functions are replaced with "_callback" placeholders (+there a also dummy class instance placeholders planned for the future).
+     * Cause this is the only way to validate them properly with Typia.
+     */
+    argsWithPlaceholders: unknown[],
+
+    /**
+     * These replace the "_callbackXXXXX" placeholders inside argsWithPlaceholders with the actual values (=a function).
+     */
+    swapCallbackPlaceholderFns?: Map<string, ((args: SwapPlaceholders_args) => void)>
+
+    /**
+     * These replace escaped strings / reserved string placeholders inside argsWithPlaceholders with the actual value.
+     * <p>
+     * If you add them, take care that the replacements don't differ too much in length and content so they don't slip through / exploit the regular validation methods.
+     * </p>
+     */
+    swapEscapedStringFns?: (() => void)[]
 }
 
 export type RegularHttpMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -220,6 +293,29 @@ type ClassOf<T> = {
     new(...args: unknown[]): T
 }
 
+export type CallbackMeta = {
+    arguments: {
+        validateEquals: (args: unknown[]) => IValidation<unknown[]>
+        validatePrune: (args: unknown[]) => IValidation<unknown[]>
+    },
+    /**
+     * Undefined, when the result is void (sync)
+     */
+    awaitedResult: {
+        validateEquals: (result: unknown) => IValidation<unknown>
+        validatePrune: (result: unknown) => IValidation<unknown>
+    } | undefined
+    diagnosis_source: SourceNodeDiagnosis
+};
+
+/**
+ *
+ * @param onValidateCallbackArg called, whenever the validator hits a callback placeholder.
+ * - placeholderId: the (string) value that was spotted (and is now validated). I.e. "_callback_8sdfsdf988sdf"
+ * - declarationIndex: index of the callback declaration inside <getRemoteMethodsMeta's result>.instanceMethods[<methodName>].callbacks.
+ */
+type ValidateFnWithPlaceholders = (args: unknown[], onValidateCallbackArg: (placeholderId: string, declarationIndex: number) => boolean) => IValidation<unknown[]>
+
 type RemoteMethodsMeta = {
     transformerVersion: {major: number,  feature: number },
     instanceMethods: {
@@ -227,11 +323,22 @@ type RemoteMethodsMeta = {
             arguments: {
                 validateEquals: (args: unknown[]) => IValidation<unknown[]>
                 validatePrune:  (args: unknown[]) => IValidation<unknown[]>
+                /**
+                 * Only, if there are placeholders inside the args (for the callbacks below). Then the args need to be validates against here first.
+                 */
+                withPlaceholders?: {
+                    validateEquals: ValidateFnWithPlaceholders
+                    validatePrune:  ValidateFnWithPlaceholders
+                }
             }
             result: {
                 validateEquals: (result: unknown) => IValidation<unknown>
                 validatePrune:  (result: unknown) => IValidation<unknown>
             }
+            /**
+             * callback function declarations (arrow style) inside the remote method's parameters
+             */
+            callbacks: CallbackMeta[],
             jsDoc?: {
                 comment: string,
                 params: Record<string, string>
@@ -241,8 +348,30 @@ type RemoteMethodsMeta = {
                  */
                 tags: {name:string, comment?: string}[]
             }
+            diagnosis_source: SourceNodeDiagnosis
         }
     }
+}
+
+type SourceNodeDiagnosis = {
+    file: string,
+    line: number,
+    character: number,
+
+    /**
+     * The complete source code / for functions it does not include the body
+     */
+    signatureText: string
+}
+
+/**
+ *
+ * @param source
+ * @param withSignature
+ * @returns i.e. "MyServerSessionClass.ts:23:30, reading: async myRemoteMethod(param1:...): Promise<void> {}
+ */
+export function diag_sourceLocation(source: SourceNodeDiagnosis, withSignature: true) {
+    return `${source.file}:${source.line}:${source.character}${withSignature?`, reading: ${source.signatureText}`:""}`
 }
 
 /**
@@ -320,6 +449,7 @@ export class ServerSession implements IServerSession {
 
     /**
      * Transformer: Serve reference to typia for generated code. Cause adding the "import ..." clause is too much effort
+     * @deprecated we need the typia.tags.TagBase type anyways, and this can't be handed via a field. So there must be an "import..."
      * @protected
      */
     protected static typiaRuntime = typia;
@@ -429,7 +559,7 @@ export class ServerSession implements IServerSession {
         // Check that type info is available
         if(!this.isSecurityDisabled) {
             if(!isTypeInfoAvailable(new this)) {
-                throw new CommunicationError("Runtime type information is not available.\n" + this._diagnosis_HowToSetUpTheBuild())
+                throw new CommunicationError(`Runtime type information is not available for class ${this.name}.\n` + this._diagnosis_HowToSetUpTheBuild())
             }
         }
     }
@@ -659,7 +789,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Do the call:
-                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, methodArguments, {req, res, securityProps: securityPropertiesOfRequest}, metaParams["trimArguments"] === "true",{
+                let { result, modifiedSession} = await this.doCall_outer(cookieSession, securityPropertiesOfRequest, remoteMethodName, {argsWithPlaceholders: methodArguments}, {req, res, securityProps: securityPropertiesOfRequest}, metaParams["trimArguments"] === "true",{
                     http: {
                         acceptedResponseContentTypes,
                         contentType: parseContentTypeHeader(req.header("Content-Type"))[0]
@@ -829,6 +959,9 @@ export class ServerSession implements IServerSession {
      * <p>
      *     The structure of this method is explained in 'ServerSession breakdown.md'
      * </p>
+     * <p>
+     *     Side effect: Swaps/modifies values inside methodArguments
+     * </p>
      * @param cookieSession
      * @param securityPropertiesOfHttpRequest
      * @param remoteMethodName
@@ -839,7 +972,7 @@ export class ServerSession implements IServerSession {
      * @private
      * @returns modifiedSession is returned, when a deep session modification was detected. With updated version field
      */
-    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: unknown[], call: ServerSession["call"], trimArguments_clientPreference: boolean, diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
+    static async doCall_outer(cookieSession: CookieSession | undefined, securityPropertiesOfHttpRequest: SecurityPropertiesOfHttpRequest, remoteMethodName: string, methodArguments: SwappableArgs, call: ServerSession["call"], trimArguments_clientPreference: boolean, diagnosis: Omit<CIRIACS_Diagnosis, "isSessionAccess">) {
 
         // Check, if call is allowed if it would not access the cookieSession, with **general** csrfProtectionMode:
         {
@@ -857,6 +990,7 @@ export class ServerSession implements IServerSession {
         let serverSession: ServerSession = new this();
 
         serverSession.validateCall(remoteMethodName, methodArguments, remoteMethodOptions.trimArguments !== undefined?remoteMethodOptions.trimArguments:trimArguments_clientPreference);
+        const finalMethodArguments = methodArguments.argsWithPlaceholders;
 
         {
             // *** Prepare serverSession for change tracking **
@@ -878,16 +1012,16 @@ export class ServerSession implements IServerSession {
                 // Execute the remote method:
                 if(ServerSession.prototype[remoteMethodName as keyof ServerSession]) { // Calling a ServerSession's own (conrol-) method. i.e. getWelcomeInfo()
                     // @ts-ignore
-                    result = await enhancedServerSession[remoteMethodName](...methodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
+                    result = await enhancedServerSession[remoteMethodName](...finalMethodArguments); // Don't pass your control methods through doCall, which is only for intercepting user's methods. Cause, i.e. intercepting the call and throwing an error when not logged in, etc should not crash our stuff.
                 }
                 else {
-                    result = await enhancedServerSession.doCall(remoteMethodName, methodArguments); // Call method with user's doCall interceptor;
+                    result = await enhancedServerSession.doCall(remoteMethodName, finalMethodArguments); // Call method with user's doCall interceptor;
                 }
             }, remoteMethodName);
 
             // Validate the result:
             if(remoteMethodOptions.validateResult !== false) {
-                serverSession.validateAndTrimResult(result, remoteMethodName);
+                result = serverSession.validateAndTrimResult(result, remoteMethodName);
             }
         }
         catch (e) {
@@ -1460,7 +1594,7 @@ export class ServerSession implements IServerSession {
                             const options = this.getRemoteMethodOptions(methodName);
                             const trimExtraProperties = options.trimArguments !== undefined?options.trimArguments:result.metaParams["trimArguments"] === "true";
 
-                            this.validateMethodArguments(methodName, result.methodArguments, trimExtraProperties);
+                            this.validateMethodArguments(methodName, {argsWithPlaceholders: result.methodArguments}, trimExtraProperties);
                         }
                     } catch (e) {
                         // Give the User a better error hint for the common case that i.e. javascript's 'fetch' automatically set the content type to text/plain but JSON was meant.
@@ -1511,62 +1645,121 @@ export class ServerSession implements IServerSession {
      * <p>
      * Internal / not part of the API (for now, may be later). Do not override
      * </p>
-     * @param reflectedMethod
-     * @param args
+     * <p>
+     *     Side effect: Swaps/modifies values inside args
+     * </p>
      */
-    protected static validateMethodArguments(methodName: string, args: unknown[], trimExtraproperties: boolean) {
-        const meta = this.getRemoteMethodMeta(methodName);
-        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args):meta.arguments.validateEquals(args);
-        if(validationResult.success) {
-            return;
-        }
+    protected static validateMethodArguments(methodName: string, args: SwappableArgs, trimExtraproperties: boolean) {
+        /**
+         * Turn validationResult into throwing a (good readable) CommunicationError
+         */
+        const checkValidationResult = (validationResult: IValidation<unknown[]>) => {
+            if(validationResult.success) {
+                return;
+            }
 
-        const prefix = `Invalid argument(s) for method ${methodName}`;
+            const prefix = `Invalid argument(s) for method ${methodName}`;
 
-        const errors = validationResult.errors;
+            const errors = validationResult.errors;
 
-        // Handle invalid number of arguments:
-        if(errors.length == 1 && errors[0].path === "$input") {
-            throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
-        }
+            // Handle invalid number of arguments:
+            if(errors.length == 1 && errors[0].path === "$input") {
+                throw new CommunicationError(`${prefix}: invalid number of arguments`); // Hope that matches with the if condition
+            }
 
-        // Compose errors into readable messages:
-        const readableErrors: string[] = errors.map(error => {
-            // Replace $input[x] with <argument name>, if possible
-            const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, index: string) => {
+            // Compose errors into readable messages:
+            const readableErrors: string[] = errors.map(error => {
+                // Replace $input[x] with <argument name>, if possible
+                const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, index: string) => {
 
-                try {
-                    const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
-                    if(reflectedMethod) {
-                        return reflectedMethod.parameters[Number(index)].name;
+                    try {
+                        const reflectedMethod = isTypeInfoAvailable(this)?reflect(this).getMethod(methodName):undefined;
+                        if(reflectedMethod) {
+                            return reflectedMethod.parameters[Number(index)].name;
+                        }
                     }
-                }
-                catch (e) {
+                    catch (e) {
 
-                }
-                return orig;
+                    }
+                    return orig;
+                })
+
+                return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
             })
 
-            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
-        })
+            const separateLines = readableErrors.length > 1;
+            throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
+        }
 
-        const separateLines = readableErrors.length > 1;
-        throw new CommunicationError(`${prefix}:${separateLines ? "\n" : " "}${readableErrors.join("\n")}`);
+
+        const meta = this.getRemoteMethodMeta(methodName);
+
+        // Handle the way with callback placeholders:
+        const swapCallbackPlaceholderFns = args.swapCallbackPlaceholderFns || new Map<string, (args: SwapPlaceholders_args) => void>();
+        if(meta.arguments.withPlaceholders !== undefined) { // There are placeholders expected ?
+            // *** Validate, using the withPlaceholders version: ***
+            const execTheseAfterValidation:(()=>void)[] = [];
+            const onValidateCallbackArg = (placeholderId: string, declarationIndex: number) => {
+                // Safety check:
+                if(typeof placeholderId !== "string") {
+                    throw new Error("placeholderId should be a string")
+                }
+
+                if(!placeholderId.startsWith("_callback")) { // no placeholder ?
+                    return false; // Fail validation
+                }
+
+                // safety check:
+                if(!swapCallbackPlaceholderFns.has(placeholderId)) {
+                    throw new Error("Illegal placeholder: " + placeholderId);
+                }
+
+                execTheseAfterValidation.push(() => { // exec later to not swap any placeholders in the middle of validation
+                    const swapperFn = swapCallbackPlaceholderFns.get(placeholderId);
+                    // Safety check:
+                    if(!swapperFn) {
+                        return; // Yes, it could happen, that onValidateCallbackArg was called twice. Don't expect Typia's validator to be godlike efficient.
+                    }
+                    // Call the swapper (swaps the placeholder and do other stuff):
+                    swapperFn({serverSessionClass: this, remoteMethodName: methodName, remoteMethodOptions: this.getRemoteMethodOptions(methodName), declarationIndex})
+
+                    swapCallbackPlaceholderFns.delete(placeholderId); // remove entry, so we can check if there are some left at the end
+                });
+                return true;
+            };
+            const validationResult= trimExtraproperties?meta.arguments.withPlaceholders.validatePrune(args.argsWithPlaceholders,onValidateCallbackArg):meta.arguments.withPlaceholders.validateEquals(args.argsWithPlaceholders, onValidateCallbackArg);
+            checkValidationResult(validationResult);
+            execTheseAfterValidation.forEach(fn => fn()); // exec these
+        }
+        if(swapCallbackPlaceholderFns.size > 0) { // There are still placeholders left that did not get handled ?
+            throw new CommunicationError(`You've sent a (callback-) function inside your method arguments which was not declared 'inline' (inline means: directly inside the remote method's parameter declaration / not in a user type). To allow this (security relevant!!!), see RemoteMethodOptions#allowCallbacksAnywhere`);
+        }
+
+        args.swapEscapedStringFns?.forEach(fn => fn ()); // Swap these placeholders. They should be safe, as it's only a string->string replacement
+
+        // Validate:
+        const validationResult= trimExtraproperties?meta.arguments.validatePrune(args.argsWithPlaceholders):meta.arguments.validateEquals(args.argsWithPlaceholders);
+        checkValidationResult(validationResult);
     }
+
+
 
 
     /**
      * Security checks the method name and args.
      * <p>Internal. API may change</p>
+     * <p>
+     *     Side effect: Swaps/modifies values inside evil_args
+     * </p>
      * @param evil_methodName
      * @param evil_args
      */
-    protected validateCall(evil_methodName: string, evil_args: unknown[], trimExtraProperites: boolean) {
+    protected validateCall(evil_methodName: string, evil_args: SwappableArgs, trimExtraProperites: boolean) {
         const options = this.clazz.options;
 
         // types were only for the caller. We go back to "unknown" so must check again:
         const methodName = <unknown> evil_methodName;
-        const args = <unknown> evil_args;
+        const args = <unknown>  evil_args.argsWithPlaceholders;
 
         // Check methodName:
         if(!methodName) {
@@ -1593,25 +1786,31 @@ export class ServerSession implements IServerSession {
         const remoteMethodOptions = this.clazz.getRemoteMethodOptions(methodName);
 
         if(this.clazz.isSecurityDisabled) {
+            // Swap all placeholders:
+            if(evil_args.swapCallbackPlaceholderFns) {
+                [...evil_args.swapCallbackPlaceholderFns.values()].forEach(fn => fn ({serverSessionClass: this.clazz, remoteMethodName: methodName, remoteMethodOptions}));
+            }
+            evil_args.swapEscapedStringFns?.forEach(fn => fn ());
             return;
         }
 
         if(remoteMethodOptions.validateArguments !== false) {
-            this.clazz.validateMethodArguments(methodName, args, trimExtraProperites);
+            this.clazz.validateMethodArguments(methodName, evil_args, trimExtraProperites);
         }
     }
 
     /**
      * Validates the result of a remote method call.
-     * Also trims it, if set by in the options.
+     * Also trims it, if set in the options.
      * <p>Internal. API may change</p>
      * @param result the awaited result
      * @param remoteMethodName
      * @protected
+     * @returns the trimmed result (cloned) (if it was trimmed at all)
      */
     protected validateAndTrimResult(result: unknown, remoteMethodName: string) {
         if(this.clazz.isSecurityDisabled) {
-            return;
+            return result;
         }
 
         // obtain reflectedMethod:
@@ -1638,21 +1837,25 @@ export class ServerSession implements IServerSession {
                 throw new Error("Cannot obtain typeRef. This may be due to nasty unsupported API usage of typescript-rtti by restfuncs and the API has may be changed. Report this as a bug to the restfuncs devs and try to go back to a bit older (minor) version of 'typescript-rtti'.")
             }
             if(typeRef === Buffer) {
-                return; // Skip validation of Buffer
+                return result; // Skip validation of Buffer
             }
         }
         if(result instanceof Readable) {
             return result;
         }
 
+        const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
+
+        if(shouldTrimResult) {
+            result = clone(result, true); // Use the "clone" lib, cause it references prototypes instead of cloning them (like structuredClone would do) for better performance. Typia's prune doesn't touch prototypes anyway.
+        }
+
         // Validate:
         const errors: Error[] = []
-
         const meta = this.clazz.getRemoteMethodMeta(remoteMethodName);
-        const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
         const validationResult = shouldTrimResult?meta.result.validatePrune(result):meta.result.validateEquals(result);
         if(validationResult.success) {
-            return;
+            return result;
         }
 
         // *** Compose error message and throw it ***:
@@ -2015,7 +2218,7 @@ export class ServerSession implements IServerSession {
 
     }
 
-    protected static getRemoteMethodMeta(methodName: string) {
+    static getRemoteMethodMeta(methodName: string) {
         const declaringClass = this.getDeclaringClass(methodName);
         if(!(declaringClass as object).hasOwnProperty("getRemoteMethodsMeta")) {
             throw new Error(`Class ${declaringClass.name} was not transformed with the restfuncs-transformer. ${this._diagnosis_HowToSetUpTheBuild()}`)
@@ -2061,6 +2264,7 @@ export class ServerSession implements IServerSession {
 
 
     /**
+     * TODO: Make this public in the next major release
      * You can override this as part of the Restfuncs API.
      * @see checkIfMethodHasRemoteDecorator
      * @param methodName
@@ -2070,6 +2274,14 @@ export class ServerSession implements IServerSession {
         let declaringClazz = this.getDeclaringClass(methodName);
 
         return declaringClazz.getRemoteMethodOptions_inner(methodName);
+    }
+
+    /**
+     * Internal. Exposes this method to other Restfuncs classes
+     * @param methodName
+     */
+    public static _public_getRemoteMethodOptions(methodName: string) : RemoteMethodOptions {
+        return this.getRemoteMethodOptions(methodName);
     }
 
     /**
@@ -2095,6 +2307,8 @@ export class ServerSession implements IServerSession {
             validateResult: (ownMethodOptions.validateResult !== undefined)?ownMethodOptions.validateResult: ownDefaultOptions.validateResult,
             trimResult: (ownMethodOptions.trimResult !== undefined)?ownMethodOptions.trimResult: ownDefaultOptions.trimResult,
             trimArguments: (ownMethodOptions.trimArguments !== undefined)?ownMethodOptions.trimArguments : (parentResult.trimArguments !== undefined?parentResult.trimArguments : ownDefaultOptions.trimArguments),
+            validateCallbackArguments: (ownMethodOptions.validateCallbackArguments !== undefined)?ownMethodOptions.validateCallbackArguments: ownDefaultOptions.validateCallbackArguments,
+            validateCallbackResult: (ownMethodOptions.validateCallbackResult !== undefined)?ownMethodOptions.validateCallbackResult: ownDefaultOptions.validateCallbackResult,
             apiBrowserOptions: {
                 needsAuthorization: (ownMethodOptions.apiBrowserOptions?.needsAuthorization !== undefined)?ownMethodOptions.apiBrowserOptions.needsAuthorization : (parentResult.apiBrowserOptions?.needsAuthorization !== undefined?parentResult.apiBrowserOptions.needsAuthorization : ownDefaultOptions.apiBrowserOptions?.needsAuthorization)
             }
@@ -2608,6 +2822,34 @@ export type RemoteMethodOptions = {
      */
     trimResult?: boolean
 
+    /**
+     * Like {@link #validateArguments}, but for callback functions that get handed up via (/including) this remote method.
+     * <p>
+     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
+     * </p>
+     * <p>
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
+     * <p>
+     *     Note: What does "(/including)" Mean? -> Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions.
+     *     Therefore, the callback tracks all places, where it gets handed up. At the time of callback execution, restfuncs will ensure, that the strictest security requirements of all those places are met. That means i.e., arguments/results may get validated against **multiple** method signatures.
+     * </p>
+     */
+    validateCallbackArguments?: boolean
+
+    /**
+     * Like {@link #validateResult}, but for the result of callback functions (=what the client sends back) that get handed up via (/including) this remote method.
+     *
+     * <p>
+     * Default: Value from <b>this class</b>'s {@link #defaultRemoteMethodOptions} || <b>true</b>
+     * </p>
+     * <p>
+     *     Note: What does "(/including)" Mean? -> Callback function instances can be re-used/shared along multiple remote methods. This allows for nice addEventListener / removeEventlistener style subscriptions.
+     *     Therefore, the callback tracks all places, where it gets handed up. At the time of callback execution, restfuncs will ensure, that the strictest security requirements of all those places are met. That means i.e., arguments/results may get validated against **multiple** method signatures.
+     * </p>
+     */
+    validateCallbackResult?: boolean
+
     apiBrowserOptions?: {
         /**
          * Indicates this to the viewer by showing a lock symbol.
@@ -2619,65 +2861,33 @@ export type RemoteMethodOptions = {
     }
 }
 
-export type ClientCallbackOptions = {
-    /**
-     * Validates, that the arguments, which the server put into the callback (sends to the client), have the proper type at runtime.
-     * <p>
-     * Therefore, this client callback must be "inline" (=fully declared inside the brackets of the @remote method's arguments) and it must be compiled with the restfuncs-transformer plugin.
-     * </p>
-     * <p>
-     * Note: If you want to turn it off during development, rather use {@link ServerSessionOptions#devDisableSecurity} / NODE_ENV=development.
-     * </p>
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     */
-    validateArguments?: boolean
-
-    /**
-     * Trims away any extra properties and arguments that are not allowed otherwise.
-     *
-     * Default: <b>true</b>
-     *
-     * <p>
-     * <i>Note: trimArguments doesn't work / make sense if you disabled {@link #validateArguments}.</p>
-     * </p>
-     * @see RemoteMethodOptions#trimArguments for an example
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    trimArguments?: boolean
-
-    /**
-     * Performs a check at runtime, to ensure, that the returned value from the client matches the type that is declared by the method (explicitly or implicitly).
-     * <i>This prevents values that were formed somehow illegally: i.e. with the help of ts-ignore, castings, non-ts code, attached extra properties from libraries, ...</i>
-     *
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    validateResult?: boolean
-
-    /**
-     * Like {@link #trimArguments}, but for the result.
-     * <p>
-     * Default: <b>true</b>
-     * </p>
-     *
-     * <p>
-     * <i>Note: trimResult doesn't work / make sense if you disable {@link #validateResult}.</p>
-     * </p>
-     * @see #validateArguments It has the same (compiler-) requirements, to work.
-     */
-    trimResult?: boolean
-}
-
+/**
+ * Allows this method to be called from the outside via http / websockets
+ * <p>
+ * If you want to pass options, use it like:
+ * </p>
+ * <code>@remote({... my RemoteMethodOptions...})</code>
+ */
+export function remote(target: ServerSession, methodName: string, descriptor: PropertyDescriptor) : void;
 /**
  * Allows this method to be called from the outside via http / websockets
  * @param options
  */
-export function remote(options?: RemoteMethodOptions) {
-    return function (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
+export function remote(options?: RemoteMethodOptions): (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) => void;
+export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, methodName?: string, descriptor?: PropertyDescriptor) {
+    let options: RemoteMethodOptions | undefined;
+    if(targetOrOptions != null && targetOrOptions instanceof ServerSession) { // Used directly: `@remote` / no brackets ?
+        if(!methodName || !descriptor) {
+            throw new Error("Illegal arguments: methodName / descriptor not set");
+        }
+        return decoratorFn(targetOrOptions, methodName, descriptor);
+    }
+    else { // Used via call-first: `@remote(...)` ?
+        options = targetOrOptions;
+        return decoratorFn;
+    }
+
+    function decoratorFn (target: ServerSession, methodName: string, descriptor: PropertyDescriptor) {
         // TODO: handle static methods (if we choose to support them)
         const clazz = target.clazz;
         if(!Object.getOwnPropertyDescriptor(clazz,"remoteMethod2Options")?.value) { // clazz does not have it's OWN .remoteMethod2Options initialized yet ?
@@ -2688,6 +2898,78 @@ export function remote(options?: RemoteMethodOptions) {
         // @ts-ignore we want the field to stay protected
         clazz.remoteMethod2Options!.set(methodName, options || {});
     };
+}
+
+/**
+ * Advanced: Tells the client, that this resource is not used anymore and allows the client to free the reference to it.
+ * Usually this is done automatically for you, when node reports that the resource has been garbage collected (on the server).
+ * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
+ */
+export function free(resource: (...args: any[]) => any) {
+    if(typeof resource === "function") {
+        const clientCallback = resource as ClientCallback;
+        if(clientCallback.socketConnection === undefined) { //
+            throw new Error("The passed argument is not a client callback function.")
+        }
+        clientCallback.socketConnection.freeClientCallback(clientCallback);
+    }
+    else {
+        throw new Error("Unsupported resource type")
+    }
+}
+
+export type UnknownFunction = (...args: unknown[]) => unknown
+
+/**
+ * Returns a version where, during call, extra properties get trimmed off the arguments or result, so they don't produce a validation error.
+ * <p>
+ * See {@link RemoteMethodOptions#trimArguments} for an explaination, what trimming means
+ * </p>
+ *
+ * Usage:
+ * <pre><code>
+ *     // instead of:
+ *     await myCallback("a","b","c");
+ *
+ *     // do:
+ *     await withTrim(myCallback)("a","b","c");
+ *
+ * </code></pre>
+ *
+ * <p>
+ *     Note: withTrim creates a new function instance every time. So i.e. you can't hand these to addEventListener(...) + removeEventListener(...) registries then.
+ *     TODO: This could be improved for convenience. But is it really worth it ? Star this issue then: https://github.com/bogeeee/restfuncs/issues/8
+ *     TODO: In that case, also make the util/EventEmitter class's resource-freeing mechanism aware of these derivatives.
+ * </p>
+ * @param callbackFn
+ * @param trimArguments
+ * @param trimResult
+ * @param useSignatureFrom Advanced: The remote method instance (that defined the callback) who's declaration is used. If not specified, then trim is done against ALL declarations where callbackFn was handed up. Example:
+ * <pre><code>
+ *     @remote() myRemoteMethod(myCallback: (myObj: {a: string, b: number}) => void) {
+ *         withTrim(myCallback, true, true, this.myRemoteMethod)({a: "x", b:"y"}) // Will trim against '{a: string, b: number}' (=it leaves the a and b properties intact). Even if the myCallback was used in `someOtherRemoteMethod`
+ *     }
+ *
+ *     @remote() someOtherRemoteMethod(myCallback: (myObj: object) => void) {
+ *
+ *     }
+ * </code></pre>
+ */
+export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArguments= true, trimResult= true, useSignatureFrom?: UnknownFunction): CB {
+    // Validity checks:
+    if (typeof callbackFn !== "function") {
+        throw new Error("Unsupported resource type")
+    }
+    if(!isClientCallback(callbackFn)) {
+        throw new Error("The passed argument is not a client callback function.");
+    }
+
+    const clientCallback = callbackFn as any as ClientCallback;
+
+    //@ts-ignore
+    return (...args: unknown[]) => {
+        return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
+    }
 }
 
 /**
@@ -2776,4 +3058,8 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
     else {
         throw new Error(`Illegal value for csrfProtectionMode: '${session.csrfProtectionMode}'`);
     }
+}
+
+export function isClientCallback(fn: UnknownFunction) {
+    return ((fn as ClientCallback).socketConnection !== undefined);
 }

@@ -5,8 +5,8 @@ describe('visitReplace', function() {
     it('should replace certain values and stop recursion', function() {
         const target = {a: 1, b: {c: 2, d: {e: 3, f: 4}}, g: 5, h:2};
 
-        const result = visitReplace(target, (value, visitChilds) => {
-            return value === 2 ? 'replaced' : visitChilds(value)
+        const result = visitReplace(target, (value, visitChilds, context) => {
+            return value === 2 ? 'replaced' : visitChilds(value, context)
         });
 
         expect(result).toStrictEqual({a: 1, b: {c: 'replaced', d: {e: 3, f: 4}}, g: 5, h: 'replaced'});
@@ -17,8 +17,8 @@ describe('visitReplace', function() {
         target.d = target;  // Circular reference
         const visitor = (value: any) => value === 1 ? 'replaced' : undefined;
 
-        const result = visitReplace(target, (value, visitChilds) => {
-            return  value === 2 ? 'replaced' : visitChilds(value)
+        const result = visitReplace(target, (value, visitChilds, context) => {
+            return  value === 2 ? 'replaced' : visitChilds(value, context)
         });
 
         // Ensure the circular reference still exists in the result
@@ -36,8 +36,8 @@ describe('visitReplace', function() {
         target.b.d = target;  // Circular reference
         const visitor = (value: any) => value === 1 ? 'replaced' : undefined;
 
-        const result = visitReplace(target, (value, visitChilds) => {
-            return  value === 2 ? 'replaced' : visitChilds(value)
+        const result = visitReplace(target, (value, visitChilds, context) => {
+            return  value === 2 ? 'replaced' : visitChilds(value, context)
         });
 
         // Ensure the circular reference still exists in the result

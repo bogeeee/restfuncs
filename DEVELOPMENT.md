@@ -27,7 +27,12 @@ Instead of the super slow `npm run build` from the root package, you could try *
 - `Service` is often used as a synonym for `ServerSession- **class**. Often used, when referred in the static context / the static fields of that class, i.e. the `options`.
 - `socket` vs. `http side`: Refers to, that the communication goes either through an engine.io socket (websocket or similar) vs. through classic http requests.
 _The classic http client-server communication was implemented first and is considered the always available and the source of truth when it comes to holding the cookie session or deciding whether requests are allowed._
-  
+- `Meta`: Information, about a remote method which is [added at compile time](transformer/readme.md#how-the-transformer-chain-works).  
+- `Callback`, or `ClientCallback`: A function that is sent from the client to the server as an event-callback (see the event-callback feature in readme.md)
+  - `Downcall`: When the server calls such a callback function (a call from the server to client). 
+- `ChannelItem`: A ClientCallback, UploadFile or a Stream.  
+- `DTO` / `ChannelItemDTO`: As the above can't be serialized directly, a handle to these is sent to the server. 
 ### Understanding the structure
 - Read [ServerSession breakdown](server/ServerSession%20breakdown.md).
 - Read [ServerSocketConnection breakdown](server/ServerSocketConnection%20breakdown.md)
+- Advanced: Read, [how ClientCallbacks work from a security perspective](server/Security%20concept.md#callbacks), then study the `ServerSocketConnection#handleMethodCall_resolveChannelItemDTOs` method and the `ServerSession#validateMethodArguments` method.

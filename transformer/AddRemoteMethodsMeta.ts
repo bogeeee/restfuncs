@@ -1,13 +1,15 @@
 import ts, {
-    ClassDeclaration,
+    ArrowFunction,
+    ClassDeclaration, Expression, FunctionTypeNode, Identifier,
     MethodDeclaration,
-    Node,
-    ObjectLiteralExpression,
+    Node, NodeArray,
+    ObjectLiteralExpression, ParameterDeclaration,
     PropertyAccessExpression,
-    SyntaxKind
+    SyntaxKind, TypeNode, TypeReference, TypeReferenceNode
 } from 'typescript';
-import {FileTransformRun} from "./transformerUtil";
+import {FileTransformRun, TextPatch} from "./transformerUtil";
 import {transformerVersion} from "./index";
+import {visitReplace} from "restfuncs-common";
 
 
 /**
@@ -19,32 +21,36 @@ import {transformerVersion} from "./index";
  * </pre></code>
  */
 export class AddRemoteMethodsMeta extends FileTransformRun {
-
+    /**
+     * Should this transformer squeeze the added declarations (result) into one line to keep the line numbers in the source text intact ?
+     * Prevents the [broken source maps bug](https://github.com/bogeeee/restfuncs/issues/2)
+     */
+    static squeezeDeclarationsIntoOneLine = true;
     diagnosis_currentClass_instanceMethodsSeen?: Set<string>;
-    currentClass_instanceMethodsMeta?: Record<string, ObjectLiteralExpression>; // The {...} that should be added below... see example in readme.md
-    astWasModified = false;
+    currentClass_instanceMethodsMeta?: Record<string, string>; // The {...} that should be added below... see example in readme.md
+    result = new TextPatch();
 
     /* Visitor Function */
     visit(node: Node): Node {
         if (node.kind === SyntaxKind.MethodDeclaration) { // @remote ?
             const methodDeclaration = (node as MethodDeclaration)
             if(this.getChilds(methodDeclaration).some(n => n.kind == SyntaxKind.StaticKeyword)) { // static ?
-                return node;
+                return node; // no special handling
             }
             if(this.getParent().kind !== SyntaxKind.ClassDeclaration) { // Method not under a class (i.e. an anonymous object ?}
-                return node;
+                return node; // no special handling
             }
 
             const methodName = (methodDeclaration.name as any).escapedText;
             try {
                 let remoteDecorator = this.getChilds(methodDeclaration).find(d => d.kind === SyntaxKind.Decorator);
                 if (!remoteDecorator) { // no @remote found ?
-                    return node;
+                    return node; // no special handling
                 }
 
                 // Diagnosis: Check for overloads:
                 if(this.diagnosis_currentClass_instanceMethodsSeen?.has(methodName)) { // Seen twice ?
-                    throw new Error(`@remote methods cannot have multiple/overloaded signatures: ${methodName}`) // TODO: add diagnosis
+                    throw new Error(`@remote methods cannot have multiple/overloaded signatures: ${methodName}. Location: ${this.diag_sourceLocation(node)}`) // TODO: add diagnosis
                 }
 
                 this.currentClass_instanceMethodsMeta![methodName] = this.createMethodMetaExpression(methodDeclaration, methodName) // create the code:
@@ -62,10 +68,18 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                 let result = this.visitChilds(node) as ClassDeclaration
 
                 if(Object.keys(this.currentClass_instanceMethodsMeta).length > 0) { // Current class has @remote methods ?
-                    // add "static getRemoteMethodsMeta() {...}" method:
-                    // @ts-ignore yes, a bit hacky, but with factory.crateClassDeclation we might also miss some properties
-                    result.members = this.context.factory.createNodeArray([...result.members.values(), this.create_static_getRemoteMethodsMeta_expression()])
-                    this.astWasModified = true;
+                    if(this.result.patches.length === 0) { // First patch
+                        this.result.patches.push({position: 0, contentToInsert: '/* inserted by restfuncs-transformer:*/import _rf_typia from "typia";'}); // add the type import, which is needed by the following
+                    }
+
+                    // *** Create the "getRemoteMethodsMeta()" function and add a patch for the source file to the result: ***
+                    let methodDeclarationSourceText = this.create_static_getRemoteMethodsMeta_expression();
+                    if(AddRemoteMethodsMeta.squeezeDeclarationsIntoOneLine) {
+                        methodDeclarationSourceText = '/* code squeezed into one line to keep line numbers intact. You can output it prettier by setting "pretty":true in the plugin configuration in tsconfig.json */' + methodDeclarationSourceText.replaceAll("\n","");
+                    }
+                    methodDeclarationSourceText = ";" + methodDeclarationSourceText; // prepend with semicolon to prevent syntax error if there's stuff in the same line of the closing bracket
+
+                    this.result.patches.push({position: node.end -1 /* insert before the closing bracket*/, contentToInsert: methodDeclarationSourceText}); // Add patch to result
                 }
 
 
@@ -89,6 +103,10 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      *     arguments: {
      *        ...
      *     }
+     *     result: {
+     *         ...
+     *     }
+     *     callbacks:[...]
      *     jsDoc: {
      *         ...
      *     }
@@ -98,33 +116,52 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      * @param methodName
      * @private
      */
-    createMethodMetaExpression(node: MethodDeclaration, methodName: string) {
+    createMethodMetaExpression(node: MethodDeclaration, methodName: string): string {
+        // Note: These `factory.create...` "pyramids of doom", which you see all along in this method's code, were mostly created by copying the example code from readme.md#how-it-works through the [AST viewer tool](https://ts-ast-viewer.com/)
+        // TODO: remove them und use plain strings
         const factory = this.context.factory;
 
-        const arguments_typiaFuncs:Record<string, PropertyAccessExpression> = {
+        const arguments_typiaFuncs:Record<string, string> = {
+            "validateEquals": "_rf_typia.validateEquals",
+            "validatePrune": "_rf_typia.misc.validatePrune"
+        }
+        const result_typiaFuncs = {...arguments_typiaFuncs};
+
+        const old_typiaFuncs:Record<string, PropertyAccessExpression> = {
             /**
              * typia.validateEquals
              */
             validateEquals: factory.createPropertyAccessExpression(
-                factory.createIdentifier("typia"),
+                factory.createIdentifier("_rf_typia"),
                 factory.createIdentifier("validateEquals")
             ),
             "validatePrune": factory.createPropertyAccessExpression(factory.createPropertyAccessExpression(
-                factory.createIdentifier("typia"),
+                factory.createIdentifier("_rf_typia"),
                 factory.createIdentifier("misc")
             ), factory.createIdentifier("validatePrune"))
         }
-        const result_typiaFuncs = {...arguments_typiaFuncs};
 
-        // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
-        // @ts-ignore
-        return factory.createObjectLiteralExpression(
-            [
-                // arguments: {...}
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("arguments"),
-                    factory.createObjectLiteralExpression(
-                        Object.keys(arguments_typiaFuncs).map((typiaFnName) =>
+        // Clone parameters and convert all ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
+        const methodParametersWithPlaceholders = structuredClone(node.parameters).map(paramDecl => {
+            return factory.createNamedTupleMember(
+                paramDecl.dotDotDotToken,
+                paramDecl.name as Identifier,
+                paramDecl.questionToken,
+                paramDecl.type || factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+            )
+        });
+
+        // ** Callbacks: **
+        // Replace the (arrow-) function declarations inside methodParametersWithPlaceholders with "_callback" placeholders and create the callbackDeclarations array which contains the
+        // declarations like in readme.md saying "[{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration ...}]"
+        let callbackDeclarations: ObjectLiteralExpression[] = [];
+        visitReplace(methodParametersWithPlaceholders, (value, visitChilds, context) => {
+            if (value && (value as Node).kind === SyntaxKind.FunctionType) { // found an arrow-style function type declaration ?
+                const functionTypeNode = value as FunctionTypeNode;
+                // **** Create the callbackDeclaration like `{ // here for the `someCallbackFn: (p:number) => Promise<string>` declaration...}` in readme.md ****
+                // Create argumentsDeclaration. `{ validateEquals: ..., validatePrune: ...}` like in readme.md
+                const argumentsDeclaration = factory.createObjectLiteralExpression(
+                    Object.keys(arguments_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
                         factory.createPropertyAssignment(
                             factory.createIdentifier(typiaFnName),
                             factory.createArrowFunction(
@@ -140,76 +177,125 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
                                 )],
                                 undefined,
                                 factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
-                                    [factory.createTypeReferenceNode(
-                                        factory.createIdentifier("Parameters"),
-                                        [factory.createIndexedAccessTypeNode(
-                                            factory.createTypeQueryNode(
-                                                factory.createQualifiedName(
-                                                    factory.createIdentifier("this"),
-                                                    factory.createIdentifier("prototype")
-                                                ),
-                                                undefined
-                                            ),
-                                            factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
-                                        )]
-                                    )],
+                                factory.createCallExpression(old_typiaFuncs[typiaFnName],
+                                    [factory.createTupleTypeNode(structuredClone(functionTypeNode.parameters).map(paramDecl => { // Must convert ParameterDeclarations to NamedTupleMembers (They look the same in the .ts code but are of a different SyntaxKind).
+                                        return factory.createNamedTupleMember(
+                                            paramDecl.dotDotDotToken,
+                                            paramDecl.name as Identifier,
+                                            paramDecl.questionToken,
+                                            paramDecl.type || factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword)
+                                        )
+                                    }))],
                                     [factory.createIdentifier("args")]
                                 )
                             )
                         )),
-                        true
-                    )
-                ),
-                // result: {...}
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("result"),
-                    factory.createObjectLiteralExpression(
-                        Object.keys(result_typiaFuncs).map((typiaFnName) =>
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier(typiaFnName),
-                                factory.createArrowFunction(
-                                    undefined,
-                                    undefined,
-                                    [factory.createParameterDeclaration(
+                    true
+                );
+                // Create awaitedResultDeclaration. `awaitedResult = ...` like in readme.md:
+                let awaitedResultDeclaration: Expression;
+                if (functionTypeNode.type.kind == SyntaxKind.VoidKeyword) { // Return type is (sync) void ?
+                    awaitedResultDeclaration = factory.createIdentifier("undefined");
+                } else {
+                    if (functionTypeNode.type.kind == SyntaxKind.TypeReference && ((functionTypeNode.type as TypeReferenceNode).typeName as any).escapedText == "Promise") { // Returns via Promise
+                        // Validity check:
+                        if (!(functionTypeNode.type as TypeReferenceNode).typeArguments || (functionTypeNode.type as TypeReferenceNode).typeArguments!.length != 1) {
+                            throw new Error(`A callback function, declared in ${methodName}'s parameters, returns a Promise with an invalid number of type arguments. Location: ${this.diag_sourceLocation(node)}`);
+                        }
+
+                        const awaitedType: TypeReferenceNode = (functionTypeNode.type as TypeReferenceNode).typeArguments![0] as TypeReferenceNode;
+
+                        awaitedResultDeclaration = factory.createObjectLiteralExpression(
+                            Object.keys(result_typiaFuncs).map((typiaFnName) => // for validateEquals + validatePrune
+                                factory.createPropertyAssignment(
+                                    factory.createIdentifier(typiaFnName),
+                                    factory.createArrowFunction(
                                         undefined,
                                         undefined,
-                                        factory.createIdentifier("value"),
-                                        undefined,
-                                        factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
-                                        undefined
-                                    )],
-                                    undefined,
-                                    factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
-                                    factory.createCallExpression(arguments_typiaFuncs[typiaFnName],
-                                        [factory.createTypeReferenceNode(
-                                            factory.createIdentifier("Awaited"), [factory.createTypeReferenceNode(
-                                                factory.createIdentifier("ReturnType"),
-                                                [factory.createIndexedAccessTypeNode(
-                                                    factory.createTypeQueryNode(
-                                                        factory.createQualifiedName(
-                                                            factory.createIdentifier("this"),
-                                                            factory.createIdentifier("prototype")
-                                                        ),
-                                                        undefined
-                                                    ),
-                                                    factory.createLiteralTypeNode(factory.createStringLiteral(methodName))
-                                                )]
-                                            )]
+                                        [factory.createParameterDeclaration(
+                                            undefined,
+                                            undefined,
+                                            factory.createIdentifier("value"),
+                                            undefined,
+                                            factory.createKeywordTypeNode(ts.SyntaxKind.UnknownKeyword),
+                                            undefined
                                         )],
-                                        [factory.createIdentifier("value")]
+                                        undefined,
+                                        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                                        factory.createCallExpression(old_typiaFuncs[typiaFnName],
+                                            [awaitedType],
+                                            [factory.createIdentifier("value")]
+                                        )
                                     )
-                                )
-                            )),
-                        true
-                    )
-                ),
-                factory.createPropertyAssignment(
-                    factory.createIdentifier("jsDoc"), this.createJsDocExpression(node, methodName)
-                )
-            ],
-            true
-        );
+                                )),
+                            true
+                        );
+                    } else {
+                        throw new Error(`A callback function, declared in ${methodName}'s parameters, declares that it returns a value directly (sync) and not via Promise (this is not possible over the wire). Please use Promise<${this.nodeToString(functionTypeNode.type, true, true)}> instead. Location: ${this.diag_sourceLocation(functionTypeNode.type)}`);
+                    }
+                }
+
+                // Compose result:
+                const callbackDeclaration = factory.createObjectLiteralExpression(
+                    [
+                        // arguments: {...}
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("arguments"),
+                            argumentsDeclaration
+                        ),
+
+                        // awaitedResult: {...}
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("awaitedResult"),
+                            awaitedResultDeclaration
+                        ),
+                        // source:
+                        factory.createPropertyAssignment(
+                            factory.createIdentifier("diagnosis_source"), this.createSourceNodeDiagnosisExpression(functionTypeNode)
+                        )
+                    ],
+                    true
+                );
+
+                callbackDeclarations.push(callbackDeclaration);
+                const declarationIndex = callbackDeclarations.length -1;
+                return factory.createExpressionWithTypeArguments(factory.createIdentifier("CallbackPlaceholder"),[factory.createLiteralTypeNode(factory.createNumericLiteral(declarationIndex))]); // replace with CallbackPlaceholder<n>
+            }
+            return visitChilds(value, context)
+        });
+
+        // ** Obtain, what goes into typia.validate...<...> ***
+        const hasPlaceholders = callbackDeclarations.length > 0;
+        let typeParamForTypiaValidate = `[${node.parameters.map(param => this.nodeToString(param, true, true)).join(", ")}]`; // [param1: type1, param2: type2, ...]
+        let typeParamForTypiaValidateWithPlaceholders: string = this.nodeToString(factory.createTupleTypeNode(methodParametersWithPlaceholders),true, true);
+
+
+        if (node.parameters.some(p => p.type === undefined)) { // Some parameters don't have an explicit type ? (i.e. the type is inherited from the base class)
+            if (hasPlaceholders) {
+                throw new Error(`Parameter '${(node.parameters.find(p => p.type === undefined) as any)!.name.escapedText}' does not have a (/ an explicit) type in remote method ${methodName}. In combination with declared callback functions, all parameters must have explicit types. Location: ${this.diag_sourceLocation(node)}`) // TODO: add diagnosis
+            }
+            // Use the old style: Parameters<typeof this.prototype["method name"]>. This worked very fine in old versions but we now want to battle-test the other style
+            typeParamForTypiaValidate = typeParamForTypiaValidateWithPlaceholders = `Parameters<typeof this.prototype["${methodName}"]>`;
+        }
+
+        // ** compose result **
+        return `{
+                            arguments: {${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
+                                ${typiaFnName}: (args: unknown) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidate}>(args)`).join(",")}
+                                ,
+                                withPlaceholders: ${hasPlaceholders?`{${/* for validateEquals + validatePrune */ Object.keys(arguments_typiaFuncs).map((typiaFnName) => `
+                                    ${typiaFnName}: (args: unknown, onValidateCallbackArg: (placeholderId: string, declarationIndex: number) => boolean) => ${arguments_typiaFuncs[typiaFnName]}<${typeParamForTypiaValidateWithPlaceholders}>(args)`).join(",")}                                    
+                                }`:"undefined"}
+                            },
+                            result: {${/* for validateEquals + validatePrune */ Object.keys(result_typiaFuncs).map((typiaFnName) => `
+                                ${typiaFnName}: (value: unknown) => ${result_typiaFuncs[typiaFnName]}<Awaited<ReturnType<typeof this.prototype["${methodName}"]>>>(value)`).join(",")}
+                            },
+                            callbacks: [${callbackDeclarations.map(cbd => `
+                                ${this.nodeToString(cbd, true)}`).join(",")}
+                            ],
+                            jsDoc: ${this.nodeToString(this.createJsDocExpression(node, methodName), true)},
+                            diagnosis_source: ${this.nodeToString(this.createSourceNodeDiagnosisExpression(node), true)},
+                        }`;
     }
 
     /**
@@ -243,7 +329,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
 
         const comment = jsdoc.comment || "";
         if(typeof comment !== "string") {
-            throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+            throw new Error(`Expected comment to be a string. Got: ${comment}. Location: ${this.diag_sourceLocation(node)}`); // TODO add to diagnostics instead
         }
 
         // Collect params and tags
@@ -253,7 +339,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
             const name = (tag.tagName.escapedText as string).toLowerCase()
             const comment = tag.comment;
             if(comment && typeof comment !== "string") {
-                throw new Error(`Expected comment to be a string. Got: ${comment}` ); // TODO add to diagnostics instead
+                throw new Error(`Expected comment to be a string. Got: ${comment}. Location: ${this.diag_sourceLocation(node)}` ); // TODO add to diagnostics instead
             }
 
             if(name === "param") {
@@ -314,7 +400,7 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
     /**
      * Crates the following expression like in readme.md#how-it-works
      * <code><pre>
-     * static getRemoteMethodsMeta() {
+     * static getRemoteMethodsMeta(...) :... {
      *     ....
      * }
      * </pre></code>
@@ -322,82 +408,74 @@ export class AddRemoteMethodsMeta extends FileTransformRun {
      * @param methodName
      * @private
      */
-    private create_static_getRemoteMethodsMeta_expression() : MethodDeclaration {
+    private create_static_getRemoteMethodsMeta_expression() : string {
+        return `` +
+            `static getRemoteMethodsMeta(): (typeof this.type_remoteMethodsMeta) {
+                this.__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession;` /* Attempt to give a friendly error message when this is not the case. Otherwise the previous line would fail and leaves the user wondering. */ + `
+                type CallbackPlaceholder<DECL_INDEX extends number>  = string & _rf_typia.tags.TagBase<{kind: "callbackFn", target: "string", value: undefined, validate: \`onValidateCallbackArg($input, \${DECL_INDEX})\`}>;
+                const result= {
+                    transformerVersion: {major: ${transformerVersion.major},  feature: ${transformerVersion.feature} },
+                    instanceMethods: {${Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => `
+                        ${methodName}: ${this.currentClass_instanceMethodsMeta![methodName]}`).join(",")}
+                    }
+                };
+        
+                return result; /* Code style note for this line: Why not do \`return {...}\` directly ? This tiny difference allows for extra properties which ensure backward compatibility with older "restfuncs-server" packages. */
+            }`
+    }
+
+    nodeToString(node: Node, removeComments= false, removeLineBreaks = false): string {
+        const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments});
+        let result = printer.printNode(ts.EmitHint.Unspecified, node, this.sourceFile) as string;
+        if(removeLineBreaks) {
+            result = result.replaceAll(/\n\s*/g," ")
+        }
+        return  result;
+    }
+
+    /**
+     * Creates a node, that declares a SourceNodeDiagnosis (defined in ServerSession.ts) object.
+     *
+     * To output the info at runtime: i.e. "MyServerSessionClass.ts:23:30, reading: async myRemoteMethod(param1:...): Promise<void> {}
+     * @param node
+     */
+    createSourceNodeDiagnosisExpression(node: Node) {
         const factory = this.context.factory;
+        if((node as any).body !== undefined) {
+            // Empty the body
+            node = structuredClone(node);
+            (node as any).body = factory.createBlock([],false);
+        }
+
+        const lineAndChar = this.sourceFile.getLineAndCharacterOfPosition((node.getStart?.(this.sourceFile, false) || node.pos));
 
 
-        let instanceMethods = factory.createObjectLiteralExpression(
-            Object.keys(this.currentClass_instanceMethodsMeta!).map(methodName => factory.createPropertyAssignment(
-                factory.createStringLiteral(methodName), this.currentClass_instanceMethodsMeta![methodName]
-            )),
-            true
-        );
-
-        // Example from readme.md#how-it-works Copy&pasted through the [AST viewer tool](https://ts-ast-viewer.com/)
-        return factory.createMethodDeclaration(
-            [factory.createToken(ts.SyntaxKind.StaticKeyword)],
-            undefined,
-            factory.createIdentifier("getRemoteMethodsMeta"),
-            undefined,
-            undefined,
-            [],
-            factory.createParenthesizedType(factory.createTypeQueryNode(
-                factory.createQualifiedName(
-                    factory.createIdentifier("this"),
-                    factory.createIdentifier("type_remoteMethodsMeta")
+        return factory.createObjectLiteralExpression(
+            [
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("file"),
+                    factory.createStringLiteral(this.sourceFile.fileName)
                 ),
-                undefined
-            )),
-            factory.createBlock(
-                [
-                    factory.createExpressionStatement(factory.createPropertyAccessExpression(
-                        factory.createThis(),
-                        factory.createIdentifier("__hello_developer__make_sure_your_class_is_a_subclass_of_ServerSession")
-                    )),
-                    factory.createVariableStatement(
-                        undefined,
-                        factory.createVariableDeclarationList(
-                            [factory.createVariableDeclaration(
-                                factory.createIdentifier("typia"),
-                                undefined,
-                                undefined,
-                                factory.createPropertyAccessExpression(
-                                    factory.createThis(),
-                                    factory.createIdentifier("typiaRuntime")
-                                )
-                            )],
-                            ts.NodeFlags.Let
-                        )
-                    ),
-                    factory.createReturnStatement(factory.createObjectLiteralExpression(
-                        [
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("transformerVersion"),
-                                factory.createObjectLiteralExpression(
-                                    [
-                                        factory.createPropertyAssignment(
-                                            factory.createIdentifier("major"),
-                                            factory.createIdentifier(`${transformerVersion.major}`)
-                                        ),
-                                        factory.createPropertyAssignment(
-                                            factory.createIdentifier("feature"),
-                                            factory.createIdentifier(`${transformerVersion.feature}`)
-                                        )
-                                    ],
-                                    false
-                                )
-                            ),
-                            factory.createPropertyAssignment(
-                                factory.createIdentifier("instanceMethods"),
-                                instanceMethods
-                            )
-                        ],
-                        true
-                    ))
-                ],
-                true
-            )
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("line"),
+                    factory.createNumericLiteral(lineAndChar.line + 1)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("character"),
+                    factory.createNumericLiteral(lineAndChar.character + 1)
+                ),
+                factory.createPropertyAssignment(
+                    factory.createIdentifier("signatureText"),
+                    factory.createStringLiteral(this.nodeToString(node, false))
+                )
+            ],
+            false
         )
 
+    }
+
+    diag_sourceLocation(node: Node) {
+        const lineAndChar = this.sourceFile.getLineAndCharacterOfPosition((node.getStart?.(this.sourceFile, false) || node.pos));
+        return `${this.sourceFile.fileName}:${lineAndChar.line+1}:${lineAndChar.character+1}`
     }
 }

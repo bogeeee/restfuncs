@@ -26,7 +26,7 @@
     "build": "tsc --build --force"
   },
   "dependencies": {
-    "restfuncs-common": "^3.0",
+    "restfuncs-common": "^3.1",
     "express": "^4.17.13",
     "@types/express": "^4.17.13",
     "express-session": "^1.17.3",
@@ -43,13 +43,15 @@
     "engine.io": "^6.5.3",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
-    "typia": "^5.0.0"
+    "typia": "^5.0.0",
+    "clone": "^2.1.2",
+    "@types/clone": "^2.1.4"
   },
   "devDependencies": {
     "restfuncs-transformer": "^1.0.0",
     "rimraf": "=5.0.5"
   },
   "optionalDependencies": {
-    "restfuncs-transformer": "^1.0.0"
+    "restfuncs-transformer": "^1.1.0"
   }
 }

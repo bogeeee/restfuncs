@@ -10,7 +10,8 @@
       "es7",
       "es6",
       "dom",
-      "es2022.error"
+      "es2022.error",
+      "es2021.weakref"
     ],
     "moduleResolution": "node",
     "sourceMap": true,

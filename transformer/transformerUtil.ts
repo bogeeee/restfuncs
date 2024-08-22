@@ -102,3 +102,26 @@ export abstract class FileTransformRun {
         return identifierNode.getText();
     }
 }
+
+export class TextPatch {
+    /**
+     * character index (not byte index) => content to insert
+     */
+    patches: {position: number, contentToInsert: string}[] = [];
+    applyPatches(content: string) {
+        this.patches.sort((a,b) => a.position - b.position);
+        let result = "";
+        let emittedTil = 0;
+        for(const patch of this.patches) {
+            // emit the stuff before the patch
+            result+=content.slice(emittedTil, patch.position);
+            emittedTil = patch.position;
+
+            result+=patch.contentToInsert;
+        }
+
+        result+= content.slice(emittedTil);// emit the rest
+
+        return result;
+    }
+}

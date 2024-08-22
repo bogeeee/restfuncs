@@ -1,6 +1,10 @@
 import {Readable} from "node:stream"
 
 export * from "./util";
+export {WeakValueMap} from "./WeakValueMap";
+import {BreakPoints} from "./BreakPoints";
+
+export const _testForRaceCondition_breakPoints = new BreakPoints();
 
 export type UploadFile = {
     createReadStream: () => Readable
@@ -97,7 +101,11 @@ export interface CookieSession extends Record<string, unknown> {
 export type CookieSessionState = Pick<CookieSession, "id" | "version"> | undefined; // undefined means as always: no cookie set / session not created; Do we need the bpSalt ? or is that too much bloat ?
 
 export type Socket_Client2ServerMessage = {
-    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession"
+    /**
+     * Incremented on every call (by the client) to help put things in the proper timely order and prevent race condition bugs.
+     */
+    sequenceNumber: number
+    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession" | "methodDownCallResult"
     payload: Socket_MethodCall | unknown
 }
 
@@ -114,8 +122,8 @@ export type Socket_MethodCall = {
 }
 
 export type Socket_Server2ClientMessage = {
-    type: "init" | "methodCallResult" | "getVersion" | "downCall"
-    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall
+    type: "init" | "methodCallResult" | "getVersion" | "downCall" | "channelItemNotUsedAnymore"
+    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall | Socket_ChannelItemNotUsedAnymore
 }
 
 /**
@@ -262,6 +270,7 @@ export type ClientCallbackDTO = ChannelItemDTO & {
  * The server calls down a callback function
  */
 export type Socket_DownCall = {
+    id: number;
     /**
      * Client's id
      */
@@ -269,7 +278,21 @@ export type Socket_DownCall = {
 
     args: unknown[]
 
-    diagnosis_awaitResult: boolean;
+    serverAwaitsAnswer: boolean;
+
+    /**
+     * Whether the callback function was declared as non-void
+     */
+    diagnosis_resultWasDeclared: boolean;
+}
+
+export type Socket_ChannelItemNotUsedAnymore = {
+    id: number;
+
+    /**
+     * Include lastSequenceNumberFromClient
+     */
+    time: number;
 }
 
 /**

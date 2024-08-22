@@ -1,6 +1,6 @@
 import {ServerSession as ServerSession, ServerSessionOptions} from "restfuncs-server";
 import express from "express";
-import {ClientSocketConnection, RestfuncsClient} from "restfuncs-client";
+import {ClientSocketConnection, RestfuncsClient, ServerError} from "restfuncs-client";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
@@ -51,7 +51,7 @@ describe("getRemoteMethodOptions", () => {
 
     test("No @remote decorator but at parent ", () => {
         class MyServiceParent extends BaseService {
-            @remote()
+            @remote
             myMethod() {
             }
         }
@@ -96,6 +96,8 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy()
         expect(options.trimArguments === undefined).toBeTruthy()
         expect(options.trimResult !== false).toBeTruthy()
+        expect(options.validateCallbackArguments !== false).toBeTruthy()
+        expect(options.validateCallbackResult !== false).toBeTruthy()
         expect(options.apiBrowserOptions!.needsAuthorization).toBeFalsy()
     })
 
@@ -107,6 +109,8 @@ describe("getRemoteMethodOptions", () => {
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
             trimResult: false, // Should not be inherited
+            validateCallbackArguments: false, // Should not be inherited
+            validateCallbackResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -132,6 +136,8 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
         expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
@@ -144,6 +150,8 @@ describe("getRemoteMethodOptions", () => {
                 validateResult: false, // Should be used
                 trimArguments: false, // Should be used
                 trimResult: false, // Should be used
+                validateCallbackArguments: false, // Should be used
+                validateCallbackResult: false, // Should be used
                 apiBrowserOptions: {needsAuthorization: true} // Should be used
             }
 
@@ -163,12 +171,14 @@ describe("getRemoteMethodOptions", () => {
             expect(options.validateResult === false).toBeTruthy()
             expect(options.trimArguments === false).toBeTruthy()
             expect(options.trimResult === false).toBeTruthy()
+            expect(options.validateCallbackArguments === false).toBeTruthy()
+            expect(options.validateCallbackResult === false).toBeTruthy()
             expect(options.apiBrowserOptions!.needsAuthorization).toBeTruthy()
         }
     })
 
 
-    test("Actual defaultRemoteMethodOptions but method inherited", () => {
+    test("Actual defaultRemoteMethodOptions, but method inherited", () => {
         class MyServiceParent extends BaseService {
             @remote()
             myMethod() {
@@ -181,6 +191,8 @@ describe("getRemoteMethodOptions", () => {
                 validateResult: false, // Should not be used
                 trimArguments: false, // Should not be used (but we could do so)
                 trimResult: false, // Should not be used
+                validateCallbackArguments: false, // Should not be used
+                validateCallbackResult: false, // Should not be used
                 apiBrowserOptions: {needsAuthorization: true} // should not be used
             }
             // myMethod() {} // Inherited
@@ -192,6 +204,8 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected
         expect(options.trimArguments === undefined).toBeTruthy() // Should not be affected
         expect(options.trimResult !== false).toBeTruthy() // Should not be affected
+        expect(options.validateCallbackArguments !== false).toBeTruthy() // Should not be affected
+        expect(options.validateCallbackResult !== false).toBeTruthy() // Should not be affected
         expect(options.apiBrowserOptions!.needsAuthorization === undefined).toBeTruthy() // Should not be affected
     })
 
@@ -204,6 +218,8 @@ describe("getRemoteMethodOptions", () => {
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
             trimResult: false, // Should not be inherited
+            validateCallbackArguments: false, // Should not be inherited
+            validateCallbackResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -228,6 +244,8 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
         expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 
@@ -239,6 +257,8 @@ describe("getRemoteMethodOptions", () => {
             validateResult: false, // Should not be inherited
             trimArguments: false, // Should be inherited
             trimResult: false, // Should not be inherited
+            validateCallbackArguments: false, // Should not be inherited
+            validateCallbackResult: false, // Should not be inherited
             apiBrowserOptions: {needsAuthorization: true} // thould be inherited
 
         };
@@ -262,6 +282,8 @@ describe("getRemoteMethodOptions", () => {
         expect(options.validateResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.trimArguments === false).toBeTruthy()
         expect(options.trimResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackArguments !== false).toBeTruthy() // Should not be affected by MyServiceParent
+        expect(options.validateCallbackResult !== false).toBeTruthy() // Should not be affected by MyServiceParent
         expect(options.apiBrowserOptions!.needsAuthorization === true).toBeTruthy() // Should be affected by MyServiceParent
     })
 });
@@ -1956,32 +1978,32 @@ test('validateCall security', async () => {
        }
 
        // Make public
-       public validateCall(evil_methodName: string, evil_args: any[]){
-           return super.validateCall(evil_methodName, evil_args, false);
+       public testValidateCall(evil_methodName: string, evil_args: any[]){
+           return super.validateCall(evil_methodName, {argsWithPlaceholders: evil_args}, false);
        }
    }
 
     const service = new MyService();
 
-    expect(service.validateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
+    expect(service.testValidateCall("myMethod", ["a","b"])).toBe(undefined); // Should not throw
 
     // Malformed method name:
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("validateCall", []),"does not have a @remote() decorator");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("validateCall", []),"does not have a @remote() decorator");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall(null, []),"methodName not set");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("", []),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall(null, []),"methodName not set");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("", []),"methodName not set");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall({}, []),"not a string");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("x", []),"not a function");
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("nonExistant", []),"does not exist");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall({}, []),"not a string");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("x", []),"not a function");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("nonExistant", []),"does not exist");
 
     // malformed args:
    // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", null),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", null),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", ""),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", ""),"not an array");
     // @ts-ignore
-    await expectAsyncFunctionToThrow(async () => await service.validateCall("myMethod", {}),"not an array");
+    await expectAsyncFunctionToThrow(async () => await service.testValidateCall("myMethod", {}),"not an array");
     // Further rtti argschecking is done in runtime-typechecking.test.ts
 
 });
@@ -2389,6 +2411,7 @@ it('should reopen failed ClientSocketConnections', async () => {
 });
 
 describe("callbacks", () => {
+    let rememberedFunction:() => void | undefined;
     class ServerAPI extends ServerSession {
         @remote()
         callVoidCallback3Times(callback: ()=>void) {
@@ -2413,19 +2436,17 @@ describe("callbacks", () => {
         async deepCallback(a: string, b: {deepProp: ()=> Promise<string>}) {
             return await b.deepProp();
         }
-
-        remembered?:() => void;
         @remote()
         setRemembered(callback: () => void) {
-            this.remembered = callback
+            rememberedFunction = callback
         }
 
         @remote()
         isRemembered(callback: () => void) {
-            if(this.remembered === undefined) {
+            if(rememberedFunction === undefined) {
                 throw new Error("Illegal state")
             }
-            return this.remembered  === callback;
+            return rememberedFunction  === callback;
         }
     }
 
@@ -2459,6 +2480,27 @@ describe("callbacks", () => {
     test("Callback with Promise<string>", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         const mock = jest.fn().mockResolvedValue("hello from client");
         expect(await apiProxy.callPromiseStringCallback(mock)).toBe("hello from client");
+    }, {
+        useSocket: true
+    }));
+
+    test("Properly retrieve error from a callback with result promise", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        const clientFn = async () => {
+            throw new Error("Some error on the client");
+        }
+        try {
+            async function callFromClient() { // Give this stack element a name "callFromClient", so we have it in the error message
+                await apiProxy.callPromiseStringCallback(clientFn as any);
+            }
+            await callFromClient();
+            fail("function did not throw an error");
+        }
+        catch (e) {
+            // Check, that the error has all the helpful components in the description / stack:
+            expect(e instanceof ServerError).toBeTruthy();
+            expect((e as ServerError).message).toMatch(/DownCallError.*Error.*Some error on the client.*clientFn.*callPromiseStringCallback.*/s);
+            expect(e.stack).toMatch(/.*callFromClient.*/s)
+        }
     }, {
         useSocket: true
     }));

@@ -175,6 +175,19 @@ export type ServerOptions = {
      * Disable some conenience checks. You'll be notified when you need this.
      */
     _diagnosis_skipValidatingServerSessionFieldTypes?: boolean
+
+
+
+    resourceLimits?: {
+        /**
+         * Max. number of non-void callback function down calls (server->client), that can be executed simultaneously.
+         * Will be ignored when {@link ServerSessionOptions#devDisableSecurity} is enabled
+         * <p>
+         *     Default: unlimited
+         * </p>
+         */
+        maxDownCallsPerSocket?: number
+    }
 }
 
 /*

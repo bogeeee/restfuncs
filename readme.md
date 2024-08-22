@@ -62,43 +62,40 @@ But besides RPC, Restfuncs deals with much more aspects around http-communicatio
 ## Intro + features
 
 With restfuncs, you write your http API endpoints just as **plain typescript func**tion**s**. Or better say: methods.  
-Per-endpoint boilerplate is basically:
+Per-endpoint boilerplate is no more than, i.e.:
 ````typescript
-@remote()
-greet(name: string) {
-    return  `Hello ${name}` 
+@remote greet(name: string) {
+    return `Hello ${name}` 
 }
 ````
-See, it uses natural parameters and natual `return` and `throw` flow, instead of dealing with `req` and `res` and Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
+See, it uses natural parameters and natural `return` (and `throw`) flow, instead of you having to deal with `req` and `res` on a lower level. And Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
 - 🛡️ **Automatic arguments validation** against **native typescript types**  
-  Like here, you used typescript to say "name must be a `string`" Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
+  Like here, you used typescript to say "name must be a `string`". Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
   _Now you may ask how this works, because usually all types are erased at runtime. Answer: Your files go through a set of transformer plugins during compilation which add that information and emit fast precompiled validator code. 
   This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
   - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
     _In cases where the full power of Typescript is still not enough for you ;)_
-- 🔌 **Zero conf [REST interface](#rest-interface)** for your remote methods  
-  Especially it comes without any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them!
-- 🍾 **RPC client** (this is the best part 😄😄😄)  
-  Just call your remote methods from the client/browser as if they were lokal like `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
+- 🔌 Can i cURL it? **Zero conf [REST interface](#rest-interface)**    
+   Yes, you can cURL it in all ways you can imagine! And it does not even need any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them and say hello to zero-conf.
+- 🍾 **RPC client** 😎😎😎  
+  Just **call your remote methods** from the client/browser **as if they were local**, like i.e. `await myRemoteSession.greet("Axel")`, while enjoying full end2end type safety.
   - 🚀 Uses **engine.io (web-) sockets**
-    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
+    
+    The client automatically tries to upgrade to  (web-) sockets for faster round trips, better call batching, better general performance and push event (callback) features. Restfuncs makes the behaviour fully transparent and interoperable with classic http: Changes to session fields (**the session cookie**) are automatically and securely **synchronized** to/from other classic http calls, non-restfuncs-clients and clients in other browser tabs. _Still you can switch off sockets and make it do plain HTTP calls._  
 - **🔐 Security first approach**  
   All protection is in place by default. Exceptions, where you need to take action, are hinted explicitly in the docs, or by friendly error messages on unclear configuration. [Friendly hint here, for, when using client certificates or doing manual http fetches in the browser](#csrf-protection).  
   Restfuncs is designed to handle setups with different security settings per ServerSession class _while they (always) share one cookie-session_. I.e, think of serving a subset of your APIs (ServerSessions) to ALL origins for third party browser apps or for SSO. _[How it works internally](server/Security%20concept.md)_
   - 🛡️ **[CSRF protection](#csrf-protection) with zero-conf**  
-    Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the socket connection._
+    Especially no csrf tokens need to be passed by you.  _This is said so easy, but there's much effort and research behind the scenes for an in-depth protection of all possible http call situations and also to secure the websocket connection._
   - **🔓CORS**  
-    of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` and that's it.
+    of course also ;), _plays together with the above_. Just set the `ServerSessionOptions#allowedOrigins` option and that's it.
 - **⛲ Serve / stream resources**  
   You can also use your remote methods to [serve/stream resources like html pages / images / pdfs / ...](#html--images--binary-as-a-result) just by returning a `Readable`/`Buffer`/`string`
+- [**Push events via callback functions**](#server-events-via-callback-functions)   
+  It's as simple as sending a callback function in between your usual parameters and you can react to server side events. Great for progress bars, chat rooms, games, realtime data, event subscriptions of any kind...
 - COMING SOON  
   _The following coming-soon features are already concepted into the API and already appear in the docs. I'm trying my best, to keep new features non-breaking to make the current 3.x version stay the head._
-- COMING [very](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) SOON: **Callback functions**  
-  as usual parameters: Easy and great for reacting to events (subscriptions), progress bars, chat rooms, games, realtime data, ... _Those callbacks cause no polling and get **pushed** via the sockets of course._ There are options for skipping and rate limiting.
-  Worry free: Remembers the instance so the same function instances on the client results to the same function instance on the server which is handy for addListener/removeListener pattern.  
-  Tip: You can have **Reverse services**: Implement a (common) service interface on the client, send it to the server. Now the server can call methods on it. Eaaasy !  
-  [Here](https://github.com/bogeeee/restfuncs/tree/callbacksAlpha) 's an alpha version of that feature which you can already start using in development.
 - COMING SOON: Simple **file uploads**  
   You can [use the Restfuncs client](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt) or [multipart/mime forms (classic)](#rest-interface).
 - COMING SOON: **Scalable to a multi node environment**  
@@ -110,13 +107,16 @@ That is (features):
   - FUTURE:  ... + can also download the **OpenAPI spec** from there.
 
 Smaller features:
-- **Result validation**: Also your returned values get validated (by default) to what's declared. Improves safety. 
+- **Validation everywhere** (by default): Restfuncs validates not only remote method's arguments, but also the result and also args + result of **callbacks** = just everything ;).
 - **Argment and result trimming**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
 - Proper **error handling** and logging.
 - **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
-- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application.
+- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application. [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts) 
 - **Enhancement friendly** library by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). TODO: Document basic-call-structure.md  
 - **Very compact** conceptual **documentation**. "All you need to know" fits on < 3 screen pages. Further is shown by your IDE's intellisense + friendly error messages give you advice. So let's not waste words and [get right into it](#ltboilerplate-cheat-sheet---all-you-need-to-knowgt):
+
+Negative features (downside):
+  - Needs some special [build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) with typescript compiling + running with plain node for **production**. You need to do a production run from time to time and take some care that things don't break. Just stick strongly to the well tested scripts in package.json and the tsconfig.json, and you're fine. _And for **development**, you're still free to run it how you like (with tsx, bun, ...) 😊._
 
 # Getting started
 
@@ -134,7 +134,7 @@ Here's how to set up a server that serves a remote method, named `myRemoteMethod
 **MyServerSession.ts**
 
 ````typescript
-import {ServerSession, ServerSessionOptions, UploadFile, remote, ClientCallback} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, remote, UploadFile, ClientCallback, ClientCallbackSet, ClientCallbackSetPerItem, free, withTrim} from "restfuncs-server";
 
 export class MyServerSession extends ServerSession {
 
@@ -157,7 +157,7 @@ export class MyServerSession extends ServerSession {
 **server.ts**
 ````typescript
 import {restfuncsExpress} from "restfuncs-server";
-import {MyServerSession} from "./MyServerSession.js";
+import {MyServerSession} from "./MyServerSession.js"; // For node, you must use use ".js" instead of ".ts" in your imports (yes, strange) !
 
 const app = restfuncsExpress({/* ServerOptions */}) // Drop in replacement for express (enhances the original). It installs a jwt session cookie middleware and the websockets listener. Recommended.
 app.use("/myAPI", MyServerSession.createExpressHandler())
@@ -246,8 +246,7 @@ export class MyServerSession extends ServerSession {
 
   myLogonUserId?: string // This value gets stored in the session under the key "myLogonUserId".
 
-  @remote()
-  whoIsLoggedIn() {
+  @remote whoIsLoggedIn() {
     const user = getUser(this.myLogonUserId); // Read a session field
   }
 }
@@ -279,8 +278,7 @@ export class MyServerSession extends ServerSession {
    * @param someotherField
    * @param myUploadFile You can pass UploadFile objects anywhere/deeply and also as ...rest arguments. As soon as you read from the the stream, the restfuncs client will send that file in an extra http request in the background/automatically.
    */
-  @remote({/* RemoteMethodOptions */})
-  myRemoteMethodWithUploadFile(someotherField: string, myUploadFile: UploadFile) {
+  @remote myRemoteMethodWithUploadFile(someotherField: string, myUploadFile: UploadFile) {
     // TODO
     return "Your file was uploaded"
   }
@@ -301,8 +299,67 @@ await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile 
 
 You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
 
-# Callbacks
-**COMING SOON!** TODO
+# Server events via callback functions
+**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbackSet` and `ClientCallbackSetPerItem` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
+
+Now to the content:
+
+You want your client to react to a certain event that happens on the server ? Restfuncs solves this very elegantly: You can have functions in the remote method parameters. Even nested. Just think of callback functions in your daily javascript life _(but not about callback-hell from the old days before async/await/Promise was introduced 😆😆😆)_.
+You call them on the server (any time and as often as you want) and they get executed on the client ;) _All via (web-)socket push events of course_. Example:
+
+````typescript
+// On the server:
+@remote notifyMeWhenSomeoneEntersTheChatroom(chatroom: string, onUserEntersChat (user: User) => void) {
+    // ...later, somewhere in your code:
+    onUserEntersChat(someUser) // Call the callback
+}
+
+// on the client:
+myRemoteSession.notifyMeWhenSomeoneEntersTheChatroom("#restfuncs_is_great", (user) => { console.log(`${user.name} entered the chatroom`) })
+````
+
+Callbacks can also return some result (via Promise) and the server can await it.
+The callack's arguments and the result are validated at runtime, just like with a normal remote method. Except the [automatic trimming](#trim-off-extra-properties) is not enabled by default.
+In the `RemoteMethodOptions` you'll find some options for changing the default behaviour.
+
+
+### Worry free instance remembering
+_It's propably not worth mentioning, but: Same function instances on the client result in same function instances on the server. The server remembers them. 
+This allows for worry free use of `addEventListener(somefunction)` + `removeEventListener(somefunction)` style code_ 
+
+### Trim off extra properties
+This is not done by default. If you want to trim off extra properties, similar to `RemoteMethodOptions#trimArguments`, you have to use the `withTrim` function:
+
+````typescript
+import {withTrim} from "restfuncs-server";
+// ...later, somewhere in your code:
+withTrim(onUserEntersChat)(someUser) // Call the callback
+````
+for more info, see the JSDoc of `withTrim`.
+
+### Limitations
+Callbacks can only be declared 'inline' in the line of your remote method's declaration. Like: `@remote myRemoteMethod(...the arrow(s) => must be somewhere inside here...)`. Deeply nested in some (inline) object structure is also fine. But not in an external type and then **refer** to it. _This is for the restfuncs-transformer to be able to scan them and generate the security validation code. At that transformation stage, it only sees the syntax tree and can't follow into types_. 
+
+### Prevent resource exhaustion on the server
+In the world wide web. Clients may not always be so friendly to call removeEventListener but instead just disconnect. To help you, clean those up to now grow your precious memory,
+you can either listen for disconnect events via:
+
+````typescript
+import {ClientCallback} from "restfuncs-server";
+
+(myCallbackFn as ClientCallback).socketConnection.onClose(() => {
+    // <- unregister myCallbackFn here
+})
+````
+
+...or use the utility classes `ClientCallbackSet` and `ClientCallbackSetPerItem` _(import {...} from "restfuncs-server")_. You can add listeners to them and they get removed automatically on disconnect. See JSDoc there. 
+
+### Advanced: Resource cleanup on the client
+Just in case you have a very heavy and rich client, you may at some point wonder, how and when the references to the callback functions are cleaned up:
+
+- Garbage collection of your (callback-) function on the server is automatically reported to the client.
+- If that is too late or too unpredictable for you, you can use `free(myCallbackFn)` (`import {free} from "restfuncs-server"`) to tell the client, that the function is not held anymore.
+
 
 # Advanced
 
@@ -311,10 +368,10 @@ You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-inte
 There's a virtual runtime field named `call` where you can access your runtime context. Use intellisense for docs. Example:
 
 ````typescript
-@remote()
-myRemoteMethod() {
+@remote myRemoteMethod() {
   const req = this.call.req; // Express's req object
   const res = this.call.res; // Express's res object 
+  const conn = this.call.socketConnection; // Restfuncs's connection. Wraps the engine.io socket.
   
   res!.header("Content-Type", "text/plain")
   
@@ -524,17 +581,8 @@ Notes:
 - Install the cookie handler with `cookie: {sameSite: true}`. TODO: Automatically do this if all services have default / same-site allowedOrigins
 - Set `ServerSessionOptions#csrfProtectionMode` to `csrfToken` and implement the csrf token handover.
 
+
 # Performance
-
-To be honest here, this current Restfuncs release's first goal is to be stable and secure. Surely, it  will compete with a traditional express handcrafted handlers or usual frameworks, 
-Plus it also has the (web) socket server and there are architectural considerations to avoid round trips and lookups. But real profiling and in-detail optimizations have to be made, to make it competitive to bun, µWebsockets and other high-throughput libraries.
-Feel free,to benchmark it and contribute to optimizations.
-
-Also in general: You should never talk about performance in theory without having actually profiled your application. I.e. one single simple sql call to a database server (in dimensions of around 100µs on an average cpu) will probably overshadow all the call time of all your communication library.
-But it's no excuse to not take it sportive ;)... i will focus on this topic later.
-
-
-### Further performance options
 - Read JSDoc and disable `ServerOptions#socket_requireAccessProofForIndividualServerSession`
 
 ### Writes to the session fields have some overhead
@@ -560,14 +608,12 @@ type IUser=  {
   password: string,
 }
 
-@remote()
-returnsPublicUser(): Pick<IUser, "name" | "age"> { // This will return the user without password
+@remote returnsPublicUser(): Pick<IUser, "name" | "age"> { // This will return the user without password
     const user = {name: "Franz", age: 45, password: "geheim!"} // got it from the db somewhere
     return user;
 }
 
-@remote()
-returnsPublicUser(): Omit<IUser, "password">{  // Also this will return the user without password
+@remote returnsPublicUser(): Omit<IUser, "password">{  // Also this will return the user without password
    ...
 }
 ````

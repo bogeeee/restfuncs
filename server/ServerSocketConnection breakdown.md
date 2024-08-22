@@ -126,6 +126,8 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
+                    const swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them (i.e. ClientCallbacks), or insert placeholders. Plays together with validateMethodArguments.
+                    
                     // See ServerSession breakdown.md for doCall_outer
                     const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, {})
 

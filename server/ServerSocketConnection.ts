@@ -1,4 +1,10 @@
-import {ClientCallback, ServerSession} from "./ServerSession";
+import {
+    ClientCallback,
+    ClientCallbackProperties,
+    ServerSession,
+    CallbackMeta,
+    SwappableArgs, SwapPlaceholders_args, UnknownFunction, diag_sourceLocation, DOCS_READMEURL
+} from "./ServerSession";
 import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
@@ -10,25 +16,35 @@ import {
     SecurityPropertiesOfHttpRequest, ServerPrivateBox,
     Socket_Client2ServerMessage,
     Socket_MethodCall,
-    Socket_MethodUpCallResult, Socket_Server2ClientInit,
-    Socket_Server2ClientMessage, UploadFile, visitReplace, ChannelItemDTO, ClientCallbackDTO, Socket_DownCall
+    Socket_MethodUpCallResult,
+    Socket_Server2ClientInit,
+    Socket_Server2ClientMessage,
+    UploadFile,
+    visitReplace,
+    ChannelItemDTO,
+    ClientCallbackDTO,
+    Socket_DownCall,
+    Socket_DownCallResult, fixErrorForJest
 } from "restfuncs-common";
 import _ from "underscore";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {fixErrorStack} from "./Util";
+import {createSecureId, diagnisis_shortenValue} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
-
-const FEATURE_ENABLE_CALLBACKS = false;
+import {WeakValueMap, fixErrorStack} from "restfuncs-common";
+import clone from "clone";
 
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
+    public closeReason?:CloseReason;
+
+    lastSequenceNumberFromClient=-1;
 
     /**
      * The raw cookie-session values that were obtained from a http call.
@@ -47,17 +63,23 @@ export class ServerSocketConnection {
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
     /**
-     * For worry-free feature: Remember the same function instances
+     * For worry-free feature: Remember the same function instances. This could be useful if you register/unregister a subscription. I.e. like in the browser's addEventListener / removeEventListener functions.
      * id -> callback function
      */
-    clientCallbacks = new Map<number, ClientCallback>(); // TODO: Find a Weakmap with weak strings and weak values
+    clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
+        if(!this.isClosed()) {
+            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient} }); // Inform the client that the callback is not referenced anymore
+        }
+    });
+
+    protected downcallIdGenerator = 0;
 
     /**
      * Downcalls of client-initialted callbacks
      * On such that return via promise
      * @protected
      */
-    protected methodDownCallPromises = new Map<number, ExternalPromise<Socket_MethodUpCallResult>>()
+    protected methodDownCallPromises = new Map<number, ExternalPromise<Socket_DownCallResult>>()
 
     /**
      * Track if client GCed or closed the stream or pulls from them.
@@ -68,7 +90,13 @@ export class ServerSocketConnection {
     // TODO Finalization registry for client initiated Readbles to signal GC to the client
     // TODO Finalization registry for client initiated UploadFiles to signal GC to the client
 
+    /**
+     * TODO: Imagine the case of a forgotten ClientCallbackSetPerItem instance. Use an IterableWeakSet
+     * @protected
+     */
+    protected weakOnCloseListeners = new Set<OnCloseHandlerInterface>();
 
+    protected onCloseListeners = new Set<(reason?: CloseReason) => void>();
 
 
     /**
@@ -92,7 +120,7 @@ export class ServerSocketConnection {
     }
 
     get id() {
-        return nacl_util.encodeBase64(this._id); // TODO: use from socket
+        return nacl_util.encodeBase64(this._id); // TODO: use id from the socket
     }
 
     constructor(server: RestfuncsServer, socket: Socket) {
@@ -116,6 +144,21 @@ export class ServerSocketConnection {
             }
         })
 
+        socket.on("close", (message: string, obj?: object) => {
+            this.handleClose((message || obj)?{message, obj}:undefined);
+        });
+
+        socket.on("error", (error: Error) => {
+            // Make sure it is closed:
+            try {
+                socket.close()
+            }
+            catch (e) {
+            }
+            this.closeReason = error;
+            this.handleClose(error);
+        });
+
         // TODO: Performance: Could we just use the http cookie here ? At least for our own JWT cookie handler. There we also know how to do a validity check.
 
         const initMessage: Socket_Server2ClientInit = {
@@ -138,12 +181,13 @@ export class ServerSocketConnection {
     }
 
     protected sendMessage(message: Socket_Server2ClientMessage) {
+        this.checkClosed();
         this.socket.send(this.serializeMessage(message));
     }
 
     public failFatal(error: Error) {
         this.socket.send("[Error] " + error.message);
-        this.socket.close()
+        this.close(error);
     }
 
     /**
@@ -162,10 +206,19 @@ export class ServerSocketConnection {
         if(typeof message.type !== "string") {
             throw new Error("message.type is not a string");
         }
+        // Validate and fix sequenceNumber for older clients:
+        if(typeof message.sequenceNumber !== "number") {
+            message.sequenceNumber = 0;
+        }
+
+        this.lastSequenceNumberFromClient = message.sequenceNumber;
 
         // Switch on type:
         if(message.type === "methodCall") {
             this.handleMethodCall(message.payload as Socket_MethodCall /* will be validated in method*/)
+        }
+        else if(message.type === "methodDownCallResult") {
+            this.handleMethodDownCallResultMessage(message.payload as Socket_DownCallResult /* will be validated in method*/)
         }
         else if(message.type === "getVersion") {
             // Leave this for future extensibility / probing feature flags (don't throw an error)
@@ -265,10 +318,9 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    if(FEATURE_ENABLE_CALLBACKS) {
-                        this.handleMethodCall_resolveChannelItemDTOs(methodCall); // resolve / register them
-                    }
-                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, methodCall.args, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
+                    const swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them, or insert placeholders. Plays together with validateMethodArguments.
+
+                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
                     // Check if result is of illegal type:
                     const disallowedReturnTypes = {
@@ -364,20 +416,28 @@ export class ServerSocketConnection {
                 callId: methodCall.callId,
                 ... await handleMethodCall_inner()
             }
-            this.sendMessage({type: "methodCallResult", payload});
+            if(!this.isClosed()) {
+                this.sendMessage({type: "methodCallResult", payload});
+            }
         })();
     }
 
     /**
-     * Replaces all ClientCallback objects in the arguments with functions that do the down call
-     *
-     * @param methodCall
+     * Replaces all ClientCallback DTOs in the arguments with "_callback_XXX" placeholders and registers swapper functions for them, which bring them to life
+     * The placeholder+swapping functions is a preparation for {@link ServerSession#validateMethodArguments}.
      */
-    handleMethodCall_resolveChannelItemDTOs(methodCall: Socket_MethodCall) {
+    handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
+        const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: new Map<string, ((args: SwapPlaceholders_args) => void)>(), swapEscapedStringFns: []}
 
-        visitReplace(methodCall.args, (item, visitChilds) => {
+        visitReplace(remoteMethodArgs, (item, visitChilds, context) => {
+            const swapValueTo = (newValue: unknown) => {
+                //@ts-ignore
+                context.parentObject[context.key] = newValue;
+            }
+
             if (item !== null && typeof item === "object" && (item as any)._dtoType !== undefined) { // Item is a DTO ?
                 let dtoItem: ChannelItemDTO = item as ChannelItemDTO;
+                // Validity check:
                 if (typeof dtoItem._dtoType !== "string") {
                     throw new Error("_dtoType is not a string");
                 }
@@ -385,33 +445,370 @@ export class ServerSocketConnection {
                 if(typeof id !== "number") {
                     throw new Error("id is not a number");
                 }
-                if(dtoItem._dtoType === "ClientCallback") {
-                    // Create the function:
-                    // @ts-ignore
-                    let callback: ClientCallback = (...args: unknown[])=> {
-                        // Execute the downcall
-                        const downCall: Socket_DownCall = {
-                            callbackFnId: callback.id,
-                            args: args,
-                            diagnosis_awaitResult: true,
-                        }
-                        this.sendMessage({type: "downCall", payload: downCall})
-                    }
-                    callback.socketConnection = this;
-                    callback.id = id;
-                    callback.options = {};
 
-                    return callback;
+                if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
+                    const swapperFn = (swapperArgs: SwapPlaceholders_args) => {
+                        // Determine / create callback:
+                        const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
+                        let callback: ClientCallback;
+                        if(existing) { // Already exists ?
+                            callback = existing;
+                        }
+                        else {
+                            // Create a new callback (function + properties):
+                            const callbackProperties: ClientCallbackProperties = {
+                                socketConnection: this,
+                                id: id,
+                                free: () => {
+                                    this.freeClientCallback(callback!)
+                                },
+                                _handedUpViaRemoteMethods: new Map(),
+                                _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim: UnknownFunction | undefined, diagnosis): Promise<unknown> | undefined => {
+                                    // <- **** here, the callback gets called (yeah) ****
+
+                                    // Validity check:
+                                    if (this.clientCallbacks.get(callback.id) === undefined) {
+                                        throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
+                                    }
+
+                                    // It' better, to record these at the point of time **before** the call (at least before the await...the downcall line)
+                                    const handedUpViaRemoteMethods = [...callback._handedUpViaRemoteMethods.values()]
+                                    const metas = handedUpViaRemoteMethods.filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!]);
+                                    const hasADeclaredResult = metas.some(entry => entry.awaitedResult !== undefined);
+                                    const usedInSecDisabledServerSession = callback._handedUpViaRemoteMethods.size === 0 ||  [...callback._handedUpViaRemoteMethods.values()].some(entry => entry.serverSessionClass.isSecurityDisabled);
+
+                                    // Validate arguments:
+                                    {
+                                        // Collect validationSpots: The places where the callback was declared, that definitely need validation:
+                                        const validationSpots: ValidationSpot[] = [];
+                                        for (const usage of handedUpViaRemoteMethods) {
+                                            if (usage.serverSessionClass.isSecurityDisabled) {
+                                                continue
+                                            }
+                                            if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackArguments === false) {
+                                                continue;
+                                            }
+                                            const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.declarationIndex!];
+
+                                            // obtain trim (for this meta):
+                                            let trim = trimArguments;
+                                            if (trimArguments && useSignatureForTrim !== undefined) {
+                                                const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
+                                                trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!] === meta) // signature is for this meta ?
+                                            }
+
+                                            validationSpots.push({meta, trim})
+                                        }
+
+                                        // Do the validation:
+                                        if(validationSpots.some(spot => spot.trim)) {
+                                            args = clone(args, true); // Use the "clone" lib, cause it references prototypes instead of cloning them (like structuredClone would do) for better performance. Typia's prune doesn't touch prototypes anyway.
+                                        }
+                                        validationSpots.forEach(vs => this.validateDowncallArguments(args, vs, { allValidationSpots: validationSpots, plusOthers: handedUpViaRemoteMethods.length - validationSpots.length }));
+                                    }
+
+
+                                    // *** Execute the downcall ***:
+                                    const mustWaitForAnAnswer = hasADeclaredResult || usedInSecDisabledServerSession;  // May it return a result ?
+                                    const downCall: Socket_DownCall = {
+                                        id: ++this.downcallIdGenerator,
+                                        callbackFnId: callback.id,
+                                        args: args,
+                                        serverAwaitsAnswer: mustWaitForAnAnswer,
+                                        diagnosis_resultWasDeclared: hasADeclaredResult
+                                    }
+                                    this.sendMessage({type: "downCall", payload: downCall})
+
+                                    if(mustWaitForAnAnswer) {
+                                        // Check the resource limit:
+                                        if(!usedInSecDisabledServerSession && this.server.serverOptions.resourceLimits?.maxDownCallsPerSocket && this.server.serverOptions.resourceLimits.maxDownCallsPerSocket >= this.methodDownCallPromises.size) {
+                                            throw new Error(`Resource limit of ServerOptions#resourceLimits.maxDownCallsPerSocket=${this.server.serverOptions.resourceLimits?.maxDownCallsPerSocket} reached. Please make sure, that your callback functions return in time.`);
+                                        }
+
+                                        return (async () => {  // Note: here we go into async mode as late as possible
+                                            // Await the downcall:
+                                            const downCallPromise = new ExternalPromise<Socket_DownCallResult>();
+                                            this.methodDownCallPromises.set(downCall.id, downCallPromise)
+                                            let downCallResult: Socket_DownCallResult;
+                                            try {
+                                                downCallResult = await downCallPromise;
+                                            }
+                                            catch (e) { // Error, awaiting the promise (i.e. the connection was closed and all promises got rejected ?)
+                                                if(hasADeclaredResult) {
+                                                    throw e;
+                                                }
+                                                else {
+                                                    return undefined; // Ignore it, to prevent an unhandledrejection, cause there's likely no awaiter
+                                                }
+                                            }
+
+
+                                            // Handle, if client throw an error:
+                                            if (downCallResult.error) {
+                                                throw new DownCallError(downCallResult.error, {});
+                                            }
+
+                                            // Collect validationSpots: The places where the callback was declared, that definitely need validation:
+                                            const validationSpots: ValidationSpot[] = [];
+                                            for (const usage of handedUpViaRemoteMethods) {
+                                                if (usage.serverSessionClass.isSecurityDisabled) {
+                                                    continue
+                                                }
+                                                if (usage.serverSessionClass._public_getRemoteMethodOptions(usage.remoteMethodName).validateCallbackResult === false) {
+                                                    continue;
+                                                }
+                                                const meta = usage.serverSessionClass.getRemoteMethodMeta(usage.remoteMethodName).callbacks[usage.declarationIndex!];
+                                                if (usedInSecDisabledServerSession && meta.awaitedResult === undefined) {
+                                                    continue;  // There could be void callbacks. That's ok. Filter them out
+                                                }
+
+                                                // obtain trim (for this meta):
+                                                let trim = trimResult;
+                                                if (trimResult && useSignatureForTrim !== undefined) {
+                                                    const entry = callback._handedUpViaRemoteMethods.get(useSignatureForTrim);
+                                                    trim = (entry !== undefined && !entry.serverSessionClass.isSecurityDisabled && entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!] === meta) // signature is for this meta ?
+                                                }
+
+                                                validationSpots.push({meta, trim})
+                                            }
+
+                                            // Do the validation:
+                                            validationSpots.forEach(vs => this.validateDowncallResult(downCallResult.result, vs, {
+                                                allValidationSpots: validationSpots,
+                                                plusOthers: handedUpViaRemoteMethods.length - validationSpots.length
+                                            }));
+
+                                            return downCallResult.result;
+                                        })();
+                                    }
+                                    else { // Callback is definitely void ?
+                                        if(diagnosis?.isFromClientCallbacks_CallForSure) {
+                                            // In theory, we could allow this and pretend, that is it's a Promise<void>. But too much extra effort, just for this case.
+                                            throw new Error(`callForSure(...) found a callback, that's declared as returning 'void'. You must declare it as returning 'Promise<void>' instead. Location(s):\n${metas.map(meta => diag_sourceLocation(meta.diagnosis_source, true)).join("\n")}`);
+                                        }
+                                        return;
+                                    }
+                                },
+
+                            }
+                            callback = _.extend((...args: unknown[]) => {
+                                return callback._validateAndCall(args, false, false);
+                            }, callbackProperties);
+                        }
+
+                        // Register that the callback was handed up here (for security validations):
+                        //@ts-ignore
+                        const remoteMethodInstance = swapperArgs.serverSessionClass.prototype[swapperArgs.remoteMethodName];
+                        if(!remoteMethodInstance || !(typeof remoteMethodInstance === "function")) {
+                            throw new Error("not a function");
+                        }
+                        if(!callback._handedUpViaRemoteMethods.has(remoteMethodInstance)) { // not yet registered
+                            const declarationIndex = swapperArgs.declarationIndex;
+
+                            // Safety check: Remote method has more than one callback declared ? (not supported)
+                            if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
+                                const possibleCallbackDeclarations = swapperArgs.serverSessionClass.getRemoteMethodMeta(swapperArgs.remoteMethodName).callbacks;
+                                if(possibleCallbackDeclarations.length > 1) {
+                                    throw new Error(`More than one callback declarations inside the line of a remote method are currently not supported (Hint: see RemoteMethodOptions#allowCallbacksAnywhere). The callbacks are declared at the following locations:\n${possibleCallbackDeclarations.map(decl => diag_sourceLocation(decl.diagnosis_source, true)).join("\n")}`);
+                                }
+                            }
+
+                            // Safety check (mixed variants), to prevent against an attacker upgrading to non-void and provoke an unhandledrejection somewhere. Or against accidential unhandledrejections in user's code:
+                            if(!swapperArgs.serverSessionClass.isSecurityDisabled) {
+                                const existingCallbackMetas = [...callback._handedUpViaRemoteMethods.values()].filter(entry => !entry.serverSessionClass.isSecurityDisabled).map(entry => entry.serverSessionClass.getRemoteMethodMeta(entry.remoteMethodName).callbacks[entry.declarationIndex!]);
+                                const newMeta = swapperArgs.serverSessionClass.getRemoteMethodMeta(swapperArgs.remoteMethodName).callbacks[declarationIndex!];
+                                if(existingCallbackMetas.length > 0 && (existingCallbackMetas[0].awaitedResult === undefined) !== (newMeta.awaitedResult === undefined) ) {
+                                    throw new Error("A callback, that you're handing up, was declared in mixed variants: Returning void + returning a Promise. We don't allow this, to save you from possible unhandledrejections in your application code (not awaiting + error-handling in one of the places). The callback was declared at the following places:\n" + [newMeta, ...existingCallbackMetas].map(m => diag_sourceLocation(m.diagnosis_source, true)).join("\n"));
+                                }
+                            }
+
+                            // Register:
+                            callback._handedUpViaRemoteMethods.set(remoteMethodInstance, {
+                                serverSessionClass: swapperArgs.serverSessionClass,
+                                remoteMethodName: swapperArgs.remoteMethodName,
+                                declarationIndex,
+                            })
+                        }
+
+                        this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
+                        swapValueTo(callback);
+                    };
+                    (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
+
+                    const placeholderId = `_callback_${createSecureId()}`;
+                    result.swapCallbackPlaceholderFns!.set(placeholderId, swapperFn);
+                    return placeholderId; // replace with placeholder for now.
                 }
                 else {
                     throw new Error(`Unhandled dto type:${dtoItem._dtoType}`)
                 }
 
             }
+            else if(typeof item === "string") {
+                if(item.startsWith("_callback")) { // literally "_callbackXXX" ?
+                    // This should be allowed, but we must escape it and swap it after validation
+                    result.swapEscapedStringFns!.push(() => swapValueTo(item));
+                    return `_esc_${item.substring(5)}`; // prefix with an "_esc_" and keep the original string length
+                }
+                return item;
+            }
             else {
-                return visitChilds(item)
+                return visitChilds(item, context)
             }
         });
+
+        return result;
+    }
+
+    protected handleMethodDownCallResultMessage(resultFromClient: Socket_DownCallResult) {
+        // Validate the evil input:
+        // (TODO: write a testcase for evil input values)
+        if(!resultFromClient || (typeof resultFromClient !== "object")) {
+            throw new Error("resultFromClient is not an object");
+        }
+        if(typeof resultFromClient.callId !== "number") {
+            throw new Error("callId is not a number");
+        }
+
+        const methodDownCallpromise = this.methodDownCallPromises.get(resultFromClient.callId);
+        if(!methodDownCallpromise) {
+            throw new Error( `MethodDownCallPromise for callId: ${resultFromClient.callId} does not exist.`);
+        }
+        this.methodDownCallPromises.delete(resultFromClient.callId);
+        methodDownCallpromise.resolve(resultFromClient);
+    }
+
+    /**
+     *
+     */
+    protected validateDowncallResult(result: unknown, validationSpot: ValidationSpot, diagnosis: {allValidationSpots: ValidationSpot[], plusOthers: number}) {
+        const {meta, trim} = validationSpot;
+        if(meta.awaitedResult === undefined) {
+            throw new Error("Illegal state: awaitedResult not defined")
+        }
+
+        // Validate:
+        const validationResult = trim?meta.awaitedResult.validatePrune(result):meta.awaitedResult.validateEquals(result);
+        if(validationResult.success) {
+            return;
+        }
+
+        // *** Compose error message and throw it ***:
+
+        // Compose errors into readable messages:
+        const readableErrors: string[] = validationResult.errors.map(error => {
+            const improvedPath = error.path.replace(/^\$input/,"<result>")
+            return `${improvedPath !== "<result>"?`${improvedPath}: `: ""}expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}`
+        })
+
+        // *** Obtain diagnosis_declaredSuffix ***:
+        let diagnosis_declaredSuffix: string;
+        // Obtain diagnosis_hasDifferentSignatures:
+        let diagnosis_hasDifferentSignatures = false;
+        {
+            let sourceSignature: string | undefined;
+            for(const vs of diagnosis.allValidationSpots) {
+                const sig = vs.meta.diagnosis_source.signatureText; // TODO: use vs.meta.result.diagnosis_source instead
+                if(sourceSignature !== undefined && sourceSignature != sig) {
+                    diagnosis_hasDifferentSignatures = true;
+                    break;
+                }
+                sourceSignature = sig
+            }
+        }
+        if(diagnosis_hasDifferentSignatures) {
+            diagnosis_declaredSuffix = `The callback was handed up in multiple locations, which declared it with different return types. Therefore, all have to be validated. Locations:\n`;
+            // TODO: use vs.meta.result.diagnosis_source instead
+            diagnosis_declaredSuffix+= diagnosis.allValidationSpots.map(vs => `${diag_sourceLocation(vs.meta.diagnosis_source, true)}${vs.trim?" <-- extra properties get trimmed off":""}${vs === validationSpot?" <-- this one failed validation!":""}`).join("\n");
+            if(diagnosis.plusOthers) {
+                diagnosis_declaredSuffix+=`\n...plus ${diagnosis.plusOthers} other place(s), which don't require validation`;
+            }
+        }
+        else {
+            diagnosis_declaredSuffix = `The callback's return type was declared in ${diag_sourceLocation(meta.diagnosis_source, true)}`; // TODO: use vs.meta.result.diagnosis_source instead
+        }
+
+        const separateLines = readableErrors.length > 1;
+        throw new Error(`The client returned an invalid value:${separateLines ? "\n" : " "}${readableErrors.join("\n")}\n${diagnosis_declaredSuffix}`);
+    }
+
+
+    /**
+     *
+     */
+    protected validateDowncallArguments(args: unknown[], validationSpot: ValidationSpot, diagnosis: {allValidationSpots: ValidationSpot[], plusOthers: number}) {
+        const {meta, trim} = validationSpot;
+
+        // Validate:
+        const validationResult = trim?meta.arguments.validatePrune(args):meta.arguments.validateEquals(args);
+        if(validationResult.success) {
+            return;
+        }
+
+        // *** Compose error message and throw it ***:
+
+        // *** Obtain diagnosis_declaredSuffix ***:
+        let diagnosis_declaredSuffix: string;
+        // Obtain diagnosis_hasDifferentSignatures:
+        let diagnosis_hasDifferentSignatures = false;
+        {
+            let sourceSignature: string | undefined;
+            for(const vs of diagnosis.allValidationSpots) {
+                const sig = vs.meta.diagnosis_source.signatureText; // TODO: use vs.meta.arguments.diagnosis_source instead
+                if(sourceSignature !== undefined && sourceSignature != sig) {
+                    diagnosis_hasDifferentSignatures = true;
+                    break;
+                }
+                sourceSignature = sig
+            }
+        }
+        if(diagnosis_hasDifferentSignatures) {
+            diagnosis_declaredSuffix = `The callback was handed up in multiple locations, which declared it with different parameter types. Therefore, all have to be validated. Locations:\n`;
+            // TODO: use vs.meta.arguments.diagnosis_source instead
+            diagnosis_declaredSuffix+= diagnosis.allValidationSpots.map(vs => `${diag_sourceLocation(vs.meta.diagnosis_source, true)}${vs.trim?" <-- extra properties get trimmed off":""}${vs === validationSpot?" <-- this one failed validation!":""}`).join("\n");
+            if(diagnosis.plusOthers) {
+                diagnosis_declaredSuffix+=`\n...plus ${diagnosis.plusOthers} other place(s), which don't require validation`;
+            }
+        }
+        else {
+            diagnosis_declaredSuffix = `The callback's parameters were declared in ${diag_sourceLocation(meta.diagnosis_source, true)}`; // TODO: use vs.meta.arguments.diagnosis_source instead
+        }
+
+        // Handle invalid number of arguments:
+        if(validationResult.errors.length == 1 && validationResult.errors[0].path === "$input") {
+            throw new Error(`Invalid number of arguments for the callback function.\n${diagnosis_declaredSuffix}`); // Hope that matches with the if condition
+        }
+
+        // Compose errors into readable messages:
+        const readableErrors: string[] = validationResult.errors.map(error => {
+            // Replace $input[x] with <argument name>, if possible
+            const improvedPath = error.path.replace(/^\$input\[([0-9]+)\]/,(orig, p1: string) => {
+
+                return `Argument[${p1}]`;
+            })
+
+            let hint="";
+            if(error.expected === "undefined") {
+                hint=`. Hint: You can trim off extra properties, see ${DOCS_READMEURL}#trim-off-extra-properties`
+            }
+
+            return `${improvedPath}: expected ${error.expected} but got: ${diagnisis_shortenValue(error.value)}${hint}`
+        })
+
+        const separateLines = readableErrors.length > 1;
+        throw new Error(`Invalid argument(s) for callback function:${separateLines ? "\n" : " "}${readableErrors.join("\n")}\n${diagnosis_declaredSuffix}`);
+    }
+
+
+    /**
+     * Unregister and inform the client
+     * @param clientCallback
+     */
+    freeClientCallback(clientCallback: ClientCallback) {
+        this.clientCallbacks.delete(clientCallback.id);
+        if(!this.isClosed()) {
+            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
+        }
     }
 
     /**
@@ -489,5 +886,118 @@ export class ServerSocketConnection {
         else {
             this.serverSessionClass2SecurityPropertiesOfHttpRequest!.set(serverSessionClass, answer.result);
         }
+    }
+
+    /**
+     * Adds an listener that gets called on close / disconnect
+     * @param callback
+     */
+    public onClose(callback: (reason?: CloseReason) => void) {
+        this.onCloseListeners.add(callback);
+    }
+
+    /**
+     * Like onclose, but this time not a function but some instance that can be weakly referenced.
+     * Currently not working !! See https://github.com/bogeeee/restfuncs/issues/9
+     * @param handler
+     */
+    public onCloseWeak(handler: OnCloseHandlerInterface) {
+        this.weakOnCloseListeners.add(handler);
+    }
+
+    public close(reason?: CloseReason) {
+        this.socket.close();
+        this.closeReason = reason;
+        this.handleClose();
+    }
+
+    protected handleClose(reason?: CloseReason) {
+        this.methodDownCallPromises.forEach(p => p.reject(diagnosis_closeReasonToError(reason))); // Reject outstanding method calls. Not strongly decided, whether this should go before or after the following lines, but may be it' better to properly complete (with error) a callForSure in a ClientCallbackSet before such one is cleaned up.
+        this.onCloseListeners.forEach(l => l(reason)); // Call listeners
+        this.weakOnCloseListeners.forEach(h => h.handleServerSocketConnectionClosed(this, reason)); // Call weak listeners
+    }
+
+
+    /**
+     * See also: {@link #closeReason}
+     */
+    public isClosed() {
+        return this.socket.readyState === "closing" || this.socket.readyState === "closed";
+    }
+
+    checkClosed() {
+        if(this.isClosed()) {
+            if(!this.closeReason) {
+                this.closeReason = new Error("Socket was closed");
+            }
+            throw fixErrorForJest(new Error(`Connection closed: ${diagnosis_closeReasonToString(this.closeReason)}, see cause`, {cause: this.closeReason}));
+        }
+    }
+}
+
+export type CloseReason = {message: string, obj?: object} | Error
+export function diagnosis_closeReasonToString(reason?: CloseReason) {
+    if(reason === undefined) {
+        return undefined;
+    }
+    if(reason instanceof Error) {
+        return reason.message;
+    }
+    return reason.message?(`${reason.message}` + (reason.obj?` obj=${diagnisis_shortenValue(reason.obj)}`:"")):diagnisis_shortenValue(reason.obj);
+}
+export function diagnosis_closeReasonToError(reason?: CloseReason, hint?: string): Error | undefined {
+    if((reason as any)?.obj instanceof Error) {
+        reason = (reason as any).obj;
+    }
+    if(reason === undefined) {
+        return new Error (`Connection was closed.${hint?` Hint: ${hint}`:""}`);
+    }
+    if(reason instanceof Error) {
+        if(hint) {
+            return fixErrorForJest(new Error(`${reason.message}. Hint: ${hint}`, {cause: reason}));
+        }
+        return reason;
+    }
+
+    let message = reason.message?(`${reason.message}` + (reason.obj?` obj=${diagnisis_shortenValue(reason.obj)}`:"")):diagnisis_shortenValue(reason.obj);
+    if(hint) {
+        message = `${message}. Hint: ${hint}`;
+    }
+    return new Error(message);
+}
+
+export type OnCloseHandlerInterface = { handleServerSocketConnectionClosed: ((conn: ServerSocketConnection, reason?: CloseReason) => void) };
+
+/**
+ * A function declaration (a place in the source code), where the args or result should be validated against. A callback function **instance** can come from multiple of such, because instances can be re-used/shared.
+ */
+type ValidationSpot = { meta: CallbackMeta, trim: boolean };
+
+/**
+ * Thrown when there was an Error/exception thrown on the client during downcall
+ */
+export class DownCallError extends Error {
+    name= "DownCallError"
+    /**
+     * The Error or exception string that was thrown on the client. We can't keep the orginal class hierarchy, so Errors will just become plain objects.
+     */
+    cause: unknown
+
+    static formatError(evil_e: any): string {
+        if (evil_e !== null && typeof (evil_e) == "object") {
+            return (evil_e.name ? ("" + evil_e.name + ": ") : "") + (evil_e.message || evil_e) +
+                (evil_e.stack ? `\nClient stack:\n ${evil_e.stack}` : '') +
+                (evil_e.fileName ? `\nFile: ${evil_e.fileName}` : '') + (evil_e.lineNumber ? `, Line: ${evil_e.lineNumber}` : '') + (evil_e.columnNumber ? `, Column: ${evil_e.columnNumber}` : '') +
+                (evil_e.cause ? `\nCause: ${DownCallError.formatError(evil_e.cause)}` : '')
+        } else {
+            return diagnisis_shortenValue(evil_e);
+        }
+    }
+
+    constructor(rawErrorObject: unknown, options: ErrorOptions) {
+        let message = DownCallError.formatError(rawErrorObject)
+        message+= "\n*** End of client stack."
+        super(message, {cause: rawErrorObject ,...options});
+        this.cause = rawErrorObject;
     }
 }

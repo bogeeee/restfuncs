@@ -3,4 +3,5 @@
 /**/*.js
 /**/*.map
 /**/*.d.ts
+**/*.tmp
 /tsconfig.tsbuildinfo
