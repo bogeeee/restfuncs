@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-server",
-  "version": "3.1.4",
+  "version": "3.2.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser).",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -48,7 +48,7 @@
     "@types/clone": "^2.1.4"
   },
   "devDependencies": {
-    "restfuncs-transformer": "^1.0.0",
+    "restfuncs-transformer": "^1.1.0",
     "rimraf": "=5.0.5"
   },
   "optionalDependencies": {
