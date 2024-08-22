@@ -18,11 +18,30 @@ import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
  *     Type parameters:<br/>
  *     - ITEM: The item. Either your item type, or string of you want to use string keys.
  *     - PARAMS: array with the parameters of the callbacks. Hint: They can be named, like in a function declaration. See usage example
+ * </p>
  * <p>
  *     Usage example:
  * </p>
  * <pre><code>
- *     TODO: Copy from below
+ * type User = {name: string}
+ * const chatJoinListenersForRooms = new ClientCallbackSetPerItem<string, [user: User]>(); // Create a global event registry/emitter for all chat rooms. string = the chatroom name, [user: User] = the listener function's arguments.
+ * // const chatLeaveCallbacksForRooms = ... // A separate one for each event type. Allows more precise type parameters.
+ * class MyServerSession extends ServerSession{
+ *     currentUser?: User; // Assuming, you'll set this in the login method
+ *
+ *     // Expose the .on and .off event registering methods to the client:
+ *     @remote onJoinChat(chatRoomName: string, listener: (joiningUser: User) => void) {
+ *         chatJoinListenersForRooms.add(chatRoomName, listener);
+ *     }
+ *     @remote offJoinChat(chatRoomName: string, listener: (joiningUser: User) => void) {
+ *         chatJoinListenersForRooms.delete(chatRoomName, listener);
+ *     }
+ *
+ *     // Call, when YOU join the chat
+ *     @remote joinChat(chatRoomName: string) {
+ *         chatJoinListenersForRooms.call(chatRoomName, this.currentUser!); // Call the event / inform all listeners
+ *     }
+ * }
  * </code></pre>
  *
  * <p>
@@ -202,7 +221,7 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         return await this.common._callForSure(this.getCallbacksFor(item) as any as Set<ClientCallback>, callArgs);
     }
 
-    handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
+    protected handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
         const entriesMap = this.entriesPerClient.get(conn);
         if(entriesMap) {
             for(const [callback,keyOrItemRef] of entriesMap.entries()) {
@@ -234,23 +253,3 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
 
 //***** Usage example ******
 
-// Example with id-as-topic style, like you would use it in a web-application with lots of such entities:
-type User = {name: string}
-const chatJoinCallbacksForRooms = new ClientCallbackSetPerItem<string /* the chatroom name */, [user: User] /* the listener function's arguments */>(); // Create a global emitter for all chatrooms
-// const chatLeaveCallbacksForRooms = ... // A separate one for each event type. Allows more precise type parameters.
-class MyServerSession extends ServerSession{
-    currentUser?: User; // Assuming, you'll set this in the login method
-
-    // Expose the .on and .off methods to the client:
-    @remote() onJoinChat(chatRoomName: string, listener: (joiningUser: User) => void) {
-        chatJoinCallbacksForRooms.add(chatRoomName, listener);
-    }
-    @remote() removeJoinChatListener(chatRoomName: string, listener: (joiningUser: User) => void) {
-        chatJoinCallbacksForRooms.delete(chatRoomName, listener);
-    }
-
-    // Call, when YOU join the chat
-    @remote() joinChat(chatRoomName: string) {
-        chatJoinCallbacksForRooms.call(chatRoomName, this.currentUser!); // Call the event
-    }
-}

@@ -134,7 +134,7 @@ Here's how to set up a server that serves a remote method, named `myRemoteMethod
 **MyServerSession.ts**
 
 ````typescript
-import {ServerSession, ServerSessionOptions, remote, UploadFile, ClientCallback, free, withTrim} from "restfuncs-server";
+import {ServerSession, ServerSessionOptions, remote, UploadFile, ClientCallback, ClientCallbackSet, ClientCallbackSetPerItem, free, withTrim} from "restfuncs-server";
 
 export class MyServerSession extends ServerSession {
 
@@ -300,7 +300,7 @@ await myRemoteSession.myRemoteMethodWithUploadFile("someContext", myBrowserFile 
 You can also call `myRemoteMethodWithUploadFile` via [REST interface](#rest-interface)
 
 # Server events via callback functions
-**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbackSet` and `ClientCallbacksForKeys` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
+**Tl;dr:** Have you tried, sending a callback function to the server? This works😎😎😎...imagine the opportunities! If you store references for longer, mind cleaning them up on client disconnect. The `ClientCallbackSet` and `ClientCallbackSetPerItem` util classes will help you with that. All args + results are safely type checked at runtime 🛡🛡🛡.  
 
 Now to the content:
 
@@ -342,7 +342,7 @@ Callbacks can only be declared 'inline' in the line of your remote method's decl
 
 ### Prevent resource exhaustion on the server
 In the world wide web. Clients may not always be so friendly to call removeEventListener but instead just disconnect. To help you, clean those up to now grow your precious memory,
-you can listen for disconnect events via:
+you can either listen for disconnect events via:
 
 ````typescript
 import {ClientCallback} from "restfuncs-server";
@@ -352,7 +352,7 @@ import {ClientCallback} from "restfuncs-server";
 })
 ````
 
-TODO: List util classes
+...or use the utility classes `ClientCallbackSet` and `ClientCallbackSetPerItem` _(import {...} from "restfuncs-server")_. You can add listeners to them and they get removed automatically on disconnect. See JSDoc there. 
 
 ### Advanced: Resource cleanup on the client
 Just in case you have a very heavy and rich client, you may at some point wonder, how and when the references to the callback functions are cleaned up:

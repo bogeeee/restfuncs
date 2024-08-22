@@ -4,8 +4,27 @@ import {ServerSocketConnection} from "../ServerSocketConnection";
 
 /**
  * A Set of ClientCallback functions which automatically forgets them, when their client disconnects.
- * Use it as a collection for event listeners.
- * Also it as has some convenient features, see {@link #callForSure} and the {@link ClientCallbacksSetCommon options} in the constructor.
+ * Use it as a collection/registry for event listeners.
+ * Also it as has some convenient features, see {@link #callForSure} and the {@link ClientCallbackSetOptions options} in the constructor.
+ * <p>
+ * Usage example:
+ * </p>
+ * <pre><code>
+ * type NewsArticle = {title: string, text: string}
+ * const newsArticleListeners = new ClientCallbackSet<[newsArticle: NewsArticle]>(); // Create a global event registry/emitter for this event. [newsArticle: NewsArticle] = the listener function's arguments.
+ * class MyServerSession extends ServerSession{
+ *     // Expose the .on and .off event registering methods to the client:
+ *     @remote onNewsArticleCreated(listener: (newsArticle: NewsArticle) => void) {
+ *         newsArticleListeners.add(listener);
+ *     }
+ *     @remote offNewsArticleCreated(listener: (newsArticle: NewsArticle) => void) {
+ *         newsArticleListeners.remove(listener);
+ *     }
+ * }
+ *
+ * // ... somewhere in your code, when a new news article is created:
+ * newsArticleListeners.call(myNewNewsArticle); // Inform the listeners
+ * </code></pre>
  */
 export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: PARAMS) => unknown> {
 
@@ -26,7 +45,7 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
         this.common = new ClientCallbacksSetCommon<PARAMS>(options);
     }
 
-    add(callback: ClientCallback): this {
+    add(callback: (...args: PARAMS) => unknown): this {
         const clientCallback = this.common.checkIsValidClientCallback(callback);
 
         const socketConnection = clientCallback.socketConnection;
@@ -68,6 +87,14 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
     }
 
     /**
+     * Alias for delete
+     * @param callback
+     */
+    remove(callback: (...args: PARAMS) => unknown): boolean {
+        return this.delete(callback);
+    }
+
+    /**
      * Calls all callbacks. Does not wait for the result. Ignores disconnects and errors.
      * @param args args which are put into each callback
      */
@@ -83,9 +110,12 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
         return await this.common._callForSure(this as any as Set<ClientCallback>, args);
     }
 
-    handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
+    protected handleServerSocketConnectionClosed(conn: ServerSocketConnection) {
         const entriesMap = this.entriesPerClient.get(conn);
         entriesMap?.forEach(cb => this.delete(cb));
     }
 
 }
+
+
+// Example:
