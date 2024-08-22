@@ -67,7 +67,9 @@ export class ServerSocketConnection {
      * id -> callback function
      */
     clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
-        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient}}); // Inform the client that the callback is not referenced anymore
+        if(!this.isClosed()) {
+            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient} }); // Inform the client that the callback is not referenced anymore
+        }
     });
 
     protected downcallIdGenerator = 0;
@@ -179,6 +181,7 @@ export class ServerSocketConnection {
     }
 
     protected sendMessage(message: Socket_Server2ClientMessage) {
+        this.checkClosed();
         this.socket.send(this.serializeMessage(message));
     }
 
@@ -413,7 +416,9 @@ export class ServerSocketConnection {
                 callId: methodCall.callId,
                 ... await handleMethodCall_inner()
             }
-            this.sendMessage({type: "methodCallResult", payload});
+            if(!this.isClosed()) {
+                this.sendMessage({type: "methodCallResult", payload});
+            }
         })();
     }
 
@@ -801,7 +806,9 @@ export class ServerSocketConnection {
      */
     freeClientCallback(clientCallback: ClientCallback) {
         this.clientCallbacks.delete(clientCallback.id);
-        this.sendMessage({type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient}});
+        if(!this.isClosed()) {
+            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
+        }
     }
 
     /**
