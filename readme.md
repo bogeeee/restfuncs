@@ -583,16 +583,6 @@ Notes:
 
 
 # Performance
-
-To be honest here, this current Restfuncs release's first goal is to be stable and secure. Surely, it  will compete with a traditional express handcrafted handlers or usual frameworks, 
-Plus it also has the (web) socket server and there are architectural considerations to avoid round trips and lookups. But real profiling and in-detail optimizations have to be made, to make it competitive to bun, µWebsockets and other high-throughput libraries.
-Feel free,to benchmark it and contribute to optimizations.
-
-Also in general: You should never talk about performance in theory without having actually profiled your application. I.e. one single simple sql call to a database server (in dimensions of around 100µs on an average cpu) will probably overshadow all the call time of all your communication library.
-But it's no excuse to not take it sportive ;)... i will focus on this topic later.
-
-
-### Further performance options
 - Read JSDoc and disable `ServerOptions#socket_requireAccessProofForIndividualServerSession`
 
 ### Writes to the session fields have some overhead
