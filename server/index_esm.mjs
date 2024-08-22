@@ -25,13 +25,13 @@ export const free = cjsServerSession.free
 import cjsServerSocketConnection from "./ServerSocketConnection.js";
 export const DownCallError = cjsServerSocketConnection.DownCallError
 
-import cjsClientCallbacks from "./util/ClientCallbackSet.js"
-export const ClientCallbacks = cjsClientCallbacks.ClientCallbacks
+import cjsClientCallbackSet from "./util/ClientCallbackSet.js"
+export const ClientCallbackSet = cjsClientCallbackSet.ClientCallbackSet
 
-import cjsClientCallbacksForEntities from "./util/ClientCallbackSetPerItem.js"
-export const ClientCallbacksForEntities = cjsClientCallbacksForEntities.ClientCallbacksForEntities
+import cjsClientCallbackSetPerItem from "./util/ClientCallbackSetPerItem.js"
+export const ClientCallbackSetPerItem = cjsClientCallbackSetPerItem.ClientCallbackSetPerItem
 
-import cjsClientCallbacksCommon from "./util/ClientCallbacksCommon.js"
+import cjsClientCallbacksCommon from "./util/ClientCallbacksSetCommon.js"
 export const ClientCallbacksCommon = cjsClientCallbacksCommon.ClientCallbacksCommon
 
 import cjsCommon from "restfuncs-common"
