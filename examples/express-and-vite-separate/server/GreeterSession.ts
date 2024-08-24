@@ -4,8 +4,7 @@ export class GreeterSession extends ServerSession {
 
     static options: ServerSessionOptions = {/* Configuration */}
 
-    @remote()
-    async greet(name: string) {
+    @remote greet(name: string) {
         return `Hello ${name} from the server`
     }
 
