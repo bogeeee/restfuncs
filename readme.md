@@ -116,7 +116,7 @@ Smaller features:
 - **Bloat free**: Restfuncs does not want to sell you any concept for mvc / rendering templates / layered architecture / di / etc. It's only purpose is client<>server communication.
 
 Negative features (downside):
-  - Needs some special [build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) with typescript compiling + running with plain node for **production**. You need to do a production run from time to time and take some care that things don't break. Just stick strongly to the well tested scripts in package.json and the tsconfig.json, and you're fine. _And for **development**, you're still free to run it how you like (with tsx, bun, ...) 😊._
+  - Needs a **customized [build setup](#setting-up-the-build-here-it-gets-a-bit-nasty-) with typescript compiling** and needs to run with good-old **Node.js for production**. _For **development**, you're still free to run it how you like (with tsx, bun, ...) 😊._
 
 # Getting started
 
