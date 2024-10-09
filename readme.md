@@ -74,7 +74,7 @@ That is (features):
   Like here, you used typescript to say "name must be a `string`". Restfuncs makes sure that no other evil values will be received. String is a simple example but, yes !, you can use the full Typescript syntax, like: refer to your types, unions, interfaces, generics, utility types, conditional types,... everything! No need to learn/use ZOD, Typebox, etc. just for that.
   _Now you may ask how this works, because usually all types are erased at runtime. Answer: Your files go through a set of transformer plugins during compilation which add that information and emit fast precompiled validator code. 
   This is backed by the great [Typia](https://typia.io) and [typescript-rtti](https://typescript-rtti.org) libraries._ [See, how to set up the build for that](#setting-up-the-build-here-it-gets-a-bit-nasty-).
-  - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & MaxLength<255>`  
+  - 🏷 ️**Supports [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags)** like `string & tags.MaxLength<255>`  
     _In cases where the full power of Typescript is still not enough for you ;)_
 - 🔌 Can i cURL it? **Zero conf [REST interface](#rest-interface)**    
    Yes, you can cURL it in all ways you can imagine! And it does not even need any `@Get`, `@Post`, `@route`, `@param`, ... decorations. Say goodbye to them and say hello to zero-conf.
@@ -135,6 +135,7 @@ Here's how to set up a server that serves a remote method, named `myRemoteMethod
 
 ````typescript
 import {ServerSession, ServerSessionOptions, remote, UploadFile, ClientCallback, ClientCallbackSet, ClientCallbackSetPerItem, free, withTrim} from "restfuncs-server";
+import { tags } from "typia";
 
 export class MyServerSession extends ServerSession {
 
@@ -147,7 +148,7 @@ export class MyServerSession extends ServerSession {
    * Also you can use [Typia's special type tags](https://typia.io/docs/validators/tags/#type-tags) like `string & MaxLength<255>`
    */
   @remote({/* RemoteMethodOptions */})
-  myRemoteMethod(myUserName: string, someOptionalComplexParam?: { id?: number, city: string & MaxLength<255> }) {
+  myRemoteMethod(myUserName: string, someOptionalComplexParam?: { id?: number, city: string & tags.MaxLength<255> }) {
     return `Hello ${myUserName}`
   }
 }
