@@ -25,6 +25,9 @@ import {ServerSocketConnection} from "../ServerSocketConnection";
  * // ... somewhere in your code, when a new news article is created:
  * newsArticleListeners.call(myNewNewsArticle); // Inform the listeners
  * </code></pre>
+ * <p>
+ *     Note: It says ClientCallback but more precisely this class accepts more gerneal {@link SocketAssociatedCallbackFunction}s.
+ * </p>
  */
 export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: PARAMS) => unknown> {
 
@@ -46,7 +49,7 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
     }
 
     add(callback: (...args: PARAMS) => unknown): this {
-        const clientCallback = this.common.checkIsValidClientCallback(callback);
+        const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
 
         const socketConnection = clientCallback.socketConnection;
         if(!this.entriesPerClient.has(socketConnection)) { // First time, we are seeing this client ?
@@ -74,7 +77,7 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
     }
 
     delete(callback: (...args: PARAMS) => unknown): boolean {
-        const clientCallback = this.common.checkIsValidClientCallback(callback);
+        const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
         const entriesForClient = this.entriesPerClient.get(clientCallback.socketConnection);
         if(entriesForClient !== undefined) {
             entriesForClient.delete(clientCallback);

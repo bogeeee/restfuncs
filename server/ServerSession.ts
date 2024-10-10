@@ -61,6 +61,12 @@ const REQUIRED_TRANSFORMER_FEATURE_VERSION = 2;
 
 
 export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackProperties;
+
+/**
+ * A callback function that is associated to a ServerSocketConnection, meaning it when the connection is closed it is useless and can be freed.
+ * {@link ClientCallback} is a subtype of it.
+ */
+export type SocketAssociatedCallbackFunction = ((...args: unknown[]) => unknown) & {socketConnection: ServerSocketConnection};
 export type ClientCallbackProperties = {
 
     /**

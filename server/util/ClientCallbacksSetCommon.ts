@@ -1,4 +1,12 @@
-import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback, withTrim} from "../ServerSession";
+import {
+    remote,
+    ServerSession,
+    UnknownFunction,
+    isClientCallback,
+    ClientCallback,
+    withTrim,
+    SocketAssociatedCallbackFunction
+} from "../ServerSession";
 import _ from "underscore"
 
 /**
@@ -62,11 +70,18 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
     }
 
     _call(callbacks: Set<ClientCallback>, args: PARAMS) {
-        callbacks.forEach(cb => cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: false}));
+        callbacks.forEach(cb => {
+            if(isClientCallback(cb)) {
+                cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, { isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: false});
+            }
+            else {
+                cb(...args);
+            }
+        });
     }
 
     /**
-     * Waits, till all listeners have been called and finished. Use, when you rely on the clients, so not on a public web server.
+     * Waits, till all listeners have been called and finished. Use, when you rely on the clients, so not on a public web server or when working with other that ClientCallback functions.
      * @param entity
      * @param args
      */
@@ -77,19 +92,24 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
         }
 
         for(const cb of callbacks) {
-            // TODO: check that cb.skippable is disabeld
-            await cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: true});
+            if(isClientCallback(cb)) {
+                // TODO: check that cb.skippable is disabeld
+                await cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, {isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: true});
+            }
+            else {
+                await cb(...args);
+            }
         }
 
 
     }
 
-    checkIsValidClientCallback(fn: any) {
+    checkIsSocketAssociatedCallbackFunction(fn: any) {
         if(typeof fn !== "function") {
             throw new Error("The passed argument is not a function.")
         }
-        if(!isClientCallback(fn)) {
-            throw new Error("The passed argument is not a client callback function.")
+        if(! ((fn as SocketAssociatedCallbackFunction).socketConnection)) {
+            throw new Error("The passed argument is not a client callback function (or at least associated to a SocketConnection).")
         }
         return fn as ClientCallback;
     }

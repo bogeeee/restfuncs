@@ -46,6 +46,9 @@ import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
  * <p>
  *     It's not worth noting, that references to object entities are held weak. This doesn't change the behaviour but is more gc friendly.
  * </p>
+ * <p>
+ *     Note also: It says ClientCallback but more precisely this class accepts more general {@link SocketAssociatedCallbackFunction}s
+ * </p>
  *
  */
 export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
@@ -80,7 +83,7 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
     add(item: ITEM, callback: (...args: PARAMS) => unknown) {
         // arguments check:
         this.checkItemParam(item);
-        const clientCallback = this.common.checkIsValidClientCallback(callback);
+        const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
 
 
         // Lazy initialize this.members:
@@ -138,7 +141,7 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         if(item === undefined || item === null) {
             throw new Error("Item param must not be undefined/null");
         }
-        const clientCallback = this.common.checkIsValidClientCallback(callback);
+        const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
 
         if(this.members !== undefined) {
             const forItem = this.members.get(item);
