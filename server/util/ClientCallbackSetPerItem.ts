@@ -173,7 +173,7 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         return this.remove(item, callback);
     }
 
-    protected getCallbacksFor(item: ITEM): Set<(...args: PARAMS) => unknown> {
+    public getCallbacksFor(item: ITEM): Set<(...args: PARAMS) => unknown> {
         this.checkItemParam(item);
 
         if(!this.members) {
