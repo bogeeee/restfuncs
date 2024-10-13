@@ -29,22 +29,23 @@ import {
 import _ from "underscore";
 import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {createSecureId, diagnisis_shortenValue} from "./Util";
+import {createSecureId, diagnisis_shortenValue, validUnless} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
-import {WeakValueMap, fixErrorStack} from "restfuncs-common";
+import {fixErrorStack} from "restfuncs-common";
 import clone from "clone";
+import {ChannelItemsReceiver} from "restfuncs-common/ChannelItemsReceiver";
 
-export class ServerSocketConnection {
+export class ServerSocketConnection extends ChannelItemsReceiver {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
     public closeReason?:CloseReason;
 
-    lastSequenceNumberFromClient=-1;
+
 
     /**
      * The raw cookie-session values that were obtained from a http call.
@@ -62,15 +63,7 @@ export class ServerSocketConnection {
 
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
-    /**
-     * For worry-free feature: Remember the same function instances. This could be useful if you register/unregister a subscription. I.e. like in the browser's addEventListener / removeEventListener functions.
-     * id -> callback function
-     */
-    clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
-        if(!this.isClosed()) {
-            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient} }); // Inform the client that the callback is not referenced anymore
-        }
-    });
+
 
     protected downcallIdGenerator = 0;
 
@@ -124,6 +117,7 @@ export class ServerSocketConnection {
     }
 
     constructor(server: RestfuncsServer, socket: Socket) {
+        super();
         this.server = server;
         this.socket = socket;
 
@@ -449,15 +443,17 @@ export class ServerSocketConnection {
                 if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
                     const swapperFn = (swapperArgs: SwapPlaceholders_args) => {
                         // Determine / create callback:
-                        const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
+                        const existing = this.channelItems.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                         let callback: ClientCallback;
                         if(existing) { // Already exists ?
-                            callback = existing;
+                            validUnless("Not a client callback", typeof existing ==="function" && (existing as ClientCallback)._type === "ClientCallback");
+                            callback = existing as ClientCallback;
                         }
                         else {
                             // Create a new callback (function + properties):
                             const callbackProperties: ClientCallbackProperties = {
                                 socketConnection: this,
+                                _type: "ClientCallback",
                                 id: id,
                                 free: () => {
                                     this.freeClientCallback(callback!)
@@ -467,7 +463,7 @@ export class ServerSocketConnection {
                                     // <- **** here, the callback gets called (yeah) ****
 
                                     // Validity check:
-                                    if (this.clientCallbacks.get(callback.id) === undefined) {
+                                    if (this.channelItems.get(callback.id) === undefined) {
                                         throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
                                     }
 
@@ -630,7 +626,7 @@ export class ServerSocketConnection {
                             })
                         }
 
-                        this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
+                        this.channelItems.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
                         swapValueTo(callback);
                     };
                     (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
@@ -805,7 +801,7 @@ export class ServerSocketConnection {
      * @param clientCallback
      */
     freeClientCallback(clientCallback: ClientCallback) {
-        this.clientCallbacks.delete(clientCallback.id);
+        this.channelItems.delete(clientCallback.id);
         if(!this.isClosed()) {
             this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
         }

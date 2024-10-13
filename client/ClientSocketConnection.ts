@@ -16,6 +16,7 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import _ from "underscore";
 import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
 import clone from "clone";
+import {TrackedSentChannelItems} from "restfuncs-common/TrackedSentChanelItems";
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
@@ -50,24 +51,9 @@ export class ClientSocketConnection {
 
     protected lastMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
     protected callIdGenerator = 0;
-    protected dtoIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
-    /**
-     * Channel items that were sent to the server and are currently up there
-     */
-    channelItemsOnServer = new Map<number, {
-        item: object,
-        /**
-         * The sequenceNumber **before** last sent up to the server.
-         */
-        lastTimeSent: number
-    }>()
-
-    /**
-     * Adds an id to an (already used) item
-     */
-    channelItemIds = new WeakMap<object, number>();
+    protected trackedSentChannelItems = new TrackedSentChannelItems();
 
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
@@ -204,7 +190,7 @@ export class ClientSocketConnection {
     private cleanUp() {
         //Dereference resources, just to make sure. We just got a signal that something was wrong but don't know, if the socket is still open -> references this's listeners -> references this / prevents GC
         this.methodCallPromises.clear();
-        this.channelItemsOnServer.clear();
+        this.trackedSentChannelItems.items.clear();
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
     }
 
@@ -242,20 +228,7 @@ export class ClientSocketConnection {
         }
     }
 
-    /**
-     * Creates one if if needed
-     * @param item
-     */
-    getChannelItemId(item: object) {
-        const existingId = this.channelItemIds.get(item);
-        if(existingId !== undefined) {
-            return existingId;
-        }
 
-        const newId = this.dtoIdGenerator++;
-        this.channelItemIds.set(item, newId);
-        return newId;
-    }
 
     /**
      * Scans args and replaces those items with DTOs and registers them on this.channelItemsOnServer (assuming, args gets definitely get sent to the server afterwards)
@@ -271,9 +244,9 @@ export class ClientSocketConnection {
                         throw new Error("Cannot use callbacks. Server version to old. Please upgrade the restfuncs-server to >=3.1")
                     }
 
-                    const id = this.getChannelItemId(item)
+                    const id = this.trackedSentChannelItems.getItemId(item)
                     const functionDTO: ClientCallbackDTO = {_dtoType: "ClientCallback", id};
-                    this.channelItemsOnServer.set(id, {item, lastTimeSent: this.lastMessageSequenceNumber});
+                    this.trackedSentChannelItems.items.set(id, {item, lastTimeSent: this.lastMessageSequenceNumber});
 
                     numerOfFunctionDTOs++;
                     return functionDTO;
@@ -449,11 +422,11 @@ export class ClientSocketConnection {
                 await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
                 const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
 
-                if(this.channelItemsOnServer.has(payload.id) && this.channelItemsOnServer.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
+                if(this.trackedSentChannelItems.items.has(payload.id) && this.trackedSentChannelItems.items.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
                     //  Don't delete. Prevents race condition bug (see tests for it).
                 }
                 else { // Normally:
-                    this.channelItemsOnServer.delete(payload.id); // Delete it also here
+                    this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
                 }
             }
         })();
@@ -469,7 +442,7 @@ export class ClientSocketConnection {
     }
 
     protected handleDownCall(downCall: Socket_DownCall) {
-        const fnItem = this.channelItemsOnServer.get(downCall.callbackFnId)?.item;
+        const fnItem = this.trackedSentChannelItems.items.get(downCall.callbackFnId)?.item;
         if(!fnItem) {
             throw new Error(`Illegal state: ClientSocketConnection does not know of this callback item (id: ${downCall.callbackFnId})`)
         }

@@ -68,6 +68,7 @@ export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackP
  */
 export type SocketAssociatedCallbackFunction = ((...args: unknown[]) => unknown) & {socketConnection: ServerSocketConnection};
 export type ClientCallbackProperties = {
+    _type: "ClientCallback"
 
     /**
      * Chosen by the client
