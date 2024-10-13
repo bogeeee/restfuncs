@@ -49,11 +49,11 @@ export class ClientSocketConnection {
      */
     protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
 
-    protected lastMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
+    lastMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
     protected callIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
-    protected trackedSentChannelItems = new TrackedSentChannelItems();
+    protected trackedSentChannelItems = new TrackedSentChannelItems(this);
 
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
@@ -244,9 +244,8 @@ export class ClientSocketConnection {
                         throw new Error("Cannot use callbacks. Server version to old. Please upgrade the restfuncs-server to >=3.1")
                     }
 
-                    const id = this.trackedSentChannelItems.getItemId(item)
+                    const id = this.trackedSentChannelItems.registerItemBeforeSending(item);
                     const functionDTO: ClientCallbackDTO = {_dtoType: "ClientCallback", id};
-                    this.trackedSentChannelItems.items.set(id, {item, lastTimeSent: this.lastMessageSequenceNumber});
 
                     numerOfFunctionDTOs++;
                     return functionDTO;

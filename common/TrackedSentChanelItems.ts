@@ -1,4 +1,10 @@
 export class TrackedSentChannelItems {
+    socketConnection: {
+        lastMessageSequenceNumber: number
+    }
+    constructor(sc: TrackedSentChannelItems["socketConnection"]) {
+        this.socketConnection = sc;
+    }
 
     protected dtoIdGenerator = 0;
 
@@ -32,5 +38,15 @@ export class TrackedSentChannelItems {
         const newId = this.dtoIdGenerator++;
         this.itemIds.set(item, newId);
         return newId;
+    }
+
+    /**
+     * Creates one if if needed
+     * @param item
+     */
+    registerItemBeforeSending(item: object) {
+        const id = this.getItemId(item);
+        this.items.set(id, {item, lastTimeSent: this.socketConnection.lastMessageSequenceNumber});
+        return id;
     }
 }
