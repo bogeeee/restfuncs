@@ -37,15 +37,17 @@ import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 import {fixErrorStack} from "restfuncs-common";
 import clone from "clone";
-import {ReceivedChannelItems} from "restfuncs-common/ChannelItemsReceiver";
+import {ReceivedChannelItems} from "restfuncs-common/ReceivedChannelItems";
 
 
-export class ServerSocketConnection extends ReceivedChannelItems {
+
+export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket
     public closeReason?:CloseReason;
 
+    lastSequenceNumberFromClient=-1;
 
 
     /**
@@ -64,6 +66,7 @@ export class ServerSocketConnection extends ReceivedChannelItems {
 
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
+    protected receivedChannelItems = new ReceivedChannelItems(this)
 
 
     protected downcallIdGenerator = 0;
@@ -118,7 +121,6 @@ export class ServerSocketConnection extends ReceivedChannelItems {
     }
 
     constructor(server: RestfuncsServer, socket: Socket) {
-        super();
         this.server = server;
         this.socket = socket;
 
@@ -175,7 +177,11 @@ export class ServerSocketConnection extends ReceivedChannelItems {
         return brilloutJsonStringify(message)
     }
 
-    protected sendMessage(message: Socket_Server2ClientMessage) {
+    /**
+     * Protected. Not part the of the API.
+     * @param message
+     */
+    sendMessage(message: Socket_Server2ClientMessage) {
         this.checkClosed();
         this.socket.send(this.serializeMessage(message));
     }
@@ -444,7 +450,7 @@ export class ServerSocketConnection extends ReceivedChannelItems {
                 if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
                     const swapperFn = (swapperArgs: SwapPlaceholders_args) => {
                         // Determine / create callback:
-                        const existing = this.channelItems.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
+                        const existing = this.receivedChannelItems.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                         let callback: ClientCallback;
                         if(existing) { // Already exists ?
                             validUnless("Not a client callback", typeof existing ==="function" && (existing as ClientCallback)._type === "ClientCallback");
@@ -464,7 +470,7 @@ export class ServerSocketConnection extends ReceivedChannelItems {
                                     // <- **** here, the callback gets called (yeah) ****
 
                                     // Validity check:
-                                    if (this.channelItems.get(callback.id) === undefined) {
+                                    if (this.receivedChannelItems.get(callback.id) === undefined) {
                                         throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
                                     }
 
@@ -627,7 +633,7 @@ export class ServerSocketConnection extends ReceivedChannelItems {
                             })
                         }
 
-                        this.channelItems.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
+                        this.receivedChannelItems.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
                         swapValueTo(callback);
                     };
                     (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
@@ -802,7 +808,7 @@ export class ServerSocketConnection extends ReceivedChannelItems {
      * @param clientCallback
      */
     freeClientCallback(clientCallback: ClientCallback) {
-        this.channelItems.delete(clientCallback.id);
+        this.receivedChannelItems.delete(clientCallback.id);
         if(!this.isClosed()) {
             this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
         }
