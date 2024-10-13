@@ -1,5 +1,5 @@
 import {RestfuncsClient} from "restfuncs-client";
-import {GreeterSession} from "../GreeterSession.js" // Import to have types
+import type {GreeterSession} from "../GreeterSession.js" // Import to have types
 
 (async () => {
     const greeterSession = new RestfuncsClient<GreeterSession>("/greeterAPI", {/* options */}).proxy

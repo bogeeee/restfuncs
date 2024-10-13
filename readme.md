@@ -174,7 +174,7 @@ app.listen(3000); // Listen on Port 3000
 _Use a bundler like vite, parcel or turbopack to deliver this file to the browser_
 ````typescript
 import {RestfuncsClient} from "restfuncs-client";
-import {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the type for full **end2end type support**. A good bundler like vite will see, that in the code below, only types are used (via generic parameter `RestfuncsClient<MyServerSession>`) but it looks for the bundler like no actual server code is called, so it will not try to follow and include server-side code 👍. Note: Despite some rumors, you don't need a monorepo for this cross-referencing. Just packages next to each other. Or client + server files can live even in the same package. See the examples which show both options.
+import type {MyServerSession} from "../path/to/server/code/or/its/packagename/MyServerSession.js" // Import the type for **end2end type safety**. Note: Despite some rumors, you don't need a monorepo for this cross-referencing. Just packages next to each other. Or client + server files can live even in the same package. See the examples which show both options.
 
 const myRemoteSession = new RestfuncsClient<MyServerSession>("/myAPI", {/* RestfuncsClientOptions */}).proxy;
 console.log( await myRemoteSession.myRemoteMethod("Hans") ); // Call your remote method over the wire 😎😎😎
