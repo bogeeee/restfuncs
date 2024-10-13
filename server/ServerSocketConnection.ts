@@ -37,9 +37,10 @@ import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 import {fixErrorStack} from "restfuncs-common";
 import clone from "clone";
-import {ChannelItemsReceiver} from "restfuncs-common/ChannelItemsReceiver";
+import {ReceivedChannelItems} from "restfuncs-common/ChannelItemsReceiver";
 
-export class ServerSocketConnection extends ChannelItemsReceiver {
+
+export class ServerSocketConnection extends ReceivedChannelItems {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
     server: RestfuncsServer
     socket: Socket

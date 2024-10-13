@@ -1,6 +1,9 @@
 import {WeakValueMap} from "./WeakValueMap";
 
-export abstract class ChannelItemsReceiver {
+/**
+ * Tracks the usage of received channel items. Informs the sender when they are not referenced anymore or closed.
+ */
+export abstract class ReceivedChannelItems {
     /**
      * Must be tracked by the implementer
      */
