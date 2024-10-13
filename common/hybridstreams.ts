@@ -1,5 +1,5 @@
 import _ from "underscore";
-import {Readable} from "node:stream";
+import {Readable} from "readable-stream";
 
 let isNode = false;
 if (typeof process === 'object') {
