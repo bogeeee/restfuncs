@@ -10,13 +10,13 @@ export class ReceivedChannelItems extends WeakValueMap<number, object>{
         /**
          * Must be tracked by the implementer
          */
-        lastSequenceNumberFromClient: number
+        lastReceivedSequenceNumber: number
     }
 
     constructor(sc: ReceivedChannelItems["socketConnection"]) {
         super([], (id) => {
             if(!this.socketConnection.isClosed()) {
-                this.socketConnection.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.socketConnection.lastSequenceNumberFromClient} }); // Inform the client that the callback is not referenced anymore
+                this.socketConnection.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.socketConnection.lastReceivedSequenceNumber} }); // Inform the client that the callback is not referenced anymore
             }
         });
         this.socketConnection = sc;

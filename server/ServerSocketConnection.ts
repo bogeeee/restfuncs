@@ -47,7 +47,7 @@ export class ServerSocketConnection {
     socket: Socket
     public closeReason?:CloseReason;
 
-    lastSequenceNumberFromClient=-1;
+    lastReceivedSequenceNumber=-1;
 
 
     /**
@@ -212,7 +212,7 @@ export class ServerSocketConnection {
             message.sequenceNumber = 0;
         }
 
-        this.lastSequenceNumberFromClient = message.sequenceNumber;
+        this.lastReceivedSequenceNumber = message.sequenceNumber;
 
         // Switch on type:
         if(message.type === "methodCall") {
@@ -810,7 +810,7 @@ export class ServerSocketConnection {
     freeClientCallback(clientCallback: ClientCallback) {
         this.receivedChannelItems.delete(clientCallback.id);
         if(!this.isClosed()) {
-            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
+            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastReceivedSequenceNumber} });
         }
     }
 
