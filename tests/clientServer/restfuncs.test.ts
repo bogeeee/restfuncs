@@ -13,13 +13,14 @@ import nacl_util from "tweetnacl-util";
 import {remote, RemoteMethodOptions} from "restfuncs-server/ServerSession";
 import {
     createServer,
-    expectAsyncFunctionToThrow,
+    expectAsyncFunctionToThrow, readStreamToBuffer,
     resetGlobalState,
     runClientServerTests,
     runRawFetchTests,
     Service,
     standardOptions
 } from "./lib";
+import {isDepsOptimizerEnabled} from "vite";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -2506,3 +2507,55 @@ describe("callbacks", () => {
     }));
 
 })
+
+describe("Streams", () => {
+    function createReadable() {
+        const result = new Readable();
+        result.push('aaa');
+        result.push('bbb');
+        result.push('ccc');
+        result.push(null); // No more data
+        return result;
+    }
+
+    class MyServerSession extends ServerSession {
+        @remote getStream() {
+            this.call.res?.contentType("text/plain");
+            return createReadable();
+        }
+    }
+
+    // Just test first, of our util methods work
+    test("createReadable", async () => {
+            const readable = createReadable() //await apiProxy.getStream();
+            expect((await readStreamToBuffer(readable)).toString()).toBe("aaabbbccc");
+            expect(readable.destroyed).toBeTruthy()
+    });
+
+    test("get Readable from Server (http)", () => runClientServerTests(new MyServerSession(), async (apiProxy) => {
+            const readable = await apiProxy.getStream();
+            expect((await readStreamToBuffer(readable)).toString()).toBe("aaabbbccc");
+            expect(readable.destroyed).toBeTruthy()
+        }, {useSocket: false}
+    ));
+
+    test("get Readable from Server (socket)", () => runClientServerTests(new MyServerSession(), async (apiProxy) => {
+            const readable = await apiProxy.getStream();
+            expect((await readStreamToBuffer(readable)).toString()).toBe("aaabbbccc");
+            expect(readable.destroyed).toBeTruthy()
+        }, {useSocket: true}
+    ));
+});
+
+
+describe("Temlate", () => {
+    class MyServerSession extends ServerSession {
+        @remote myMethod() {
+        }
+    }
+    test("test1", () => runClientServerTests(new MyServerSession(), async (apiProxy) => {
+            await apiProxy.myMethod();
+
+        }, {useSocket: undefined}
+    ));
+});

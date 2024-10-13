@@ -6,6 +6,7 @@ import session from "express-session";
 import express from "express";
 import crypto from "node:crypto";
 import {ExternalPromise} from 'restfuncs-common'; ExternalPromise.diagnosis_recordCallstacks=true;
+import {Readable} from "node:stream";
 
 export function resetGlobalState() {
     develop_resetGlobals();
@@ -166,4 +167,20 @@ export async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<
             throw caught;
         }
     }).toThrow(expected);
+}
+
+export function readStreamToBuffer(stream: Readable): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        const chunks: any[] = [];
+
+        stream.on('data', (chunk: any) => {
+            chunks.push(chunk);
+        });
+
+        stream.on('end', () => {
+            resolve(Buffer.concat(chunks));
+        });
+
+        stream.on('error', reject);
+    });
 }

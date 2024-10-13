@@ -1,7 +1,13 @@
 import _ from "underscore"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
-import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
+import {
+    CookieSessionState,
+    CSRFProtectionMode,
+    IServerSession,
+    readableStreamToHybridStream,
+    WelcomeInfo
+} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
 import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver} from "./Util";
 import {visitReplace} from "restfuncs-common";
@@ -317,7 +323,16 @@ export class RestfuncsClient<S extends IServerSession> {
 
         if (response.status >= 200 && response.status < 300) { // 2xx ?
             // Parse result:
-            const result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
+            let result;
+            if(response.headers.get("Content-type")?.startsWith("application/json")) {
+                result = brilloutJsonParse(await response.text()); // Note: await response.json() makes some strange things with {} objects so strict comparision fails in tests
+            }
+            else if(response.headers.get("Content-type")?.startsWith("application/brillout-json")) {
+                result = brilloutJsonParse(await response.text());
+            }
+            else {
+                result = readableStreamToHybridStream(response.body!);
+            }
             return {result, resp: response};
         } else if (response.status == 550) { // "throw legal value" (non-error)
             const result = brilloutJsonParse(await response.text()); // Parse result:

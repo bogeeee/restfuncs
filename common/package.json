@@ -23,6 +23,7 @@
     "build": "tsc --build --force && tsc -module ES6 --outDir dist/mjs"
   },
   "dependencies": {
+    "underscore": "^1.13.3"
   },
   "devDependencies": {
     "typescript": "5.x",

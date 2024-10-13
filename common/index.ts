@@ -3,6 +3,7 @@ import {Readable} from "node:stream"
 export * from "./util";
 export {WeakValueMap} from "./WeakValueMap";
 import {BreakPoints} from "./BreakPoints";
+export {readableStreamToHybridStream} from "./hybridstreams";
 
 export const _testForRaceCondition_breakPoints = new BreakPoints();
 
