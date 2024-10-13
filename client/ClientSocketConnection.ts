@@ -288,7 +288,7 @@ export class ClientSocketConnection {
      * Immediately returns without waiting for an ack.
      */
     setCookieSessionOnServer(getCookieSessionResult: ReturnType<IServerSession["getCookieSession"]>) {
-        this.sendMessage({sequenceNumber: ++this.lastSentMessageSequenceNumber, type: "setCookieSession", payload: getCookieSessionResult.token})
+        this.sendMessage({type: "setCookieSession", payload: getCookieSessionResult.token})
         this.lastSetCookieSessionOnServer = getCookieSessionResult.state;
     }
 
@@ -308,7 +308,6 @@ export class ClientSocketConnection {
 
             //Send the call message to the server:
             this.sendMessage({
-                sequenceNumber: ++this.lastSentMessageSequenceNumber,
                 type: "methodCall",
                 payload: {
                     callId, serverSessionClassId, methodName, args
@@ -332,7 +331,7 @@ export class ClientSocketConnection {
             // (Somebody-) fetch the needed HttpSecurityProperties and update them on the server
             await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => {
                 const answer = await client.controlProxy_http.getHttpSecurityProperties(callResult.needsHttpSecurityProperties!.question);
-                this.sendMessage({sequenceNumber: ++this.lastSentMessageSequenceNumber, type: "updateHttpSecurityProperties", payload: answer});
+                this.sendMessage({type: "updateHttpSecurityProperties", payload: answer});
             })
 
             callResult = await exec(); // Try again
@@ -378,9 +377,9 @@ export class ClientSocketConnection {
     }
 
 
-    protected sendMessage(message: Socket_Client2ServerMessage) {
+    protected sendMessage(message: Omit<Socket_Client2ServerMessage, "sequenceNumber">) {
         this.checkFatal()
-        this.socket.send(this.serializeMessage(message))
+        this.socket.send(this.serializeMessage({...message, sequenceNumber: ++this.lastSentMessageSequenceNumber}));
     }
 
     protected deserializeMessage(data: string | Buffer): Socket_Server2ClientMessage {
@@ -454,7 +453,7 @@ export class ClientSocketConnection {
                 fixErrorStack(error);
                 error = cloneError(error);
             }
-            this.sendMessage({sequenceNumber: ++this.lastSentMessageSequenceNumber, type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
+            this.sendMessage({type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
         }
 
         // Call it and handle error/result and send it back:
