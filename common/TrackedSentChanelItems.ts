@@ -1,6 +1,6 @@
 export class TrackedSentChannelItems {
     socketConnection: {
-        lastMessageSequenceNumber: number
+        lastSentMessageSequenceNumber: number
     }
     constructor(sc: TrackedSentChannelItems["socketConnection"]) {
         this.socketConnection = sc;
@@ -46,7 +46,7 @@ export class TrackedSentChannelItems {
      */
     registerItemBeforeSending(item: object) {
         const id = this.getItemId(item);
-        this.items.set(id, {item, lastTimeSent: this.socketConnection.lastMessageSequenceNumber});
+        this.items.set(id, {item, lastTimeSent: this.socketConnection.lastSentMessageSequenceNumber});
         return id;
     }
 }
