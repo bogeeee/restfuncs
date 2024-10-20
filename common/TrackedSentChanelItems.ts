@@ -89,9 +89,14 @@ export class TrackedSentChannelItems {
                             encoding,
                             data: (encoding === "buffer" && chunk !== null)?nacl_util.encodeBase64(chunk):chunk
                         }
-                        me.socketConnection.sendMessage({type: "streamData", payload});
 
-                        me.readRequestCallbacks.set(readableItem, callback);
+                        //me.socketConnection.sendMessage({type: "streamData", payload}); // Don't send now but wait till the first remote read request. Because 1: Don't waste data if the client is not interested. Because 2: There's a race condition: the "streamData" message overtakes the returned readable/DTO, somewhere inside ClientSocketConnection.doCall.
+
+                        const onRemoteReadRequest = () => {
+                            me.socketConnection.sendMessage({type: "streamData", payload});
+                            callback(null); // request next chunk
+                        }
+                        me.readRequestCallbacks.set(readableItem, onRemoteReadRequest);
                 }});
                 writable.on("finish", () => { // Note: for the readable-streams package, only the "finish" event is fired. Not also the "close" event
                     me.socketConnection.sendMessage({type: "streamData", payload: { id: itemId, data: null, encoding: ""}});
