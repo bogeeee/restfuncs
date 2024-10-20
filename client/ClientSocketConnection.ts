@@ -416,43 +416,42 @@ export class ClientSocketConnection {
     protected handleMessage(message: Socket_Server2ClientMessage) {
         //@ts-ignore An un-awaited async block is **needed for development** for _testForRaceCondition_breakPoints
         (async() => {
-            this.checkFatal()
+            try {
+                this.checkFatal()
 
-            // Validate and fix sequenceNumber for older servers:
-            if(typeof message.sequenceNumber !== "number") {
-                message.sequenceNumber = 0;
-            }
-
-            this.lastReceivedSequenceNumber = message.sequenceNumber;
-
-            // Switch on type:
-            if(message.type === "init") {
-                this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
-            }
-            else if(message.type === "methodCallResult") {
-                this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
-            }
-            else if(message.type === "getVersion") {
-                // Leave this for future extensibility / probing feature flags (don't throw an error)
-            }
-            else if(message.type === "downCall") {
-                this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
-            }
-            else if(message.type === "channelItemNotUsedAnymore") {
-                await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
-                const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
-
-                if(this.trackedSentChannelItems.items.has(payload.id) && this.trackedSentChannelItems.items.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
-                    //  Don't delete. Prevents race condition bug (see tests for it).
+                // Validate and fix sequenceNumber for older servers:
+                if (typeof message.sequenceNumber !== "number") {
+                    message.sequenceNumber = 0;
                 }
-                else { // Normally:
-                    this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
+
+                this.lastReceivedSequenceNumber = message.sequenceNumber;
+
+                // Switch on type:
+                if (message.type === "init") {
+                    this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
+                } else if (message.type === "methodCallResult") {
+                    this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
+                } else if (message.type === "getVersion") {
+                    // Leave this for future extensibility / probing feature flags (don't throw an error)
+                } else if (message.type === "downCall") {
+                    this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
+                } else if (message.type === "channelItemNotUsedAnymore") {
+                    await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
+                    const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
+
+                    if (this.trackedSentChannelItems.items.has(payload.id) && this.trackedSentChannelItems.items.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
+                        //  Don't delete. Prevents race condition bug (see tests for it).
+                    } else { // Normally:
+                        this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
+                    }
+                } else if (message.type === "streamData") {
+                    const payload = message.payload as Socket_StreamData;
+                    this.receivedChannelItems.handleStreamDataMessage(payload);
+
                 }
             }
-            else if(message.type === "streamData") {
-                const payload = message.payload as Socket_StreamData;
-                this.receivedChannelItems.handleStreamDataMessage(payload);
-
+            catch (e: any) {
+                this.failFatal(e);
             }
         })();
     }
