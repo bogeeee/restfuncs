@@ -55,6 +55,8 @@ export class ClientSocketConnection {
 
     protected trackedSentChannelItems = new TrackedSentChannelItems(this);
 
+    protected onCloseListeners = new Set<(reason?: Error) => void>();
+
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
      * The key is either the security group id or ServerSession id, depending on what's the server's preference. See Socket_MethodCallResult#needsHttpSecurityProperties#syncKey
@@ -153,7 +155,7 @@ export class ClientSocketConnection {
             this.socket.on('close', (reason, description) => {
                 // Fires, when this.close was called
                 //this.failFatal(new Error(reason, {cause: description})); // We must not throw a global error here.
-                this.onClose();
+                this.handleClose();
             });
         });
 
@@ -163,21 +165,8 @@ export class ClientSocketConnection {
     }
 
     protected failFatal(err: Error ) {
-        try {
-            this.fatalError = err;
-            this.clazz.sharedInstances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
-
-            // Reject this.initMessage
-            try {
-                this.initMessage.reject(err);
-            }
-            catch (e) {}
-
-            this.methodCallPromises.forEach(p => p.reject(err)); // Reject outstanding method calls
-        }
-        finally {
-            this.cleanUp(); // Just to make sure
-        }
+        this.fatalError = err;
+        this.handleClose();
     }
 
     checkFatal() {
@@ -194,11 +183,14 @@ export class ClientSocketConnection {
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
     }
 
-    protected onClose() {
+    protected handleClose() {
         try {
             this.clazz.sharedInstances.resultPromises.delete(this.url); // Unregister instance, so the next client will create a new one
 
             const error = fixErrorForJest(new Error("Socket connection has been closed", {cause: this.fatalError}));
+            if(this.fatalError === undefined) {
+                this.fatalError = error;
+            }
 
             // Reject this.initMessage
             try {
@@ -207,6 +199,8 @@ export class ClientSocketConnection {
             catch (e) {}
 
             this.methodCallPromises.forEach(p => p.reject(error)); // Reject outstanding method calls
+
+            this.onCloseListeners.forEach(l => l(error)); // Call listeners
         } finally {
             this.cleanUp(); // Just to make sure
         }
@@ -216,6 +210,19 @@ export class ClientSocketConnection {
         this.fatalError = new Error("ClientSocketConnection closed");
         this.socket.close();
     }
+
+    public isClosed() {
+        return this.fatalError !== undefined;
+    }
+
+    /**
+     * Adds an listener that gets called on close / disconnect
+     * @param callback
+     */
+    public onClose(callback: (reason?: Error) => void) {
+        this.onCloseListeners.add(callback);
+    }
+
 
     /**
      * Will also close this connection if it's not used by a client anymore
