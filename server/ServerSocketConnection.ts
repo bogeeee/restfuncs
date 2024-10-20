@@ -96,7 +96,7 @@ export class ServerSocketConnection {
      */
     protected weakOnCloseListeners = new Set<OnCloseHandlerInterface>();
 
-    protected onCloseListeners = new Set<(reason?: CloseReason) => void>();
+    protected onCloseListeners = new Set<(reason?: Error) => void>();
 
 
     /**
@@ -897,7 +897,7 @@ export class ServerSocketConnection {
      * Adds an listener that gets called on close / disconnect
      * @param callback
      */
-    public onClose(callback: (reason?: CloseReason) => void) {
+    public onClose(callback: (reason?: Error) => void) {
         this.onCloseListeners.add(callback);
     }
 
@@ -918,7 +918,8 @@ export class ServerSocketConnection {
 
     protected handleClose(reason?: CloseReason) {
         this.methodDownCallPromises.forEach(p => p.reject(diagnosis_closeReasonToError(reason))); // Reject outstanding method calls. Not strongly decided, whether this should go before or after the following lines, but may be it' better to properly complete (with error) a callForSure in a ClientCallbackSet before such one is cleaned up.
-        this.onCloseListeners.forEach(l => l(reason)); // Call listeners
+        const reasonAsError = reason?diagnosis_closeReasonToError(reason) :undefined;
+        this.onCloseListeners.forEach(l => l(reasonAsError)); // Call listeners
         this.weakOnCloseListeners.forEach(h => h.handleServerSocketConnectionClosed(this, reason)); // Call weak listeners
     }
 
