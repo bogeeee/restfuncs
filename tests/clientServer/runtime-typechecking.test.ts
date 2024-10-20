@@ -10,6 +10,8 @@ import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import {runClientServerTests, standardOptions} from "./lib";
 import _ from "underscore";
+import {Readable as Readable_fromNodePackage} from "node:stream";
+import {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 
@@ -1058,6 +1060,20 @@ describe("callbacks with mixed security requirements", () => {
 
     }, {useSocket: true}));
 })
+
+describe("Streams", () => {
+    class MyServerSession extends TypecheckingService {
+        @remote methodThatReturnsStreamDeeply() {
+            return {readable: new Readable_fromNodePackage()}
+        }
+    }
+
+    it("should tell you to disable result validation when streams area returned deeply", () => runClientServerTests(new MyServerSession(), async (apiProxy) => {
+        await expectAsyncFunctionToThrow(async () => await apiProxy.methodThatReturnsStreamDeeply(), "disable result validation"); // Should be handled somewhere in replaceDTOs
+
+        }, {useSocket: true}
+    ));
+});
 
 /*
 // Not yet implemented

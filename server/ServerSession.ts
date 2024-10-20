@@ -21,7 +21,7 @@ import {
     isTypeInfoAvailable,
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
-    shieldTokenAgainstBREACH_unwrap
+    shieldTokenAgainstBREACH_unwrap, throwError
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
@@ -51,7 +51,7 @@ import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
-import {errorToString} from "restfuncs-common";
+import {errorToString, isAnyReadableStream} from "restfuncs-common";
 import clone from "clone";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
@@ -1847,8 +1847,8 @@ export class ServerSession implements IServerSession {
                 return result; // Skip validation of Buffer
             }
         }
-        if(result instanceof Readable) {
-            return result;
+        if(isAnyReadableStream(result)) {
+            return result; // Skip validation for Streams
         }
 
         const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
@@ -2912,7 +2912,7 @@ export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, me
  * Usually this is done automatically for you, when node reports that the resource has been garbage collected (on the server).
  * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
  */
-export function free(resource: (...args: any[]) => any) {
+export function free(resource: (...args: any[]) => any | Readable_fromNodePackage | Readable_fromReadableStreamPackage | ReadableStream | ReadableStreamDefaultReader) { // TODO: list writables
     if(typeof resource === "function") {
         const clientCallback = resource as ClientCallback;
         if(clientCallback.socketConnection === undefined) { //

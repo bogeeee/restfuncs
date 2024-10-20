@@ -10,6 +10,15 @@ if (typeof process === 'object') {
     }
 }
 
+export function toHybridReadable(value: object): ReadableStream & Readable {
+    if(isReadable(value)) {
+        return value as any; // TODO: implement enhancing with ReadableStream functionality
+    }
+    else { // TODO: Check if isReadableStream
+        return readableStreamToHybridStream(value as ReadableStream);
+    }
+}
+
 /**
  * Enhances rs and makes it implement all fields / methods from Readable.
  * <p>
@@ -18,10 +27,6 @@ if (typeof process === 'object') {
  * @param rs
  */
 export function readableStreamToHybridStream(rs: ReadableStream): ReadableStream & Readable {
-    if(!isNode) {
-        return rs as any;
-    }
-
     //@ts-ignore
     if(rs._readable) { // Already enhanced ?
         return rs as any;
@@ -103,4 +108,17 @@ export function readableStreamToHybridStream(rs: ReadableStream): ReadableStream
 
 
     return rs as any;
+}
+
+/**
+ * Securely checks for certain functions that must be present
+ * @param value
+ */
+export function isAnyReadableStream(value: unknown) {
+    return isReadable(value); // TODO: check if ReadableStream or ReadableStreamDefaultReader
+}
+
+export function isReadable(value: unknown) {
+    //@ts-ignore
+    return value !== null && typeof value === "object" && (value instanceof Readable || (typeof value["read"] === "function" && typeof value["destroy"] === "function" && typeof value["pause"] === "function" && typeof value["pipe"] === "function"))
 }

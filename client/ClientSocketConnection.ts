@@ -1,5 +1,5 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
+import {isNode, DropConcurrentOperationMap, DropConcurrentOperation, throwError} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
     _testForRaceCondition_breakPoints,
@@ -9,7 +9,7 @@ import {
     IServerSession, ServerPrivateBox, Socket_ChannelItemNotUsedAnymore,
     Socket_Client2ServerMessage, Socket_DownCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
-    Socket_Server2ClientMessage
+    Socket_Server2ClientMessage, Socket_StreamData
 } from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
@@ -17,6 +17,8 @@ import _ from "underscore";
 import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
 import clone from "clone";
 import {TrackedSentChannelItems} from "restfuncs-common/TrackedSentChanelItems";
+import {ReceivedChannelItems} from "restfuncs-common/ReceivedChannelItems";
+
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
@@ -49,10 +51,12 @@ export class ClientSocketConnection {
      */
     protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
 
+    lastReceivedSequenceNumber=-1;
     lastSentMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
     protected callIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
+    protected receivedChannelItems = new ReceivedChannelItems(this)
     protected trackedSentChannelItems = new TrackedSentChannelItems(this);
 
     protected onCloseListeners = new Set<(reason?: Error) => void>();
@@ -380,11 +384,15 @@ export class ClientSocketConnection {
             throw callResult.result
         }
 
-        return callResult.result;
+        return this.receivedChannelItems.replaceDTOsAndTrackThem(callResult.result);
     }
 
 
-    protected sendMessage(message: Omit<Socket_Client2ServerMessage, "sequenceNumber">) {
+    /**
+     * Not part of the public API.
+     * @param message
+     */
+    public sendMessage(message: Omit<Socket_Client2ServerMessage, "sequenceNumber">) {
         this.checkFatal()
         this.socket.send(this.serializeMessage({...message, sequenceNumber: ++this.lastSentMessageSequenceNumber}));
     }
@@ -402,13 +410,20 @@ export class ClientSocketConnection {
 
     /**
      *
-     * @param message The raw, evil value from the client.
+     * @param message
      * @protected
      */
     protected handleMessage(message: Socket_Server2ClientMessage) {
         //@ts-ignore An un-awaited async block is **needed for development** for _testForRaceCondition_breakPoints
         (async() => {
             this.checkFatal()
+
+            // Validate and fix sequenceNumber for older servers:
+            if(typeof message.sequenceNumber !== "number") {
+                message.sequenceNumber = 0;
+            }
+
+            this.lastReceivedSequenceNumber = message.sequenceNumber;
 
             // Switch on type:
             if(message.type === "init") {
@@ -433,6 +448,11 @@ export class ClientSocketConnection {
                 else { // Normally:
                     this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
                 }
+            }
+            else if(message.type === "streamData") {
+                const payload = message.payload as Socket_StreamData;
+                this.receivedChannelItems.handleStreamDataMessage(payload);
+
             }
         })();
     }

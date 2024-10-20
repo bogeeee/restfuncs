@@ -29,7 +29,7 @@ function diagnosis_jsonPath(key: unknown) {
  * @param visitor
  * @param trackPath whether to pass on the context object. This hurts performance because the path is concatted every time, so use it only when needed. Setting this to "onError" re-executes the visitprelace with the concetxt when an error was thrown
  */
-export function visitReplace<O extends object>(value: O, visitor: (value: unknown, visitChilds: (value: unknown, context: VisitReplaceContext) => unknown, context: VisitReplaceContext) => unknown , trackPath: boolean | "onError" = false): O {
+export function visitReplace<O>(value: O, visitor: (value: unknown, visitChilds: (value: unknown, context: VisitReplaceContext) => unknown, context: VisitReplaceContext) => unknown , trackPath: boolean | "onError" = false): O {
     const visisitedObjects = new Set<object>()
 
     function visitChilds(value: unknown, context: VisitReplaceContext) {
@@ -216,4 +216,14 @@ export function cloneError(e: any): ErrorWithExtendedInfo {
         cause: e.cause instanceof Error?cloneError(e.cause):e.cause,
         ...e // try everything else that's accessible as properties
     }
+}
+
+export function validUnless(message: string, validIf: boolean) {
+    if(!validIf) {
+        throw new Error(message);
+    }
+}
+
+export function throwError(message: string) {
+    throw new Error(message);
 }
