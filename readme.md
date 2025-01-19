@@ -111,7 +111,8 @@ Smaller features:
 - **Argment and result trimming**: By default, restfuncs automatically removes **extra** properties, that would otherwise cause a validation error. Also this allows you to do some [nice Typescript tricks to trim the result into the desired form](#using-typescript-to-automatically-trim-the-output-into-the-desired-form).
 - Proper **error handling** and logging.
 - **Lazy cookies** throughout: The best session-cookie is one, that is never sent. That is only, if a field of your ServerSession is set to non-initial value, or if (in-depth) csrf protection ultimately requires it. Lessens parsing and validation costs i.e. for public users of your site that never log in. 
-- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application. [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts) 
+- **[A collection of example projects](#example-projects)**. Grab them, if you're looking for a quick starter for your single page application. 
+ [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts)  [![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite)
 - **Enhancement friendly** by exposing a clear OOP API. You are allowed and encouraged to subclass and override methods. Includes .ts source code, source maps and declaration maps in the published NPM package, so you can ctrl+click or debug-step yourself right into the source code and have some fun with it - i hope this inspires other lib authors ;). [Get some insights here](DEVELOPMENT.md).
 - **Bloat free**: Restfuncs does not want to sell you any concept for mvc / rendering templates / layered architecture / di / etc. It's only purpose is client<>server communication.
 
@@ -228,9 +229,9 @@ In some cases where more configuration needs to be decided for, contextual error
 
 # Example projects
 
-- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite) (use as starter stack) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts) 
+- [Hello world web app](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite) (use as starter stack) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts)    [![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite)
 - [Hello world web app with server and client in separate dirs / packages](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-separate) (if you prefer that cleaner layout)
-- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts)
+- [Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) (uses things from the Advanced chapter) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts)  [![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite)
 
 
 _They use vite, which is a very minimalistic/ (zero conf) web bundler with full support for React/JSX, Typescript, hot module reloading. Hope you'll like this as a starter stack for your webapp._
@@ -431,7 +432,7 @@ const myRemoteSession = new MyRestfuncsClient<MyServerSession>(...).proxy // ...
 
 ### Working example
 
-[Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts)
+[Hello world Web app with authentication](https://github.com/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication) [![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite-with-authentication?title=Restfuncs%20-auth-%20example&file=client%2Findex.ts,MainframeSession.ts) [![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/bogeeee/restfuncs/tree/main/examples/express-and-vite-with-authentication)
 
 This example intercepts calls on the server and on the client.
 
