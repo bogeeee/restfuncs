@@ -443,3 +443,17 @@ test("ClientCallbackSetPerItem#callForSure with string keys", async () => {
 
     await expectAsyncFunctionToThrow(() => chatJoinListenersForRooms.callForSure("room1", {name: "Dummy"}), /disconnect|Connection closed|socket closed/i); // now that the client silently disconnected, there should be an error
 })
+
+test("It should not crash with exotic errors", async () => {
+    class MyServerSession extends ServerSession{
+        @remote throwExoticError() {
+            let error = new Error("My error") as any;
+            error.someFn = () => {}; // this is exotic and not serializeable
+            throw error
+        }
+    }
+    await runClientServerTests(new MyServerSession(), async (apiProxy) => {
+        await expectAsyncFunctionToThrow(() => apiProxy.throwExoticError(), "My error");
+        }, {}
+    );
+});

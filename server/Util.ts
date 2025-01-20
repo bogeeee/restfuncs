@@ -99,6 +99,13 @@ export function errorToHtml(e: any): string {
         (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
 }
 
+/**
+ * Remove i.e. functions that would cause an error because they can't be serialized
+ * @param value
+ */
+export function cloneAndFixNonSerializeable(value: object) {
+    return JSON.parse(JSON.stringify(value));
+}
 
 export function diagnisis_shortenValue(evil_value: any) : string {
     if(evil_value === undefined) {
