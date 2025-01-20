@@ -29,7 +29,7 @@ import {
 import _ from "underscore";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import {Readable, Writable} from "readable-stream";
-import {createSecureId, diagnisis_shortenValue, throwError, validUnless} from "./Util";
+import {cloneAndFixNonSerializeable, createSecureId, diagnisis_shortenValue, throwError, validUnless} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
@@ -422,7 +422,7 @@ export class ServerSocketConnection {
                         let error = serverSessionClass.logAndConcealError(caught, {socketConnection: this});
 
                         return{
-                            error: error,
+                            error: cloneAndFixNonSerializeable(error),
                             status: 500,
                             httpStatusCode
                         };
