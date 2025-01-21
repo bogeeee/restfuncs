@@ -666,6 +666,7 @@ export class ServerSession implements IServerSession {
                         res.send(result);
                     }
                     else {
+                        res.header("Content-Disposition", "inline"); res.header("Content-Disposition_note", "The Content-Disposition header was set/overwritten by restfuncs to properly show the error message in the browser");
                         throw new CommunicationError(`For Content-Type=${contentTypeFromCall}, ${diagnosis_methodName || "you"} must return a result of type string or Readable or Buffer. Actually got: ${diagnisis_shortenValue(result)}`)
                     }
                 }
