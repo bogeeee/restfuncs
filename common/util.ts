@@ -1,5 +1,3 @@
-import {ErrorWithExtendedInfo} from "restfuncs-server/Util";
-
 type VisitReplaceContext = {
     /**
      * Not safely escaped. Should be used for diag only !
@@ -196,6 +194,8 @@ export function fixErrorStack(error: Error) {
  * Properties of a usual error
  */
 export const ERROR_PROPERTIES = ["message", "name", "cause", "fileName", "lineNumber", "columnNumber", "stack"]
+
+export type ErrorWithExtendedInfo = Error & { cause?: Error, fileName?: string, lineNumber?: Number, columnNumber?: Number, stack?: string };
 
 /**
  * Clones an error with hopefully all properties. You can't list / clone them normally.

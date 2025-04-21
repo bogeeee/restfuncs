@@ -10,6 +10,7 @@ import {CommunicationError} from "./CommunicationError";
 import {reflect} from "typescript-rtti";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
+import {ErrorWithExtendedInfo} from "restfuncs-common";
 
 /**
  * Enhances the funcs object with enhancementProps temporarily with a proxy during the call of callTheFunc
@@ -79,7 +80,6 @@ export function Camelize(value: string) {
     return value.substring(0,1).toUpperCase() + value.substring(1);
 }
 
-export type ErrorWithExtendedInfo = Error & { cause?: Error, fileName?: string, lineNumber?: Number, columnNumber?: Number, stack?: string };
 
 export function errorToHtml(e: any): string {
     // Handle other types:
