@@ -209,6 +209,7 @@ console.log( await myRemoteSession.myRemoteMethod("Hans") ); // Call your remote
   "restfuncs-client": "^2.0.0"
 },
 "devDependencies": {
+  "typescript": "=5.1.x",
   "ts-patch": "^3.0.2",
   "restfuncs-transformer": "^1.0.0",
   "cross-env": "^7.0.3"

@@ -18,6 +18,7 @@
     "helmet": "^7.1.0"
   },
   "devDependencies": {
+    "typescript": "=5.1.x",
     "tsx": "^4.7.0",
     "ts-patch": "^3.0.2",
     "restfuncs-transformer": "^1.1.0",

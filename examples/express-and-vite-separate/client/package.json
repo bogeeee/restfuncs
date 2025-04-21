@@ -2,6 +2,7 @@
   "name": "restfuncs-example-client",
   "version": "2.0.0",
   "dependencies": {
+    "typescript": "=5.1.x",
     "restfuncs-client": "^2.2.0",
     "react": "^18.2.0"
   }
