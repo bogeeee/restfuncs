@@ -14,7 +14,6 @@ import {
     diagnosis_looksLikeJSON,
     enhanceViaProxyDuringCall,
     errorToHtml,
-    ErrorWithExtendedInfo,
     fixTextEncoding,
     getDestination,
     getOrigin,
@@ -51,7 +50,7 @@ import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
-import {errorToString} from "restfuncs-common";
+import {errorToString, ErrorWithExtendedInfo, isAnyReadableStream} from "restfuncs-common";
 import clone from "clone";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
