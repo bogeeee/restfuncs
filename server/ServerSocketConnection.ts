@@ -447,12 +447,17 @@ export class ServerSocketConnection {
 
         // Send the the result from handleMethodCall_inner:
         (async () => {
-            const payload: Socket_MethodUpCallResult = {
-                callId: methodCall.callId,
-                ... await handleMethodCall_inner()
+            try {
+                const payload: Socket_MethodUpCallResult = {
+                    callId: methodCall.callId,
+                    ...await handleMethodCall_inner()
+                }
+                if (!this.isClosed()) {
+                    this.sendMessage({type: "methodCallResult", payload});
+                }
             }
-            if(!this.isClosed()) {
-                this.sendMessage({type: "methodCallResult", payload});
+            catch (e) {
+                this.failFatal(e as Error);
             }
         })();
     }
