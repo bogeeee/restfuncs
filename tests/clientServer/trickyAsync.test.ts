@@ -457,3 +457,15 @@ test("It should not crash with exotic errors", async () => {
         }, {}
     );
 });
+
+test("It should not crash when having a serializatin error", async () => {
+    class MyServerSession extends ServerSession{
+        @remote remoteMethod() {
+            return () => {}; // cannot serialize this
+        }
+    }
+    await runClientServerTests(new MyServerSession(), async (apiProxy) => {
+            await expectAsyncFunctionToThrow(() => apiProxy.remoteMethod(), "serialize");
+        }, {}
+    );
+});
