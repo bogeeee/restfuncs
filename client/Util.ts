@@ -9,7 +9,7 @@ if (typeof process === 'object') {
 
 /**
  * Synchronizes simultaneous operations that they don't get executed twice / unnecessary. While mimicing the failover behaviour of http fetches.
- * If the operation is already running, then succeeding calls will wait for that single result promise. On fail, all will fail.
+ * If the operation is already running, then subsequent calls will wait for that single result promise. On fail, all will fail.
  * But after such a fail, next exec will do a retry.
  */
 export class DropConcurrentOperation<T> {
