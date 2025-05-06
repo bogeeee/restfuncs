@@ -82,21 +82,26 @@ export function Camelize(value: string) {
 
 
 export function errorToHtml(e: any): string {
-    // Handle other types:
-    if(!e || typeof e !== "object") {
-        return `<pre>${escapeHtml(String(e))}</pre>`;
-    }
-    if(!e.message) { // e is not an ErrorWithExtendedInfo ?
-        return `<pre>${escapeHtml(JSON.stringify(e))}</pre>`;
-    }
-    e = <ErrorWithExtendedInfo> e;
+    try {
+        // Handle other types:
+        if (!e || typeof e !== "object") {
+            return `<pre>${escapeHtml(String(e))}</pre>`;
+        }
+        if (!e.message) { // e is not an ErrorWithExtendedInfo ?
+            return `<pre>${escapeHtml(JSON.stringify(e))}</pre>`;
+        }
+        e = <ErrorWithExtendedInfo>e;
 
-    let title= (e.name ? `${e.name}: `: "") + (e.message || String(e))
+        let title = (e.name ? `${e.name}: ` : "") + (e.message || String(e))
 
-    return `<b><pre>${escapeHtml( title)}</pre></b>` +
-        (e.stack ? `\n<pre>${escapeHtml(e.stack)}</pre>` : '') +
-        (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (e.columnNumber ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
-        (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
+        return `<b><pre>${escapeHtml(title)}</pre></b>` +
+            (e.stack ? `\n<pre>${escapeHtml(e.stack)}</pre>` : '') +
+            (e.fileName ? `<br/>\nFile: ${escapeHtml(e.fileName)}` : '') + (e.lineNumber ? `, Line: ${escapeHtml(e.lineNumber)}` : '') + (e.columnNumber ? `, Column: ${escapeHtml(e.columnNumber)}` : '') +
+            (e.cause ? `<br/>\nCause:<br/>\n${errorToHtml(e.cause)}` : '')
+    }
+    catch (e) {
+        return errorToHtml(new Error(`Error converting error to html. Original error's message: ${escapeHtml((e as any)?.message)}`));
+    }
 }
 
 /**

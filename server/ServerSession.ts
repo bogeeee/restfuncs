@@ -824,7 +824,12 @@ export class ServerSession implements IServerSession {
                     // Format error and send it:
                     acceptedResponseContentTypes.find((accept) => { // Iterate until we have handled it
                         if(accept == "application/json") {
-                            res.json(error);
+                            try {
+                                res.json(error);
+                            }
+                            catch (e) {
+                                res.json(this.logAndConcealError(new CommunicationError(`Error, serializing error to json. Original error's message: ${(e as any)?.message}`), {req}))
+                            }
                         }
                         else if(accept == "text/html") {
                             res.contentType("text/html; charset=utf-8")
