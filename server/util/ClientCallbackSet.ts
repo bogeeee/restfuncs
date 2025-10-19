@@ -22,11 +22,11 @@ import {ServerSocketConnection} from "../ServerSocketConnection";
  *     }
  * }
  *
- * // ... somewhere in your code, when a new news article is created:
+ * // ... somewhere in your server code, when a new news article is created:
  * newsArticleListeners.call(myNewNewsArticle); // Inform the listeners
  * </code></pre>
  * <p>
- *     Note: It says ClientCallback but more precisely this class accepts more gerneal {@link SocketAssociatedCallbackFunction}s.
+ *     Note: It says ClientCallback but more precisely this class accepts the more general {@link SocketAssociatedCallbackFunction}s.
  * </p>
  */
 export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: PARAMS) => unknown> {
