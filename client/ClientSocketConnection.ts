@@ -29,6 +29,8 @@ class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
  *
  */
 export class ClientSocketConnection {
+    id= ++_idGenerator;
+
     /**
      * Url -> ClientSocketConnection
      */
@@ -606,3 +608,5 @@ export class ClientSocketConnection {
         await this.ensureCookieSessionUpto(getRfSessStateCookie());
     }
 }
+
+var _idGenerator = 0;
