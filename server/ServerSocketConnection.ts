@@ -37,8 +37,8 @@ import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
 import {fixErrorStack} from "restfuncs-common";
 import clone from "clone";
-import {ReceivedChannelItems} from "restfuncs-common/ReceivedChannelItems";
-import {TrackedSentChannelItems} from "restfuncs-common/TrackedSentChanelItems";
+import {ReceivedChannelItems} from "restfuncs-common";
+import {TrackedSentChannelItems} from "restfuncs-common";
 
 
 

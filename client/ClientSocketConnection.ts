@@ -16,8 +16,8 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import _ from "underscore";
 import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
 import clone from "clone";
-import {TrackedSentChannelItems} from "restfuncs-common/TrackedSentChanelItems";
-import {ReceivedChannelItems} from "restfuncs-common/ReceivedChannelItems";
+import {TrackedSentChannelItems} from "restfuncs-common";
+import {ReceivedChannelItems} from "restfuncs-common";
 
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {

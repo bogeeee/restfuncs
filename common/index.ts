@@ -4,6 +4,8 @@ export * from "./util";
 export {WeakValueMap} from "./WeakValueMap";
 import {BreakPoints} from "./BreakPoints";
 export * from "./hybridstreams";
+export * from "./ReceivedChannelItems";
+export * from "./TrackedSentChanelItems";
 
 export const _testForRaceCondition_breakPoints = new BreakPoints();
 
