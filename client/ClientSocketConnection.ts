@@ -129,6 +129,8 @@ export class ClientSocketConnection {
         this.firstClient = initClient;
         this.usedByClients.add(initClient)
 
+        this.initMessage.catch(reason => { /*ignore*/}); // Prevent unhandled rejections on connection failure, cause most of the time, no one is awaiting the initMessage
+
         // Wait until connected and throw an Error on connection errors:
         await new Promise<void>((resolve, reject) => {
             let wasConnected = false;
