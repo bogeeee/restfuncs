@@ -356,6 +356,18 @@ import {ClientCallback} from "restfuncs-server";
 
 ...or use the utility classes `ClientCallbackSet` and `ClientCallbackSetPerItem` _(import {...} from "restfuncs-server")_. You can add listeners to them and they get removed automatically on disconnect. See JSDoc there. 
 
+### Make you subscription survive connection losses
+
+````typescript
+// on the client:
+// Like from the "Server events via callback functions # on the client" example. just wrap that line with:
+myClient.withReconnect(() => {
+    myRemoteSession.notifyMeWhenSomeoneEntersTheChatroom("#restfuncs_is_great", (user) => { console.log(`${user.name} entered the chatroom`) })
+});
+````
+This will automatically try to reconnect after the connection was lost and re-run your subscription logic.
+See the `RestfuncsClient#withReconnect` JsDoc for more options.
+
 ### Advanced: Resource cleanup on the client
 Just in case you have a very heavy and rich client, you may at some point wonder, how and when the references to the callback functions are cleaned up:
 

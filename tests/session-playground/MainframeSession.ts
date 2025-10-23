@@ -27,4 +27,9 @@ export class MainframeSession extends ServerSession {
     public destroy() {
         super.destroy();
     }
+
+    @remote
+    ping() {
+        console.log("Ping called on the server");
+    }
 }

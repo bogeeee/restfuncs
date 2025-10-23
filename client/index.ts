@@ -3,7 +3,7 @@ import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify"
 import {CookieSessionState, CSRFProtectionMode, IServerSession, WelcomeInfo} from "restfuncs-common";
 import {ClientSocketConnection} from "./ClientSocketConnection";
-import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver} from "./Util";
+import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver, WeakMapSet} from "./Util";
 import {visitReplace} from "restfuncs-common";
 
 export {ClientSocketConnection} from "./ClientSocketConnection";
@@ -47,6 +47,11 @@ export class ServerError extends Error {
         this.httpStatusCode = httpStatusCode;
     }
 }
+
+/**
+ * the param `unregister` is a function that can be called to unregister this reconnect listener. For an alternative solution, see the `unregisterHook` param to {@see RestfuncsClient#withReconnect}
+ */
+export type ReconnectListenerFn = (isReconnect: boolean, unregister: ()=>void) => (void | Promise<void>);
 
 /**
  * A filter / mapper for the service:
@@ -107,6 +112,18 @@ export class RestfuncsClient<S extends IServerSession> {
     csrfProtectionMode: CSRFProtectionMode = "corsReadToken"
 
     /**
+     * Settings for {@link #onReconnect} or {@link #withReconnect}.
+     * <p>
+     * minimumDelay = how long is waited after the first disconnect before trying to reconnect; degressionFactor = factor, applied every reconnect attempt; maximumDelay = ...;
+     * </p>
+     * <p>Time specifications are in milliseconds</p>
+     * <p>
+     * Default: {minimumDelay: 100, degressionFactor: 1.3, maximumDelay: 10000}
+     * </p>
+     */
+    public reconnectTimeoutSettings = {minimumDelay: 100, degressionFactor: 1.3, maximumDelay: 10000};
+
+    /**
      * Remotely call (sync or async) methods on your ServerSession instance.
      */
     public proxy: ClientProxy<S>
@@ -130,7 +147,11 @@ export class RestfuncsClient<S extends IServerSession> {
     /**
      * As seen in the headers
      */
-    public serverProtocolVersion?: {major: number, feature: number} = undefined
+    public serverProtocolVersion?: {major: number, feature: number} = undefined;
+
+    protected reconnectedListeners = new Set<ReconnectListenerFn>();
+
+    protected hooksToReconnectedListeners = new WeakMapSet<object, ReconnectListenerFn>();
 
     get absoluteUrl() {
         // Validity check
@@ -191,7 +212,131 @@ export class RestfuncsClient<S extends IServerSession> {
             return this.getClientSocketConnection(); // Try again
         }
 
+        result?.onClose(this.handleClientConnectionCloseFn); // Registe listener (calling it twice doesn't hurt here)
+
         return result;
+    }
+
+
+
+    /**
+     * Trys to satisfy the reconnectListeners
+     * @protected
+     */
+    protected handleClientConnectionClose() {
+        let delay = this.reconnectTimeoutSettings.minimumDelay;
+        const tryReconnect = async () => {
+            if(this.reconnectedListeners.size == 0) {
+                return;
+            }
+
+            try {
+                const newConnection = await this.getClientSocketConnection();
+            }
+            catch (e) { // Failed again?
+                // Retry later:
+                delay*=this.reconnectTimeoutSettings.degressionFactor;
+                delay = Math.min(this.reconnectTimeoutSettings.maximumDelay, delay); // Cap at maximum;
+                setTimeout(tryReconnect, delay);
+                return;
+            }
+
+            // Reconnect successful ?
+
+            // Invoke listeners one after the other:
+            for(const l of this.reconnectedListeners) {
+                try {
+                    await l(true, ()=> {this.offReconnected(l)}); // Invoke listener
+                }
+                catch (e) {
+                    console.error(e); // Just log it
+                }
+            }
+        }
+
+
+        if(this.reconnectedListeners.size > 0) { // Has reconnect listeners ?
+            setTimeout(tryReconnect, delay);
+        }
+    }
+
+    /**
+     * Reusable handler function that invokes handleClientConnectionClose
+     * @protected
+     */
+    protected handleClientConnectionCloseFn = this.handleClientConnectionClose.bind(this);
+
+    /**
+     * Convenience method for {@link #onReconnect} to call your logic now and after an automatic reconnect attempt (on connection loss / close)
+     * <p>Example:</p>
+     * <pre><code>
+     *     // Will subscribe and display the stock course, while surviving connection interruption
+     *     myRestfuncsClient.withReconnect(() => {
+     *         myRestfuncsClient.subscribeToStockChanges((stock) => {  // calls the @remote method `subscribeToStockChanges` with a callback
+     *          //display new stock course
+     *         })
+     *     })
+     * </code></pre>
+     * @param fn is run immediately and on every reconnect. Can be a sync or async function. When called, it gets the following arguments passed:
+     * <ul>
+     *  <li>isReconnect: false on the first call.</li>
+     *  <li>unregister: Call this function to unsubscribe from calling fn on reconnect attempts (same as <code>client.offReconnect(fn)</code> )</li>
+     * </p>
+     * <p>
+     * When fn fails on the first time, it is assumed that you have handled this and it's not called on a reconnect attempt.
+     * </p>
+     * @param hook Convenience: object (or function) that you can later pass to {@link #offReconnectByHook} when you want to unsubscribe from reconnects.
+     */
+    withReconnect<T extends void | Promise<void>>(fn: (isReconnect: boolean, unregister: ()=>void) => (T), hook?: object): T {
+        // Validity check:
+        if(this.useSocket === false) {
+            throw new Error("You cannot use withReconnect when useSocket is disabled. See RestfunctClientOptions#useSocket");
+        }
+
+        if(hook) {
+            this.hooksToReconnectedListeners.add(hook, fn);
+        }
+
+        const immediateResult = fn(false, ()=> {this.offReconnected(fn)}); // Invoke listener
+        if(immediateResult instanceof Promise) {
+            return (async() => {
+                const result = await immediateResult;
+                this.onReconnected(fn);
+                return result;
+            })() as any
+        }
+        else {
+            this.onReconnected(fn);
+            return immediateResult;
+        }
+
+    }
+
+
+    /**
+     * Automatically tries to reconnect after a connection loss (by error or explicit close) and calls the listener fn after successful reconnect.
+     * @param fn
+     * @see #reconnectTimeoutSettings
+     */
+    onReconnected(fn: ReconnectListenerFn) {
+        this.reconnectedListeners.add(fn);
+    }
+
+    /**
+     * Unregisters a reconnect listener function. When there are no more listeners, then no reconnect is attempted.
+     * @param fn
+     */
+    offReconnected(fn: ReconnectListenerFn) {
+        this.reconnectedListeners.delete(fn);
+    }
+
+    /**
+     * Convenience function for {@link #offReconnect}, when it's more handy for you that you have some hook object at hand instead of the listenerFn.
+     * @see #withReconnect
+     * @param hook Object (or function) that was passed to {@link withReconnect}.
+     */
+    offReconnectedByHook(hook: object){
+        this.hooksToReconnectedListeners.get(hook)?.forEach(listener => this.offReconnected(listener));
     }
 
     /**
