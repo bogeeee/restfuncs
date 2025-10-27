@@ -196,7 +196,10 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
     }
 
     /**
-     * Calls all callbacks for a certain item/key
+     * Calls all callbacks for the specified item/key.
+     * <p>
+     * Does not wait for the result. Ignores disconnects and errors.
+     * </p>
      * @param item
      * @param callArgs
      */
