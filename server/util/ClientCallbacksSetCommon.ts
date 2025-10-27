@@ -69,13 +69,28 @@ export class ClientCallbacksSetCommon<PARAMS extends unknown[]> {
         }
     }
 
+    /**
+     * Calls the specified callbacks. Does not wait for the result. Ignores disconnects and errors.
+     * @param callbacks
+     * @param args
+     */
     _call(callbacks: Set<ClientCallback>, args: PARAMS) {
+        function preventUnhandledRejection(maybePromise: unknown) {
+            if(maybePromise != null && maybePromise instanceof Promise) {
+                maybePromise.catch(() => {})
+            }
+        }
+
         callbacks.forEach(cb => {
             if(isClientCallback(cb)) {
-                cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, { isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: false});
+                preventUnhandledRejection(
+                    cb._validateAndCall(args, this.trimArguments, false, this.trimFromSignature, { isFromClientCallbacks: true, isFromClientCallbacks_CallForSure: false})
+                );
             }
             else {
-                cb(...args);
+                preventUnhandledRejection(
+                    cb(...args)
+                );
             }
         });
     }
