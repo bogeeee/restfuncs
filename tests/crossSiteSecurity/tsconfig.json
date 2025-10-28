@@ -11,9 +11,10 @@
     ],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true,
     "jsx": "react",
     "experimentalDecorators": true,
     "skipLibCheck": true,
@@ -22,6 +23,5 @@
       { "transform": "typia/lib/transform" },
       { "transform": "typescript-rtti/dist/transformer" }
     ],
-    "strict": true
   }
 }
