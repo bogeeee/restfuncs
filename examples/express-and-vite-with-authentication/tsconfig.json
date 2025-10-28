@@ -11,7 +11,7 @@
     ],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "resolveJsonModule": true,
     "noFallthroughCasesInSwitch": true,
     "jsx": "react",
