@@ -14,7 +14,7 @@
       "es2022.error",
       "es2021.weakref"
     ],
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "sourceMap": true,
     "declarationMap": true,
     "allowSyntheticDefaultImports": true,
