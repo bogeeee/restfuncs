@@ -14,7 +14,8 @@
   "exports": {
     ".": {
       "browser": "./dist/mjs/index.js",
-      "default": "./index.js"
+      "import": "./dist/mjs/index.js",
+      "require": "./dist/commonjs/index.js"
     }
   },
   "scripts": {

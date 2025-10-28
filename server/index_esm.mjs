@@ -7,14 +7,14 @@ Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. K
 
 import 'reflect-metadata' // Must import
 
-import cjsServer from "./Server.js"
+import cjsServer from "./dist/commonjs/Server.js"
 export const RestfuncsServer = cjsServer.cjsServer
 export const restfuncsExpress = cjsServer.restfuncsExpress
 export const ServerOptions = cjsServer.ServerOptions
 export const getServerInstance = cjsServer.getServerInstance
 export const SessionValidator = cjsServer.SessionValidator
 
-import cjsServerSession from "./ServerSession.js";
+import cjsServerSession from "./dist/commonjs/ServerSession.js";
 export const ServerSession = cjsServerSession.ServerSession
 export const ServerSessionOptions = cjsServerSession.ServerSessionOptions
 export const remote = cjsServerSession.remote
@@ -23,20 +23,20 @@ export const ClientCallback = cjsServerSession.ClientCallback
 export const SocketAssociatedCallbackFunction = cjsServerSession.SocketAssociatedCallbackFunction
 export const free = cjsServerSession.free
 
-import cjsServerSocketConnection from "./ServerSocketConnection.js";
+import cjsServerSocketConnection from "./dist/commonjs/ServerSocketConnection.js";
 export const DownCallError = cjsServerSocketConnection.DownCallError
 
-import cjsClientCallbackSet from "./util/ClientCallbackSet.js"
+import cjsClientCallbackSet from "./dist/commonjs/util/ClientCallbackSet.js"
 export const ClientCallbackSet = cjsClientCallbackSet.ClientCallbackSet
 
-import cjsClientCallbackSetPerItem from "./util/ClientCallbackSetPerItem.js"
+import cjsClientCallbackSetPerItem from "./dist/commonjs/util/ClientCallbackSetPerItem.js"
 export const ClientCallbackSetPerItem = cjsClientCallbackSetPerItem.ClientCallbackSetPerItem
 
-import cjsClientCallbacksCommon from "./util/ClientCallbacksSetCommon.js"
+import cjsClientCallbacksCommon from "./dist/commonjs/util/ClientCallbacksSetCommon.js"
 export const ClientCallbacksCommon = cjsClientCallbacksCommon.ClientCallbacksCommon
 
-import cjsCommon from "restfuncs-common"
+import cjsCommon from "restfuncs-common/dist/commonjs/index.js"
 export const UploadFile = cjsCommon.UploadFile
 
-import cjsCommunicationError from "./CommunicationError.js"
+import cjsCommunicationError from "./dist/commonjs/CommunicationError.js"
 export const CommunicationError = cjsCommunicationError.CommunicationError;

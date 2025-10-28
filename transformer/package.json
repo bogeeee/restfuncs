@@ -18,7 +18,7 @@
   },
   "exports": {
     ".": {
-      "default": "./index.js"
+      "default": "./dist/commonjs/index.js"
     }
   },
   "dependencies": {
