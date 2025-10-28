@@ -1,6 +1,7 @@
 import { tags } from "typia";
 import 'reflect-metadata'
-import {ClientCallback, ServerSession as ServerSession, withTrim} from "restfuncs-server/ServerSession";
+import {ClientCallback, ServerSession} from "restfuncs-server";
+import {withTrim} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";

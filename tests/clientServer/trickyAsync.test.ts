@@ -6,7 +6,8 @@ import {
     ServerSession as ServerSession,
     ServerSessionOptions
 } from "restfuncs-server";
-import {free, remote} from "restfuncs-server/ServerSession";
+import {remote} from "restfuncs-server";
+import {free} from "restfuncs-server/ServerSession";
 import {expectAsyncFunctionToThrow, resetGlobalState, runClientServerTests} from "./lib";
 import {_testForRaceCondition_breakPoints} from "restfuncs-common";
 
