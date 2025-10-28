@@ -43,7 +43,7 @@
     "underscore": "^1.13.3",
     "typescript-rtti": "^0.9.6",
     "reflect-metadata": "^0.1.13",
-    "@brillout/json-serializer": "^0.5.3",
+    "@brillout/json-serializer": "=0.5.18",
     "escape-html": "=1.0.3",
     "busboy": "^1.6.0",
     "engine.io": "^6.5.3",
