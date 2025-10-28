@@ -10,7 +10,7 @@
     "directory": "server"
   },
   "license": "MIT",
-  "main": "index.js",
+  "main": "./dist/commonjs/index.js",
   "exports": {
     ".": {
       "import": "./index_esm.mjs",
