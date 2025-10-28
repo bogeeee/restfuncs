@@ -68,6 +68,7 @@ Per-endpoint boilerplate is no more than, i.e.:
     return `Hello ${name}` 
 }
 ````
+[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/fork/github/bogeeee/restfuncs/tree/3.x/examples/express-and-vite?title=Restfuncs%20hello%20world%20example&file=client%2Findex.ts,GreeterSession.ts)  
 See, it uses natural parameters and natural `return` (and `throw`) flow, instead of you having to deal with `req` and `res` on a lower level. And Restfuncs will take care about a lot more of your daily, low-level communication aspects.  
 That is (features):
 - 🛡️ **Automatic arguments validation** against **native typescript types**  
