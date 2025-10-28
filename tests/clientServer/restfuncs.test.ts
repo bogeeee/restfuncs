@@ -6,11 +6,11 @@ import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
 import {CommunicationError} from "restfuncs-server/CommunicationError";
 import session from "express-session";
-import {restfuncsExpress, ServerOptions} from "restfuncs-server/Server";
+import {restfuncsExpress, ServerOptions} from "restfuncs-server";
 import {CookieSession, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
-import {remote, RemoteMethodOptions} from "restfuncs-server/ServerSession";
+import {remote, RemoteMethodOptions} from "restfuncs-server";
 import {
     createServer,
     expectAsyncFunctionToThrow,
