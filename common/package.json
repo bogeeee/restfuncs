@@ -10,7 +10,7 @@
     "directory": "client"
   },
   "license": "MIT",
-  "main": "index.js",
+  "main": "./dist/commonjs/index.js",
   "exports": {
     ".": {
       "browser": "./dist/mjs/index.js",
