@@ -10,7 +10,7 @@
     "tests:memoryLeakTests": "clear && npm run dev:fastbuild && ulimit -d 500000 && node --expose-gc node_modules/jest/bin/jest --runInBand --testPathIgnorePatterns=\".*\\.ts\" --testPathPattern=\".*memoryLeak.*\"",
     "dev:playground": "tsx devPlayground.ts",
     "clean": "npm run --prefix transformer clean && npm run --prefix common clean && npm run --prefix client clean && npm run --prefix server clean && npm run --prefix tests/clientServer clean",
-    "build": "npm run --prefix transformer build && npm run --prefix common build && npm run --prefix client build && npm run --prefix server build",
+    "build": "npm run --prefix common build && npm run --prefix transformer build && npm run --prefix client build && npm run --prefix server build",
     "install": "npm install --ignore-scripts && echo \"<-- FIX: When npm install is typed from under the examples dir in a fresh cloned repo, it only wants to install its own packages (but still this prepublish script is triggerd, strangely) - so we force it to install the packages from all workspaces\"",
     "prepublish": "npm run clean && npm run build && ncp LICENSE transformer/LICENSE && ncp LICENSE common/LICENSE && ncp LICENSE client/LICENSE && ncp LICENSE server/LICENSE && ncp readme.md common/readme.md && ncp readme.md client/readme.md && ncp readme.md server/readme.md",
     "publish:npmlogin": "npm login",
