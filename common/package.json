@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-common",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "Common type declarations for restfuncs-client and restfuncs-server. Internal",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
