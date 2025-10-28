@@ -14,10 +14,21 @@
   "exports": {
     ".": {
       "import": "./index_esm.mjs",
-      "require": "./index.js"
+      "require": "./dist/commonjs/index.js"
     },
+    "./__the_following_entries_are_for_development_for_jest_with_commonjs__": {},
+    "./__Util_is_also_used_by_tests-crossSiteSecurity__": {},
     "./Util": {
-      "default": "./Util.js"
+      "default": "./dist/commonjs/Util.js"
+    },
+    "./Server": {
+      "require": "./dist/commonjs/Server.js"
+    },
+    "./ServerSession": {
+      "require": "./dist/commonjs/ServerSession.js"
+    },
+    "./CommunicationError": {
+      "require": "./dist/commonjs/CommunicationError.js"
     }
   },
   "scripts": {

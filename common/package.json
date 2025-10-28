@@ -14,7 +14,12 @@
   "exports": {
     ".": {
       "browser": "./dist/mjs/index.js",
-      "default": "./index.js"
+      "import": "./dist/mjs/index.js",
+      "require": "./dist/commonjs/index.js"
+    },
+    "./__The_following_is_used_by__server-index_esm.js__": {},
+    "./dist/commonjs/index.js": {
+      "default": "./dist/commonjs/index.js"
     }
   },
   "scripts": {

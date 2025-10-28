@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "dist/commonjs",
     "target": "ES2017",
     "module": "CommonJS",
     "lib": [
