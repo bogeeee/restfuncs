@@ -29,10 +29,10 @@
   },
   "dependencies": {
     "readable-stream": "^4.5.2",
-    "@types/readable-stream": "^4.0.15",
     "underscore": "^1.13.3"
   },
   "devDependencies": {
+    "@types/readable-stream": "^4.0.15",
     "typescript": "5.x",
     "rimraf": "=5.0.5"
   }
