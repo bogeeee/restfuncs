@@ -186,7 +186,7 @@ console.log( await myRemoteSession.myRemoteMethod("Hans") ); // Call your remote
 **tsconfig.json**
 ````json
 "compilerOptions": {
-    "moduleResolution": "node",
+    "moduleResolution": "nodenext",
     "experimentalDecorators": true,
     "strictNullChecks": true,
     "sourceMap": true, //optional, recommended
