@@ -11,10 +11,13 @@
   },
   "license": "MIT",
   "main": "./dist/commonjs/index.js",
+  "module": "./index_esm.mjs",
+  "types": "./dist/types/index.js",
   "exports": {
     ".": {
       "import": "./index_esm.mjs",
-      "require": "./dist/commonjs/index.js"
+      "require": "./dist/commonjs/index.js",
+      "types": "./dist/commonjs/index.d.ts"
     },
     "./__the_following_entries_are_for_development_for_jest_with_commonjs__": {},
     "./__Util_is_also_used_by_tests-crossSiteSecurity__": {},
