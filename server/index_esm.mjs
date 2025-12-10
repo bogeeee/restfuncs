@@ -25,6 +25,7 @@ export const free = cjsServerSession.free
 
 import cjsServerSocketConnection from "./dist/commonjs/ServerSocketConnection.js";
 export const DownCallError = cjsServerSocketConnection.DownCallError
+export const ServerSocketConnection = cjsServerSocketConnection.ServerSocketConnection
 
 import cjsClientCallbackSet from "./dist/commonjs/util/ClientCallbackSet.js"
 export const ClientCallbackSet = cjsClientCallbackSet.ClientCallbackSet
