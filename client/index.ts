@@ -596,7 +596,7 @@ export class RestfuncsClient<S extends IServerSession> {
                 throw new Error(`A (callback-) function was found inside your arguments of ${remoteMethodName}: args${context!.diagnosis_path}. Callback functions are only possible with (web-) sockets. ${this.diagnosis_whyNoSocketsAvailable()}`)
             }
             return visitChilds(value, context);
-        }, "onError");
+        }, {trackPath: "onError"});
     }
 
     private diagnosis_whyNoSocketsAvailable() {

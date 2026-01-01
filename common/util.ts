@@ -15,6 +15,13 @@ function diagnosis_jsonPath(key: unknown) {
     return `.${key}`;
 }
 
+type VisitReplaceOptions = {
+    /**
+     * whether to pass on the context object. This hurts performance because the path is concatted every time, so use it only when needed. Setting this to "onError" re-executes the visitprelace with trackPath when an error was thrown
+     */
+    trackPath?: boolean | "onError",
+}
+
 /**
  * Usage:
  *  <pre><code>
@@ -25,9 +32,8 @@ function diagnosis_jsonPath(key: unknown) {
  *
  * @param value
  * @param visitor
- * @param trackPath whether to pass on the context object. This hurts performance because the path is concatted every time, so use it only when needed. Setting this to "onError" re-executes the visitprelace with the concetxt when an error was thrown
  */
-export function visitReplace<O extends object>(value: O, visitor: (value: unknown, visitChilds: (value: unknown, context: VisitReplaceContext) => unknown, context: VisitReplaceContext) => unknown , trackPath: boolean | "onError" = false): O {
+export function visitReplace<O extends object>(value: O, visitor: (value: unknown, visitChilds: (value: unknown, context: VisitReplaceContext) => unknown, context: VisitReplaceContext) => unknown , options: VisitReplaceOptions= {}): O {
     const visisitedObjects = new Set<object>()
 
     function visitChilds(value: unknown, context: VisitReplaceContext) {
@@ -36,7 +42,7 @@ export function visitReplace<O extends object>(value: O, visitor: (value: unknow
         }
         else if(typeof value === "object") {
             const obj = value as object;
-            if(visisitedObjects.has(obj)) {
+            if (visisitedObjects.has(obj)) {
                 return value; // don't iterate again
             }
             visisitedObjects.add(obj);
@@ -54,16 +60,16 @@ export function visitReplace<O extends object>(value: O, visitor: (value: unknow
         return value;
     }
 
-    if(trackPath === "onError") {
+    if(options.trackPath === "onError") {
         try {
             return visitor(value,  visitChilds, {}) as O; // Fast try without context
         }
         catch (e) {
-            return visitReplace(value,  visitor, true); // Try again with context
+            return visitReplace(value,  visitor, {...options, trackPath: true}); // Try again with context
         }
     }
 
-    return visitor(value, visitChilds,{diagnosis_path: trackPath?"":undefined}) as O;
+    return visitor(value, visitChilds,{diagnosis_path: options.trackPath?"":undefined}) as O;
 }
 
 /**
