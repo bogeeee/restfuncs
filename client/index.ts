@@ -607,6 +607,10 @@ export class RestfuncsClient<S extends IServerSession> {
             return "Sockets were not enabled on the server. Please use restfuncsExpress() instead of express() or check the ServerOptions#installEngineIoServer setting (but this should be already enabled by default)"
         }
     }
+
+    toJSON() {
+        return JSON.stringify({}); // Don't make toJSON go deeper and hit this.proxy.toJSON and trigger remote calls
+    }
 }
 
 export type RestfuncsClientOptions = Partial<Pick<RestfuncsClient<any>, "useSocket" | "shareSocketConnections" | "csrfProtectionMode" | "method">>
