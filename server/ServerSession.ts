@@ -26,10 +26,11 @@ import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
-import type {Readable as Readable_fromNodePackage} from "node:stream";
+import {Readable as Readable_fromNodePackage} from "node:stream";
 import type {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
-import {CommunicationError, isCommunicationError} from "./CommunicationError";
+import type {UploadFile} from "restfuncs-common";
 import busboy from "busboy";
+import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
     CookieSession, CookieSessionState,
@@ -772,7 +773,7 @@ export class ServerSession implements IServerSession {
                 }
 
                 // Collect params / metaParams,...:
-                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = this.collectParamsFromRequest(remoteMethodName, req);
+                const {methodArguments, metaParams, cleanupStreamsAfterRequest: c} = await this.collectParamsFromRequest(remoteMethodName, req);
                 cleanupStreamsAfterRequest = c;
 
                 // Collect / pre-compute securityProperties:
@@ -1424,7 +1425,7 @@ export class ServerSession implements IServerSession {
      * @param methodName
      * @param req
      */
-    protected static collectParamsFromRequest(methodName: string, req: Request) {
+    protected static async collectParamsFromRequest(methodName: string, req: Request) {
         // Determine path tokens:
         const url = URL.parse(req.url);
         const relativePath =  req.path.replace(/^\//, ""); // Path, relative to baseurl, with leading / removed
@@ -1582,8 +1583,119 @@ export class ServerSession implements IServerSession {
                 convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
             }
             else if(contentType == "multipart/form-data") {
-                throw new CommunicationError("multipart/form-data file uploads not yet implemented")
-                //let bb = busboy({ headers: req.headers });
+                // Security limits to prevent DoS attacks
+                const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB per file
+                const MAX_FILES = 10;
+                const MAX_FIELDS = 100;
+                const MAX_TOTAL_PARTS = 1000;
+                const MAX_HEADER_PAIRS = 2000;
+
+                // Create a Readable stream from the buffer for busboy to consume
+                const bufferStream = Readable_fromNodePackage.from(req.body);
+
+                const bb = busboy({
+                    headers: {
+                        'content-type': req.header("Content-Type")
+                    },
+                    limits: {
+                        fileSize: MAX_FILE_SIZE,
+                        files: MAX_FILES,
+                        fields: MAX_FIELDS,
+                        parts: MAX_TOTAL_PARTS,
+                        headerPairs: MAX_HEADER_PAIRS,
+                    }
+                });
+
+                const multipartResult: Record<string, unknown> = {};
+                let fileCount = 0;
+                let fieldCount = 0;
+
+                await new Promise<void>((resolve, reject) => {
+                    const handleError = (err: Error) => {
+                        bufferStream.destroy();
+                        reject(new CommunicationError(`Error parsing multipart/form-data: ${err.message}`));
+                    };
+
+                    bb.on('file', (fieldName: string, file: Readable_fromNodePackage, info: { filename: string; encoding: string; mimeType: string }) => {
+                        const { filename, mimeType } = info;
+
+                        if (fileCount >= MAX_FILES) {
+                            file.resume(); // Drain and ignore
+                            return;
+                        }
+                        fileCount++;
+
+                        const chunks: Buffer[] = [];
+                        let fileSize = 0;
+
+                        file.on('data', (chunk: Buffer) => {
+                            fileSize += chunk.length;
+                            if (fileSize > MAX_FILE_SIZE) {
+                                file.destroy();
+                                handleError(new Error(`File "${filename}" exceeds maximum size of ${MAX_FILE_SIZE} bytes`));
+                                return;
+                            }
+                            chunks.push(chunk);
+                        });
+
+                        file.on('close', () => {
+                            // Store file as an UploadFile object with the buffered content
+                            const fileBuffer = Buffer.concat(chunks);
+                            multipartResult[fieldName] = {
+                                createReadStream: () => Readable_fromNodePackage.from(fileBuffer)
+                            } as UploadFile;
+                        });
+
+                        file.on('error', (err: Error) => {
+                            handleError(new Error(`Error reading file "${filename}": ${err.message}`));
+                        });
+                    });
+
+                    bb.on('field', (fieldName: string, value: string) => {
+                        if (fieldCount >= MAX_FIELDS) {
+                            return;
+                        }
+                        fieldCount++;
+
+                        if (multipartResult[fieldName] !== undefined) {
+                            // Multiple values for same field
+                            if (Array.isArray(multipartResult[fieldName])) {
+                                (multipartResult[fieldName] as string[]).push(value);
+                            } else {
+                                multipartResult[fieldName] = [multipartResult[fieldName], value];
+                            }
+                        } else {
+                            multipartResult[fieldName] = value;
+                        }
+                    });
+
+                    bb.on('close', () => {
+                        resolve();
+                    });
+
+                    bb.on('error', (err: Error) => {
+                        handleError(err);
+                    });
+
+                    bb.on('filesLimit', () => {
+                        handleError(new Error(`Too many files (limit: ${MAX_FILES})`));
+                    });
+
+                    bb.on('fieldsLimit', () => {
+                        handleError(new Error(`Too many fields (limit: ${MAX_FIELDS})`));
+                    });
+
+                    bb.on('partsLimit', () => {
+                        handleError(new Error(`Too many parts (limit: ${MAX_TOTAL_PARTS})`));
+                    });
+
+                    bb.on('error', handleError);
+
+                    // Pipe the buffer stream to busboy
+                    bufferStream.pipe(bb);
+                });
+
+                convertAndAddParams(multipartResult, null);
             }
             else if(contentType == "application/octet-stream") { // Stream ?
                 convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
