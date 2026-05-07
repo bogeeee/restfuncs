@@ -677,7 +677,7 @@ export class ServerSocketConnection {
 
         const methodDownCallpromise = this.methodDownCallPromises.get(resultFromClient.callId);
         if(!methodDownCallpromise) {
-            throw new Error( `MethodDownCallPromise for callId: ${resultFromClient.callId} does not exist.`);
+            throw new Error( `MethodDownCallPromise for callId: ${resultFromClient.callId} does not exist. Make sure, you're not passing an async function as callback which is declared sync on the server side. I.e. The server declares  @remote myRemoteMethod( progressCallback: () => void ) but you're somehow passing an async function to progressCallback`);
         }
         this.methodDownCallPromises.delete(resultFromClient.callId);
         methodDownCallpromise.resolve(resultFromClient);
