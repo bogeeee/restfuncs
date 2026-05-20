@@ -1,6 +1,6 @@
 import { tags } from "typia";
 import 'reflect-metadata'
-import {ClientCallback, ServerSession} from "restfuncs-server";
+import {ClientCallback, ClientCallbackSet, ServerSession} from "restfuncs-server";
 import {withTrim} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
@@ -781,6 +781,21 @@ describe("callbacks", () => {
             withTrim(cb)(objWithExtraProps);
             return objWithExtraProps.extraProp === "extra"; // is still intact ?
         }
+
+        @remote()
+        withTrimCanBeRemovedFromCallbackSet(cb: (obj: {x: string}) => void) {
+            const callbackSet = new ClientCallbackSet<[obj: {x: string}]>();
+            const added = withTrim(cb);
+            const removed = withTrim(cb);
+
+            callbackSet.add(added);
+
+            return {
+                sameWrapper: added === removed,
+                removed: callbackSet.remove(removed),
+                size: callbackSet.size,
+            };
+        }
     }
 
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
@@ -926,6 +941,16 @@ describe("callbacks", () => {
 
     test("withTrim should not modify the original object", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         expect(await apiProxy.withTrimLeavesOriginalObjectIntact((dumny: any) => {})).toBeTruthy();
+    }, {
+        useSocket: true
+    }));
+
+    test("withTrim should return stable wrappers for callback registries", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        await expect(apiProxy.withTrimCanBeRemovedFromCallbackSet((dummy: any) => {})).resolves.toStrictEqual({
+            sameWrapper: true,
+            removed: true,
+            size: 0,
+        });
     }, {
         useSocket: true
     }));
