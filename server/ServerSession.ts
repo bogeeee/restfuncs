@@ -2919,7 +2919,7 @@ export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, me
  */
 export function free(resource: (...args: any[]) => any | Readable_fromNodePackage | Readable_fromReadableStreamPackage | ReadableStream | ReadableStreamDefaultReader) { // TODO: list writables
     if(typeof resource === "function") {
-        const clientCallback = resource as ClientCallback;
+        const clientCallback = (resource as Partial<WithTrimmedClientCallback>)[withTrimSourceCallback] ?? (resource as ClientCallback);
         if(clientCallback.socketConnection === undefined) { //
             throw new Error("The passed argument is not a client callback function.")
         }
@@ -2931,6 +2931,21 @@ export function free(resource: (...args: any[]) => any | Readable_fromNodePackag
 }
 
 export type UnknownFunction = (...args: unknown[]) => unknown
+
+const withTrimSourceCallback = Symbol("withTrimSourceCallback");
+
+type WithTrimmedClientCallback = ClientCallback & {
+    [withTrimSourceCallback]: ClientCallback;
+};
+
+type WithTrimCacheEntry = {
+    trimArguments: boolean;
+    trimResult: boolean;
+    useSignatureFrom?: UnknownFunction;
+    wrapped: WithTrimmedClientCallback;
+}
+
+const withTrimCache = new WeakMap<ClientCallback, WithTrimCacheEntry[]>();
 
 /**
  * Returns a version where, during call, extra properties get trimmed off the arguments or result, so they don't produce a validation error.
@@ -2949,9 +2964,8 @@ export type UnknownFunction = (...args: unknown[]) => unknown
  * </code></pre>
  *
  * <p>
- *     Note: withTrim creates a new function instance every time. So i.e. you can't hand these to addEventListener(...) + removeEventListener(...) registries then.
- *     TODO: This could be improved for convenience. But is it really worth it ? Star this issue then: https://github.com/bogeeee/restfuncs/issues/8
- *     TODO: In that case, also make the util/EventEmitter class's resource-freeing mechanism aware of these derivatives.
+ *     Note: withTrim returns the same wrapped function instance when called repeatedly with the same callback and options.
+ *     This allows it to be used with addEventListener(...) + removeEventListener(...) style registries.
  * </p>
  * @param callbackFn
  * @param trimArguments
@@ -2977,11 +2991,36 @@ export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArgumen
     }
 
     const clientCallback = callbackFn as any as ClientCallback;
+    let entries = withTrimCache.get(clientCallback);
+    if(entries === undefined) {
+        entries = [];
+        withTrimCache.set(clientCallback, entries);
+    }
+
+    const existing = entries.find(entry =>
+        entry.trimArguments === trimArguments &&
+        entry.trimResult === trimResult &&
+        entry.useSignatureFrom === useSignatureFrom
+    );
+    if(existing !== undefined) {
+        return existing.wrapped as any as CB;
+    }
 
     //@ts-ignore
-    return (...args: unknown[]) => {
+    const wrapped: WithTrimmedClientCallback = ((...args: unknown[]) => {
         return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
-    }
+    }) as WithTrimmedClientCallback;
+    wrapped[withTrimSourceCallback] = clientCallback;
+    wrapped._type = clientCallback._type;
+    wrapped.id = clientCallback.id;
+    wrapped.socketConnection = clientCallback.socketConnection;
+    wrapped.free = () => free(clientCallback);
+    wrapped._handedUpViaRemoteMethods = clientCallback._handedUpViaRemoteMethods;
+    wrapped._validateAndCall = (args, _trimArguments, _trimResult, _useSignatureForTrim, diagnosis) =>
+        clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom, diagnosis);
+
+    entries.push({trimArguments, trimResult, useSignatureFrom, wrapped});
+    return wrapped as any as CB;
 }
 
 /**
