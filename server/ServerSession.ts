@@ -1582,8 +1582,48 @@ export class ServerSession implements IServerSession {
                 convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
             }
             else if(contentType == "multipart/form-data") {
-                throw new CommunicationError("multipart/form-data file uploads not yet implemented")
-                //let bb = busboy({ headers: req.headers });
+                // Busboy-based multipart parser with resource limits
+                const bb = busboy({
+                    headers: req.headers,
+                    limits: {
+                        fileSize: 50 * 1024 * 1024,   // 50 MB max file
+                        files: 10,                      // max 10 files
+                        parts: 100,                     // max 100 fields+files
+                        fieldSize: 1024 * 1024,         // 1 MB max field
+                    },
+                });
+                const fields: Record<string, any> = {};
+                const uploads: Buffer[] = [];
+
+                await new Promise<void>((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new CommunicationError("multipart upload timeout")), 30000);
+
+                    bb.on("field", (name: string, value: string) => {
+                        fields[name] = value;
+                    });
+
+                    bb.on("file", (_name: string, stream: any, info: any) => {
+                        const chunks: Buffer[] = [];
+                        stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+                        stream.on("end", () => {
+                            uploads.push(Buffer.concat(chunks));
+                        });
+                        stream.on("limit", () => stream.resume()); // drain on size limit
+                    });
+
+                    bb.on("finish", () => {
+                        clearTimeout(timer);
+                        resolve();
+                    });
+                    bb.on("error", (err: Error) => {
+                        clearTimeout(timer);
+                        reject(err);
+                    });
+
+                    bb.end(req.body);
+                });
+
+                convertAndAddParams({ ...fields, files: uploads }, "json");
             }
             else if(contentType == "application/octet-stream") { // Stream ?
                 convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
