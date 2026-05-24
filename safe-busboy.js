@@ -3,32 +3,39 @@
 const busboy = require('busboy');
 
 /**
- * Safe wrapper around busboy with security guarantees:
- * - File size limit (default 10MB)
- * - Field size limit (default 1MB)  
+ * Safe wrapper around busboy with security guarantees.
+ *
+ * Limits enforced at stream level (busboy built-in) + wrapper level:
+ * - File size limit (default 10MB) — stream truncated
+ * - Field size limit (default 1MB) — stream truncated
  * - File count limit (default 20)
  * - Field count limit (default 100)
  * - Timeout (default 30s)
  * - Allowed MIME types whitelist
- * - Field name sanitization
  *
  * All limits are configurable. The wrapper is side-effect free
  * (no filesystem, no network, no globals).
  */
 function createSafeBusboy(req, options = {}) {
-  const opts = {
+  const maxFileSize = options.maxFileSize || 10 * 1024 * 1024;
+  const maxFieldSize = options.maxFieldSize || 1 * 1024 * 1024;
+  const maxFiles = options.maxFiles || 20;
+  const maxFields = options.maxFields || 100;
+
+  // Pass limits to busboy's built-in stream-level enforcement
+  const bb = busboy({
+    headers: req.headers,
     limits: {
-      fileSize: options.maxFileSize || 10 * 1024 * 1024,
-      fieldSize: options.maxFieldSize || 1 * 1024 * 1024,
-      files: options.maxFiles || 20,
-      fields: options.maxFields || 100,
+      fileSize: maxFileSize,
+      fieldSize: maxFieldSize,
+      files: maxFiles,
+      fields: maxFields,
       fieldNameSize: 100,
     },
-    timeout: options.timeout || 30000,
-    allowedMimeTypes: options.allowedMimeTypes || null,
-  };
+  });
 
-  const bb = busboy({ headers: req.headers });
+  const timeout = options.timeout || 30000;
+  const allowedMimeTypes = options.allowedMimeTypes || null;
 
   let fileCount = 0;
   let fieldCount = 0;
@@ -39,7 +46,7 @@ function createSafeBusboy(req, options = {}) {
     aborted = true;
     req.unpipe(bb);
     bb.emit('error', new Error('Request timeout'));
-  }, opts.timeout);
+  }, timeout);
 
   const abort = () => {
     if (!aborted) {
@@ -51,26 +58,23 @@ function createSafeBusboy(req, options = {}) {
 
   bb.on('file', (fieldname, file, filename, encoding, mimetype) => {
     fileCount++;
-    
-    // Check file count limit
-    if (fileCount > opts.limits.files) {
+    if (fileCount > maxFiles) {
       abort();
-      file.resume();
+      file.resume(); // drain the stream
       return;
     }
-    
-    // Check MIME type whitelist
-    if (opts.allowedMimeTypes && !opts.allowedMimeTypes.includes(mimetype)) {
+
+    if (allowedMimeTypes && !allowedMimeTypes.includes(mimetype)) {
       abort();
       file.resume();
-      bb.emit('error', new Error(`File type not allowed: ${mimetype}`));
+      bb.emit('error', new Error('File type not allowed: ' + mimetype));
       return;
     }
   });
 
   bb.on('field', () => {
     fieldCount++;
-    if (fieldCount > opts.limits.fields) {
+    if (fieldCount > maxFields) {
       abort();
     }
   });
