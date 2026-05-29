@@ -29,7 +29,6 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import type {Readable as Readable_fromNodePackage} from "node:stream";
 import type {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
     CookieSession, CookieSessionState,
@@ -1583,7 +1582,6 @@ export class ServerSession implements IServerSession {
             }
             else if(contentType == "multipart/form-data") {
                 throw new CommunicationError("multipart/form-data file uploads not yet implemented")
-                //let bb = busboy({ headers: req.headers });
             }
             else if(contentType == "application/octet-stream") { // Stream ?
                 convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
