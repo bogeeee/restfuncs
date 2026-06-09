@@ -143,24 +143,40 @@ export class ClientCallbackSetPerItem<ITEM, PARAMS extends unknown[]> {
         }
         const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
 
+        let foundCallback: any = undefined;
         if(this.members !== undefined) {
             const forItem = this.members.get(item);
             if (forItem) {
-                forItem.delete(clientCallback);
-                if (forItem.size === 0) {
-                    this.members.delete(item);
+                if (forItem.has(clientCallback)) {
+                    foundCallback = clientCallback;
+                } else {
+                    for (const cb of forItem) {
+                        if ((cb as any).originalCallback === clientCallback) {
+                            foundCallback = cb;
+                            break;
+                        }
+                    }
                 }
 
-                const entriesForClient = this.entriesPerClient.get(clientCallback.socketConnection);
-                entriesForClient!.delete(clientCallback); // also remove here
-                if (entriesForClient!.size === 0) { // Was the last one for the client?
-                    this.entriesPerClient.delete(clientCallback.socketConnection);
+                if (foundCallback !== undefined) {
+                    forItem.delete(foundCallback);
+                    if (forItem.size === 0) {
+                        this.members.delete(item);
+                    }
+
+                    const entriesForClient = this.entriesPerClient.get(foundCallback.socketConnection);
+                    if (entriesForClient !== undefined) {
+                        entriesForClient.delete(foundCallback); // also remove here
+                        if (entriesForClient.size === 0) { // Was the last one for the client?
+                            this.entriesPerClient.delete(foundCallback.socketConnection);
+                        }
+                    }
                 }
             }
         }
 
         if(this.common.freeOnClientImmediately) {
-            free(callback);
+            free(foundCallback || callback);
         }
     }
 

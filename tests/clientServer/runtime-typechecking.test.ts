@@ -1,7 +1,7 @@
 import { tags } from "typia";
 import 'reflect-metadata'
-import {ClientCallback, ServerSession} from "restfuncs-server";
-import {withTrim} from "restfuncs-server/ServerSession";
+import {ClientCallback, ServerSession, ClientCallbackSet, ClientCallbackSetPerItem} from "restfuncs-server";
+import {withTrim, free, isClientCallback} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
@@ -781,6 +781,83 @@ describe("callbacks", () => {
             withTrim(cb)(objWithExtraProps);
             return objWithExtraProps.extraProp === "extra"; // is still intact ?
         }
+
+        @remote()
+        testWithTrimIdentities(cb: () => void) {
+            const w1 = withTrim(cb);
+            const w2 = withTrim(cb);
+            if (w1 !== w2) throw new Error("withTrim wrapper instances are not identical");
+            
+            const w3 = withTrim(cb, true, false);
+            const w4 = withTrim(cb, true, false);
+            if (w3 !== w4) throw new Error("withTrim wrapper instances with same custom options are not identical");
+            if (w1 === w3) throw new Error("withTrim wrapper instances with different options must not be identical");
+
+            const wNested = withTrim(w1);
+            if (wNested !== w1) throw new Error("nested withTrim should return the same wrapper instance");
+
+            // Test prototype chain:
+            if (Object.getPrototypeOf(w1) !== cb) throw new Error("wrapper prototype is not the original callback");
+            if ((w1 as any).originalCallback !== cb) throw new Error("originalCallback property does not point to original callback");
+            
+            // Check that isClientCallback works on wrapper:
+            if (!isClientCallback(w1)) throw new Error("wrapper is not recognized as client callback");
+
+            return "OK";
+        }
+
+        @remote()
+        async testClientCallbackSetRemovalWithWrapper(cb: () => void) {
+            const set = new ClientCallbackSet<[]>();
+            const w = withTrim(cb);
+            set.add(w);
+            if ((set.size as number) !== 1) throw new Error("Failed to add wrapper to Set");
+            
+            // Try removing by passing the original callback
+            const removed = set.delete(cb);
+            if (!removed || (set.size as number) !== 0) throw new Error("Failed to remove wrapper via original callback");
+            
+            // Add again
+            set.add(w);
+            if ((set.size as number) !== 1) throw new Error("Failed to add wrapper again");
+            
+            // Try removing by passing the wrapper itself
+            const removed2 = set.delete(w);
+            if (!removed2 || (set.size as number) !== 0) throw new Error("Failed to remove wrapper via wrapper itself");
+            
+            return "OK";
+        }
+
+        @remote()
+        async testClientCallbackSetPerItemRemovalWithWrapper(cb: () => void) {
+            const set = new ClientCallbackSetPerItem<string, []>();
+            const w = withTrim(cb);
+            set.add("item1", w);
+            if (set.getCallbacksFor("item1").size !== 1) throw new Error("Failed to add wrapper to PerItem Set");
+            
+            // Try removing by passing the original callback
+            set.delete("item1", cb);
+            if (set.getCallbacksFor("item1").size !== 0) throw new Error("Failed to remove wrapper from PerItem Set via original callback");
+            
+            // Add again
+            set.add("item1", w);
+            if (set.getCallbacksFor("item1").size !== 1) throw new Error("Failed to add wrapper again to PerItem Set");
+            
+            // Try removing by passing the wrapper itself
+            set.delete("item1", w);
+            if (set.getCallbacksFor("item1").size !== 0) throw new Error("Failed to remove wrapper from PerItem Set via wrapper itself");
+            
+            return "OK";
+        }
+
+        @remote()
+        async testFreeWithWrapper(cb: () => void) {
+            const w = withTrim(cb);
+            // Calling free(w) should unwrap it and call freeClientCallback(cb) which deletes cb.id
+            free(w);
+            if ((cb as any).id !== undefined) throw new Error("free(wrapper) failed to delete callback ID");
+            return "OK";
+        }
     }
 
     it("should allow legal args in a simple callback", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
@@ -926,6 +1003,30 @@ describe("callbacks", () => {
 
     test("withTrim should not modify the original object", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
         expect(await apiProxy.withTrimLeavesOriginalObjectIntact((dumny: any) => {})).toBeTruthy();
+    }, {
+        useSocket: true
+    }));
+
+    test("withTrim wrapper identity and caching", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.testWithTrimIdentities(() => {})).toBe("OK");
+    }, {
+        useSocket: true
+    }));
+
+    test("ClientCallbackSet removal with wrapper", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.testClientCallbackSetRemovalWithWrapper(() => {})).toBe("OK");
+    }, {
+        useSocket: true
+    }));
+
+    test("ClientCallbackSetPerItem removal with wrapper", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.testClientCallbackSetPerItemRemovalWithWrapper(() => {})).toBe("OK");
+    }, {
+        useSocket: true
+    }));
+
+    test("free with wrapper", () => runClientServerTests(new ServerAPI, async (apiProxy) => {
+        expect(await apiProxy.testFreeWithWrapper(() => {})).toBe("OK");
     }, {
         useSocket: true
     }));

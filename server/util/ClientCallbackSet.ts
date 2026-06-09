@@ -78,18 +78,35 @@ export class ClientCallbackSet<PARAMS extends unknown[]> extends Set<(...args: P
 
     delete(callback: (...args: PARAMS) => unknown): boolean {
         const clientCallback = this.common.checkIsSocketAssociatedCallbackFunction(callback);
-        const entriesForClient = this.entriesPerClient.get(clientCallback.socketConnection);
-        if(entriesForClient !== undefined) {
-            entriesForClient.delete(clientCallback);
-            if(entriesForClient.size === 0) { // Was the last one for the client?
-                this.entriesPerClient.delete(clientCallback.socketConnection);
+        
+        let foundCallback: any = undefined;
+        if (this.has(callback)) {
+            foundCallback = callback;
+        } else {
+            for (const cb of this) {
+                if ((cb as any).originalCallback === clientCallback) {
+                    foundCallback = cb;
+                    break;
+                }
             }
         }
 
-        const result = super.delete(callback);
+        if (foundCallback === undefined) {
+            return false;
+        }
+
+        const entriesForClient = this.entriesPerClient.get(foundCallback.socketConnection);
+        if(entriesForClient !== undefined) {
+            entriesForClient.delete(foundCallback);
+            if(entriesForClient.size === 0) { // Was the last one for the client?
+                this.entriesPerClient.delete(foundCallback.socketConnection);
+            }
+        }
+
+        const result = super.delete(foundCallback);
 
         if(this.common.freeOnClientImmediately) {
-            free(callback);
+            free(foundCallback);
         }
 
         return result;

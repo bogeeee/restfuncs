@@ -38,12 +38,13 @@ export class ReceivedChannelItems extends WeakValueMap<number, object>{
     }
 
     free(item: any) {
-        item.id !== undefined && typeof item.id === "number" || throwError(`Value does not seem to be a ${DIAGNOSIS_WHATISACHANNELITEM}`);
+        const id = item.id;
+        id !== undefined && typeof id === "number" || throwError(`Value does not seem to be a ${DIAGNOSIS_WHATISACHANNELITEM}`);
         delete(item.id);
         if(!this.socketConnection.isClosed()) {
             this.socketConnection.sendMessage({
                 type: "channelItemNotUsedAnymore",
-                payload: {id: item.id, time: this.socketConnection.lastReceivedSequenceNumber}
+                payload: {id: id, time: this.socketConnection.lastReceivedSequenceNumber}
             });
         }
     }
