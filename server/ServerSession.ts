@@ -112,6 +112,13 @@ export type ClientCallbackProperties = {
      * @returns a Promise or undefined for callbacks where we know by the meta, that they are (sync) void
      */
     _validateAndCall: (args: unknown[], trimArguments: boolean, trimResult: boolean, useSignatureForTrim?: UnknownFunction, diagnosis?:{isFromClientCallbacks?:boolean, isFromClientCallbacks_CallForSure: boolean}) => unknown
+
+    _withTrimCache?: Array<{
+        trimArguments: boolean;
+        trimResult: boolean;
+        useSignatureFrom?: UnknownFunction;
+        wrapper: UnknownFunction;
+    }>;
 }
 
 /**
@@ -2919,7 +2926,7 @@ export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, me
  */
 export function free(resource: (...args: any[]) => any | Readable_fromNodePackage | Readable_fromReadableStreamPackage | ReadableStream | ReadableStreamDefaultReader) { // TODO: list writables
     if(typeof resource === "function") {
-        const clientCallback = resource as ClientCallback;
+        const clientCallback = ((resource as any).originalCallback || resource) as ClientCallback;
         if(clientCallback.socketConnection === undefined) { //
             throw new Error("The passed argument is not a client callback function.")
         }
@@ -2972,16 +2979,57 @@ export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArgumen
     if (typeof callbackFn !== "function") {
         throw new Error("Unsupported resource type")
     }
-    if(!isClientCallback(callbackFn)) {
+    const unwrapped = (callbackFn as any).originalCallback || callbackFn;
+    if(!isClientCallback(unwrapped)) {
         throw new Error("The passed argument is not a client callback function.");
     }
 
-    const clientCallback = callbackFn as any as ClientCallback;
+    const clientCallback = unwrapped as any as ClientCallback;
+
+    if(!clientCallback._withTrimCache) {
+        clientCallback._withTrimCache = [];
+    }
+    const cached = clientCallback._withTrimCache.find(entry =>
+        entry.trimArguments === trimArguments &&
+        entry.trimResult === trimResult &&
+        entry.useSignatureFrom === useSignatureFrom
+    );
+    if(cached) {
+        return cached.wrapper as any as CB;
+    }
 
     //@ts-ignore
-    return (...args: unknown[]) => {
+    const wrapper = (...args: unknown[]) => {
         return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
     }
+
+    Object.setPrototypeOf(wrapper, clientCallback);
+
+    Object.defineProperty(wrapper, "originalCallback", {
+        value: clientCallback,
+        writable: false,
+        configurable: false,
+        enumerable: false
+    });
+
+    wrapper._validateAndCall = (args: unknown[], trimArgs: boolean, trimRes: boolean, useSig?: UnknownFunction, diagnosis?: any) => {
+        return clientCallback._validateAndCall(
+            args,
+            trimArgs || trimArguments,
+            trimRes || trimResult,
+            useSig || useSignatureFrom,
+            diagnosis
+        );
+    }
+
+    clientCallback._withTrimCache.push({
+        trimArguments,
+        trimResult,
+        useSignatureFrom,
+        wrapper
+    });
+
+    return wrapper as any as CB;
 }
 
 /**
