@@ -63,8 +63,6 @@ export class ClientSocketConnection {
 
     protected onCloseListeners = new Set<(reason?: Error) => void>();
 
-    protected onCloseListeners = new Set<(reason?: Error) => void>();
-
     /**
      * Whether the process of fetching the getHttpCookieSessionAndSecurityProperties is currently running, so we won't start it twice.
      * The key is either the security group id or ServerSession id, depending on what's the server's preference. See Socket_MethodCallResult#needsHttpSecurityProperties#syncKey
