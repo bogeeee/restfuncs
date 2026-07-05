@@ -298,3 +298,13 @@ export function cloneError(e: any): ErrorWithExtendedInfo {
         ...e // try everything else that's accessible as properties
     }
 }
+
+export function validUnless(message: string, validIf: boolean) {
+    if(!validIf) {
+        throw new Error(message);
+    }
+}
+
+export function throwError(message: string) {
+    throw new Error(message);
+}

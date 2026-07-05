@@ -596,3 +596,16 @@ export function diagnosis_hasDeepNullOrUndefined(obj: any): boolean {
 export function createSecureId() {
     return nacl_util.encodeBase64(nacl.randomBytes(32))
 }
+
+export function validUnless(message: string, condition: boolean) {
+    if(!condition) {
+        throw new Error(message);
+    }
+}
+
+export function throwError(e: string | Error) {
+    if(e !== null && e instanceof Error) {
+        throw e;
+    }
+    throw new Error(e);
+}

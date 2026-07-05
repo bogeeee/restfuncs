@@ -3,6 +3,9 @@ import {Readable} from "node:stream"
 export * from "./util";
 export {WeakValueMap} from "./WeakValueMap";
 import {BreakPoints} from "./BreakPoints";
+export * from "./hybridstreams";
+export * from "./ReceivedChannelItems";
+export * from "./TrackedSentChanelItems";
 
 export const _testForRaceCondition_breakPoints = new BreakPoints();
 
@@ -105,8 +108,8 @@ export type Socket_Client2ServerMessage = {
      * Incremented on every call (by the client) to help put things in the proper timely order and prevent race condition bugs.
      */
     sequenceNumber: number
-    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession" | "methodDownCallResult"
-    payload: Socket_MethodCall | unknown
+    type: "methodCall" | "getVersion" | "updateHttpSecurityProperties" | "setCookieSession" | "methodDownCallResult" | "channelItemNotUsedAnymore" | "streamDataRequest" | "streamData";
+    payload: Socket_MethodCall | Socket_ChannelItemNotUsedAnymore | Socket_StreamDataRequest | Socket_StreamData | unknown
 }
 
 export type Socket_MethodCall = {
@@ -122,8 +125,12 @@ export type Socket_MethodCall = {
 }
 
 export type Socket_Server2ClientMessage = {
-    type: "init" | "methodCallResult" | "getVersion" | "downCall" | "channelItemNotUsedAnymore"
-    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall | Socket_ChannelItemNotUsedAnymore
+    /**
+     * Incremented on every call (by the client) to help put things in the proper timely order and prevent race condition bugs.
+     */
+    sequenceNumber: number
+    type: "init" | "methodCallResult" | "getVersion" | "downCall" | "channelItemNotUsedAnymore" | "streamDataRequest" | "streamData"
+    payload: Socket_Server2ClientInit | Socket_MethodUpCallResult | Socket_DownCall | Socket_StreamDataRequest | Socket_StreamData | Socket_ChannelItemNotUsedAnymore
 }
 
 /**
@@ -293,6 +300,41 @@ export type Socket_ChannelItemNotUsedAnymore = {
      * Include lastSequenceNumberFromClient
      */
     time: number;
+}
+
+export type Socket_StreamDataRequest = {
+    /**
+     * Id of the channel item (the Readable)
+     */
+    id: number;
+
+    /**
+     * Like in Readable._read
+     */
+    size: number;
+}
+
+export type Socket_StreamData = {
+    /**
+     * Id of the channel item (the Readable / Writable)
+     */
+    id: number;
+
+    /**
+     * String or base64 encoded string from buffer, or null when the end of the stream is reached / stream is closed
+     * TODO: Implement better binary protocol
+     */
+    data: string | null;
+
+    /**
+     * When set to "buffer", then data is a buffer, encoded as base64 string
+     */
+    encoding: BufferEncoding | string
+
+    /**
+     * If the stream errored
+     */
+    error?: object
 }
 
 /**

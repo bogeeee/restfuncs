@@ -1,5 +1,5 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, DropConcurrentOperationMap, DropConcurrentOperation} from "./Util";
+import {isNode, DropConcurrentOperationMap, DropConcurrentOperation, throwError} from "./Util";
 import {RestfuncsClient, ServerError} from "./index";
 import {
     _testForRaceCondition_breakPoints,
@@ -9,13 +9,16 @@ import {
     IServerSession, ServerPrivateBox, Socket_ChannelItemNotUsedAnymore,
     Socket_Client2ServerMessage, Socket_DownCall,
     Socket_MethodUpCallResult, Socket_Server2ClientInit,
-    Socket_Server2ClientMessage
+    Socket_Server2ClientMessage, Socket_StreamData
 } from "restfuncs-common";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import _ from "underscore";
 import {ExternalPromise, fixErrorForJest, visitReplace} from "restfuncs-common";
 import clone from "clone";
+import {TrackedSentChannelItems} from "restfuncs-common";
+import {ReceivedChannelItems} from "restfuncs-common";
+
 
 class MethodCallPromise extends ExternalPromise<Socket_MethodUpCallResult> {
 
@@ -50,26 +53,15 @@ export class ClientSocketConnection {
      */
     protected initMessage = new ExternalPromise<Socket_Server2ClientInit>()
 
-    protected lastMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
+    lastReceivedSequenceNumber=-1;
+    lastSentMessageSequenceNumber = 0; // Or you could call it sequenceNumberGenerator
     protected callIdGenerator = 0;
-    protected dtoIdGenerator = 0;
     protected methodCallPromises = new Map<Number, MethodCallPromise>()
 
-    /**
-     * Channel items that were sent to the server and are currently up there
-     */
-    channelItemsOnServer = new Map<number, {
-        item: object,
-        /**
-         * The sequenceNumber **before** last sent up to the server.
-         */
-        lastTimeSent: number
-    }>()
+    protected receivedChannelItems = new ReceivedChannelItems(this)
+    protected trackedSentChannelItems = new TrackedSentChannelItems(this);
 
-    /**
-     * Adds an id to an (already used) item
-     */
-    channelItemIds = new WeakMap<object, number>();
+    protected onCloseListeners = new Set<(reason?: Error) => void>();
 
     protected onCloseListeners = new Set<(reason?: Error) => void>();
 
@@ -197,7 +189,7 @@ export class ClientSocketConnection {
     private cleanUp() {
         //Dereference resources, just to make sure. We just got a signal that something was wrong but don't know, if the socket is still open -> references this's listeners -> references this / prevents GC
         this.methodCallPromises.clear();
-        this.channelItemsOnServer.clear();
+        this.trackedSentChannelItems.items.clear();
         this.socket.removeAllListeners() // With no arg, does this really remove all listeners then ?
     }
 
@@ -253,20 +245,7 @@ export class ClientSocketConnection {
         }
     }
 
-    /**
-     * Creates one if if needed
-     * @param item
-     */
-    getChannelItemId(item: object) {
-        const existingId = this.channelItemIds.get(item);
-        if(existingId !== undefined) {
-            return existingId;
-        }
 
-        const newId = this.dtoIdGenerator++;
-        this.channelItemIds.set(item, newId);
-        return newId;
-    }
 
     /**
      * Scans args and replaces those items with DTOs and registers them on this.channelItemsOnServer (assuming, args gets definitely get sent to the server afterwards)
@@ -282,9 +261,8 @@ export class ClientSocketConnection {
                         throw new Error("Cannot use callbacks. Server version to old. Please upgrade the restfuncs-server to >=3.1")
                     }
 
-                    const id = this.getChannelItemId(item)
+                    const id = this.trackedSentChannelItems.registerItemBeforeSending(item);
                     const functionDTO: ClientCallbackDTO = {_dtoType: "ClientCallback", id};
-                    this.channelItemsOnServer.set(id, {item, lastTimeSent: this.lastMessageSequenceNumber});
 
                     numerOfFunctionDTOs++;
                     return functionDTO;
@@ -327,7 +305,7 @@ export class ClientSocketConnection {
      * Immediately returns without waiting for an ack.
      */
     setCookieSessionOnServer(getCookieSessionResult: ReturnType<IServerSession["getCookieSession"]>) {
-        this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "setCookieSession", payload: getCookieSessionResult.token})
+        this.sendMessage({type: "setCookieSession", payload: getCookieSessionResult.token})
         this.lastSetCookieSessionOnServer = getCookieSessionResult.state;
     }
 
@@ -347,7 +325,6 @@ export class ClientSocketConnection {
 
             //Send the call message to the server:
             this.sendMessage({
-                sequenceNumber: ++this.lastMessageSequenceNumber,
                 type: "methodCall",
                 payload: {
                     callId, serverSessionClassId, methodName, args
@@ -371,7 +348,7 @@ export class ClientSocketConnection {
             // (Somebody-) fetch the needed HttpSecurityProperties and update them on the server
             await this.fetchHttpSecurityPropertiesOp.exec(callResult.needsHttpSecurityProperties.syncKey, async () => {
                 const answer = await client.controlProxy_http.getHttpSecurityProperties(callResult.needsHttpSecurityProperties!.question);
-                this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "updateHttpSecurityProperties", payload: answer});
+                this.sendMessage({type: "updateHttpSecurityProperties", payload: answer});
             })
 
             callResult = await exec(); // Try again
@@ -413,13 +390,17 @@ export class ClientSocketConnection {
             throw callResult.result
         }
 
-        return callResult.result;
+        return this.receivedChannelItems.replaceDTOsAndTrackThem(callResult.result);
     }
 
 
-    protected sendMessage(message: Socket_Client2ServerMessage) {
+    /**
+     * Not part of the public API.
+     * @param message
+     */
+    public sendMessage(message: Omit<Socket_Client2ServerMessage, "sequenceNumber">) {
         this.checkFatal()
-        this.socket.send(this.serializeMessage(message))
+        this.socket.send(this.serializeMessage({...message, sequenceNumber: ++this.lastSentMessageSequenceNumber}));
     }
 
     protected deserializeMessage(data: string | Buffer): Socket_Server2ClientMessage {
@@ -435,37 +416,48 @@ export class ClientSocketConnection {
 
     /**
      *
-     * @param message The raw, evil value from the client.
+     * @param message
      * @protected
      */
     protected handleMessage(message: Socket_Server2ClientMessage) {
         //@ts-ignore An un-awaited async block is **needed for development** for _testForRaceCondition_breakPoints
         (async() => {
-            this.checkFatal()
+            try {
+                this.checkFatal()
 
-            // Switch on type:
-            if(message.type === "init") {
-                this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
-            }
-            else if(message.type === "methodCallResult") {
-                this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
-            }
-            else if(message.type === "getVersion") {
-                // Leave this for future extensibility / probing feature flags (don't throw an error)
-            }
-            else if(message.type === "downCall") {
-                this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
-            }
-            else if(message.type === "channelItemNotUsedAnymore") {
-                await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
-                const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
+                // Validate and fix sequenceNumber for older servers:
+                if (typeof message.sequenceNumber !== "number") {
+                    message.sequenceNumber = 0;
+                }
 
-                if(this.channelItemsOnServer.has(payload.id) && this.channelItemsOnServer.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
-                    //  Don't delete. Prevents race condition bug (see tests for it).
+                this.lastReceivedSequenceNumber = message.sequenceNumber;
+
+                // Switch on type:
+                if (message.type === "init") {
+                    this.initMessage.resolve(message.payload as Socket_Server2ClientInit);
+                } else if (message.type === "methodCallResult") {
+                    this.handleMethodCallResult(message.payload as Socket_MethodUpCallResult /* will be validated in method*/)
+                } else if (message.type === "getVersion") {
+                    // Leave this for future extensibility / probing feature flags (don't throw an error)
+                } else if (message.type === "downCall") {
+                    this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
+                } else if (message.type === "channelItemNotUsedAnymore") {
+                    await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
+                    const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
+
+                    if (this.trackedSentChannelItems.items.has(payload.id) && this.trackedSentChannelItems.items.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
+                        //  Don't delete. Prevents race condition bug (see tests for it).
+                    } else { // Normally:
+                        this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
+                    }
+                } else if (message.type === "streamData") {
+                    const payload = message.payload as Socket_StreamData;
+                    this.receivedChannelItems.handleStreamDataMessage(payload);
+
                 }
-                else { // Normally:
-                    this.channelItemsOnServer.delete(payload.id); // Delete it also here
-                }
+            }
+            catch (e: any) {
+                this.failFatal(e);
             }
         })();
     }
@@ -480,7 +472,7 @@ export class ClientSocketConnection {
     }
 
     protected handleDownCall(downCall: Socket_DownCall) {
-        const fnItem = this.channelItemsOnServer.get(downCall.callbackFnId)?.item;
+        const fnItem = this.trackedSentChannelItems.items.get(downCall.callbackFnId)?.item;
         if(!fnItem) {
             throw new Error(`Illegal state: ClientSocketConnection does not know of this callback item (id: ${downCall.callbackFnId})`)
         }
@@ -493,7 +485,7 @@ export class ClientSocketConnection {
                 fixErrorStack(error);
                 error = cloneError(error);
             }
-            this.sendMessage({sequenceNumber: ++this.lastMessageSequenceNumber, type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
+            this.sendMessage({type: "methodDownCallResult", payload: {callId: downCall.id, result, error}});
         }
 
         // Call it and handle error/result and send it back:

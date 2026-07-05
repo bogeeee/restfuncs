@@ -24,19 +24,23 @@ import {
     ChannelItemDTO,
     ClientCallbackDTO,
     Socket_DownCall,
-    Socket_DownCallResult, fixErrorForJest
+    Socket_DownCallResult, fixErrorForJest, Socket_ChannelItemNotUsedAnymore, Socket_StreamDataRequest
 } from "restfuncs-common";
 import _ from "underscore";
-import {Readable} from "node:stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
-import {cloneAndFixNonSerializeable, createSecureId, diagnisis_shortenValue} from "./Util";
+import {Readable, Writable} from "readable-stream";
+import {cloneAndFixNonSerializeable, createSecureId, diagnisis_shortenValue, throwError, validUnless} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";
 import nacl_util from "tweetnacl-util";
 import {ExternalPromise} from "restfuncs-common";
-import {WeakValueMap, fixErrorStack} from "restfuncs-common";
+import {fixErrorStack} from "restfuncs-common";
 import clone from "clone";
+import {ReceivedChannelItems} from "restfuncs-common";
+import {TrackedSentChannelItems} from "restfuncs-common";
+
+
 
 export class ServerSocketConnection {
     _id = crypto.randomBytes(16); // Length should resist brute-force over the network against a small pool of held connection-ids
@@ -44,7 +48,9 @@ export class ServerSocketConnection {
     socket: Socket
     public closeReason?:CloseReason;
 
-    lastSequenceNumberFromClient=-1;
+    lastReceivedSequenceNumber=-1;
+    lastSentMessageSequenceNumber=0;
+
 
     /**
      * The raw cookie-session values that were obtained from a http call.
@@ -62,15 +68,8 @@ export class ServerSocketConnection {
 
     serverSessionClass2SecurityPropertiesOfHttpRequest?: Map<typeof ServerSession, Readonly<SecurityPropertiesOfHttpRequest>>
 
-    /**
-     * For worry-free feature: Remember the same function instances. This could be useful if you register/unregister a subscription. I.e. like in the browser's addEventListener / removeEventListener functions.
-     * id -> callback function
-     */
-    clientCallbacks = new WeakValueMap<number, ClientCallback>([], (id) => {
-        if(!this.isClosed()) {
-            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id, time: this.lastSequenceNumberFromClient} }); // Inform the client that the callback is not referenced anymore
-        }
-    });
+    protected receivedChannelItems = new ReceivedChannelItems(this)
+    protected trackedSentChannelItems = new TrackedSentChannelItems(this);
 
     protected downcallIdGenerator = 0;
 
@@ -180,9 +179,13 @@ export class ServerSocketConnection {
         return brilloutJsonStringify(message)
     }
 
-    protected sendMessage(message: Socket_Server2ClientMessage) {
+    /**
+     * Protected. Not part the of the API.
+     * @param message
+     */
+    sendMessage(message: Omit<Socket_Server2ClientMessage, "sequenceNumber">) {
         this.checkClosed();
-        this.socket.send(this.serializeMessage(message));
+        this.socket.send(this.serializeMessage({...message, sequenceNumber: ++this.lastSentMessageSequenceNumber}));
     }
 
     public failFatal(error: Error) {
@@ -211,7 +214,7 @@ export class ServerSocketConnection {
             message.sequenceNumber = 0;
         }
 
-        this.lastSequenceNumberFromClient = message.sequenceNumber;
+        this.lastReceivedSequenceNumber = message.sequenceNumber;
 
         // Switch on type:
         if(message.type === "methodCall") {
@@ -228,6 +231,28 @@ export class ServerSocketConnection {
         }
         else if(message.type === "setCookieSession") {
             this.setCookieSession(message.payload);
+        }
+        else if(message.type === "channelItemNotUsedAnymore") {
+            const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
+
+            typeof payload.id === "number" && typeof payload.time === "number"|| throwError("Invalid payload"); // Validity check
+
+            if(this.trackedSentChannelItems.items.has(payload.id) && this.trackedSentChannelItems.items.get(payload.id)!.lastTimeSent >= payload.time) { // Item was sent up again in the meanwhile and therefore is use again on the server?. Note: lastTimeSent has the message's time - 1, cause it's composed beforehead therefore the ">=" operator.
+                //  Don't delete. Prevents race condition bug (see tests for it).
+            }
+            else { // Normally:
+                this.trackedSentChannelItems.items.delete(payload.id); // Delete it also here
+            }
+        }
+        else if(message.type === "streamDataRequest") {
+            // TODO: move to trackedSentChannelItems
+            const payload = message.payload as Socket_StreamDataRequest;
+            typeof payload.id === "number" && typeof payload.size === "number" || throwError("Invalid payload"); // Validity check
+            const trackedItem = this.trackedSentChannelItems.items.get(payload.id);
+            if(trackedItem === undefined) {
+                throw new Error(`Readable with id ${payload.id} does not exist (anymore)`);
+            }
+            this.trackedSentChannelItems.readRequestCallbacks.get(trackedItem.item as Readable)!(null); // Call callback
         }
         else {
             throw new Error(`Unhandled message type: ${message.type}`)
@@ -318,66 +343,76 @@ export class ServerSocketConnection {
 
                 // Exec the call (serverSessionClass.doCall_outer) and return result/error:
                 try {
-                    const swappableArgs = this.handleMethodCall_resolveChannelItemDTOs(methodCall.args); // resolve / register them, or insert placeholders. Plays together with validateMethodArguments.
+                    this.receivedChannelItems.replaceDTOsAndTrackThem(methodCall.args); // replace **stream** channel items and track them
 
-                    const { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
+                    const swappableArgs = this.handleMethodCall_resolveClientCallbackDTOs(methodCall.args); // Replace **callback** channel items: Resolve / register them and insert placeholders. Plays together with validateMethodArguments.
 
-                    // Check if result is of illegal type:
-                    const disallowedReturnTypes = {
-                        "Readable": Readable,
-                        "ReadableStream": ReadableStream,
-                        "ReadableStreamDefaultReader": ReadableStreamDefaultReader,
-                        "Buffer": Buffer
-                    };
-                    for (const [name, type] of Object.entries(disallowedReturnTypes)) {
-                        if (result instanceof type) {
-                            throw new CommunicationError(`${methodCall.methodName}'s result of type ${name} is not supported when calling via socket`)
-                        }
-                    }
+                    let { result, modifiedSession} = await serverSessionClass.doCall_outer(this.cookieSession, securityPropsForThisCall, methodCall.methodName, swappableArgs, {socketConnection: this, securityProps: securityPropsForThisCall}, this.trimArguments_clientPreference,{})
 
-                    if (modifiedSession) {
-                        if(!this.cookieSession) { // New session ?
-                            // Or is it better to just just create one ourself and send it to the main http site then ?
-                            // - Pro: Safes us 2 a round trips
-                            // - Pro: Avoids the unexpected behaviours that the call is re-executed
-                            // - Neutral: You could create 2 independent cookieSessions (socket, http) on which you can work with at the same time. But is that a security problem ?
-                            // - Con: An attacker could use then use this fresh session as his stock session and install it to victim(s) on the http side. Assuming he has at least access to one publicly allowed service (allowed origin) but that means nothing.
-                            // - Con: When the session is tried to be installed on the http side and before that happens, the access check initializes it (i.e. for corsReadToken), there will be some trouble.
-                            // - Con: Does not work with a non-restfuncs session handler that wants to do its own initialization (set its own id) / validation, etc.
+                    try { // the following line's side effects are not recoverable from:
+                        result = this.trackedSentChannelItems.replaceStreamChannelItemsWithDTOs(result);
 
-                            // Before proceeding, we must request and install an initial cookie session. See setCookieSession - scenario D. The client must do the call again then.
-                            this.cookieSession = "outdated"
-                            return {
-                                needsInitializedCookieSession: this.server.server2serverEncryptToken({
-                                    serverSocketConnectionId: this.id,
-                                    forceInitialize: true
-                                }, "GetCookieSession_question"),
-                                status: "needsCookieSession"
+                        // Check if result is of illegal type:
+                        const disallowedReturnTypes = {
+                            "Readable": Readable,
+                            "ReadableStream": ReadableStream,
+                            "ReadableStreamDefaultReader": ReadableStreamDefaultReader,
+                            "Buffer": Buffer // TODO: why not allow buffer ?
+                        };
+                        for (const [name, type] of Object.entries(disallowedReturnTypes)) {
+                            if (result instanceof type) {
+                                throw new CommunicationError(`${methodCall.methodName}'s result of type ${name} is not supported when calling via socket`)
                             }
                         }
 
-                        // Safety check:
-                        if(!modifiedSession.id || modifiedSession.version === undefined) {
-                            throw new Error("Illegal state: id and version should be set, cause this.cookieSession was already initialized before the call")
+                        if (modifiedSession) {
+                            if (!this.cookieSession) { // New session ?
+                                // Or is it better to just just create one ourself and send it to the main http site then ?
+                                // - Pro: Safes us 2 a round trips
+                                // - Pro: Avoids the unexpected behaviours that the call is re-executed
+                                // - Neutral: You could create 2 independent cookieSessions (socket, http) on which you can work with at the same time. But is that a security problem ?
+                                // - Con: An attacker could use then use this fresh session as his stock session and install it to victim(s) on the http side. Assuming he has at least access to one publicly allowed service (allowed origin) but that means nothing.
+                                // - Con: When the session is tried to be installed on the http side and before that happens, the access check initializes it (i.e. for corsReadToken), there will be some trouble.
+                                // - Con: Does not work with a non-restfuncs session handler that wants to do its own initialization (set its own id) / validation, etc.
+
+                                // Before proceeding, we must request and install an initial cookie session. See setCookieSession - scenario D. The client must do the call again then.
+                                this.cookieSession = "outdated"
+                                return {
+                                    needsInitializedCookieSession: this.server.server2serverEncryptToken({
+                                        serverSocketConnectionId: this.id,
+                                        forceInitialize: true
+                                    }, "GetCookieSession_question"),
+                                    status: "needsCookieSession"
+                                }
+                            }
+
+                            // Safety check:
+                            if (!modifiedSession.id || modifiedSession.version === undefined) {
+                                throw new Error("Illegal state: id and version should be set, cause this.cookieSession was already initialized before the call")
+                            }
+
+
+                            // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection to the client can break.
+                            this.cookieSession = "outdated"
+                            return {
+                                result,
+                                doCookieSessionUpdate: this.server.server2serverEncryptToken({
+                                    serverSessionClassId: serverSessionClass.id,
+                                    newSession: modifiedSession as CookieSession /* cast cause we're sure now that there is an id */
+                                }, "CookieSessionUpdate"),
+                                status: "doCookieSessionUpdate"
+                            }
+
                         }
 
-
-                        // Wait until it's committed to the http side. Don't commit session to the validator yet, because the connection to the client can break.
-                        this.cookieSession = "outdated"
                         return {
                             result,
-                            doCookieSessionUpdate: this.server.server2serverEncryptToken({
-                                serverSessionClassId: serverSessionClass.id,
-                                newSession: modifiedSession as CookieSession /* cast cause we're sure now that there is an id */
-                            }, "CookieSessionUpdate"),
-                            status: "doCookieSessionUpdate"
+                            status: 200
                         }
-
                     }
-
-                    return {
-                        result,
-                        status: 200
+                    catch (e) {
+                        this.failFatal(e as Error);
+                        throw e;
                     }
                 } catch (caught) {
                     if (caught instanceof Error) {
@@ -431,7 +466,7 @@ export class ServerSocketConnection {
      * Replaces all ClientCallback DTOs in the arguments with "_callback_XXX" placeholders and registers swapper functions for them, which bring them to life
      * The placeholder+swapping functions is a preparation for {@link ServerSession#validateMethodArguments}.
      */
-    handleMethodCall_resolveChannelItemDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
+    handleMethodCall_resolveClientCallbackDTOs(remoteMethodArgs: unknown[]): SwappableArgs {
         const result: SwappableArgs = {argsWithPlaceholders: remoteMethodArgs, swapCallbackPlaceholderFns: new Map<string, ((args: SwapPlaceholders_args) => void)>(), swapEscapedStringFns: []}
 
         visitReplace(remoteMethodArgs, (item, visitChilds, context) => {
@@ -454,15 +489,17 @@ export class ServerSocketConnection {
                 if(dtoItem._dtoType === "ClientCallback") { // ClientCallback DTO ?
                     const swapperFn = (swapperArgs: SwapPlaceholders_args) => {
                         // Determine / create callback:
-                        const existing = this.clientCallbacks.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
+                        const existing = this.receivedChannelItems.peek(id);  // use .peek instead of .get to not trigger a reporting of a lost item to the client. Cause we already have the new one for that id and this would impose a race condition/error.
                         let callback: ClientCallback;
                         if(existing) { // Already exists ?
-                            callback = existing;
+                            validUnless("Not a client callback", typeof existing ==="function" && (existing as ClientCallback)._type === "ClientCallback");
+                            callback = existing as ClientCallback;
                         }
                         else {
                             // Create a new callback (function + properties):
                             const callbackProperties: ClientCallbackProperties = {
                                 socketConnection: this,
+                                _type: "ClientCallback",
                                 id: id,
                                 free: () => {
                                     this.freeClientCallback(callback!)
@@ -472,7 +509,7 @@ export class ServerSocketConnection {
                                     // <- **** here, the callback gets called (yeah) ****
 
                                     // Validity check:
-                                    if (this.clientCallbacks.get(callback.id) === undefined) {
+                                    if (this.receivedChannelItems.get(callback.id) === undefined) {
                                         throw new Error(`Cannot call callback after you have already freed it (see: import {free} from "restfuncs-server").`)
                                     }
 
@@ -635,7 +672,7 @@ export class ServerSocketConnection {
                             })
                         }
 
-                        this.clientCallbacks.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
+                        this.receivedChannelItems.set(id, callback!); // Register it on client's id, so that the function instance can be reused:
                         swapValueTo(callback);
                     };
                     (swapperFn as any).diagnosis_path = context.diagnosis_path; // Does not work currently. TODO: Implement to always track path via parent context (see shelf)
@@ -810,10 +847,7 @@ export class ServerSocketConnection {
      * @param clientCallback
      */
     freeClientCallback(clientCallback: ClientCallback) {
-        this.clientCallbacks.delete(clientCallback.id);
-        if(!this.isClosed()) {
-            this.sendMessage({ type: "channelItemNotUsedAnymore", payload: {id: clientCallback.id, time: this.lastSequenceNumberFromClient} });
-        }
+        this.receivedChannelItems.free(clientCallback)
     }
 
     /**

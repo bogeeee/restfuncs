@@ -20,13 +20,14 @@ import {
     isTypeInfoAvailable,
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
-    shieldTokenAgainstBREACH_unwrap
+    shieldTokenAgainstBREACH_unwrap, throwError
 } from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
-import {Readable} from "node:stream";
+import type {Readable as Readable_fromNodePackage} from "node:stream";
+import type {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
@@ -44,13 +45,13 @@ import {
     WelcomeInfo,
     fixErrorStack,
     cloneError,
-    ERROR_PROPERTIES,
+    ERROR_PROPERTIES, toHybridReadable,
 } from "restfuncs-common";
 import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"
-import {errorToString, ErrorWithExtendedInfo} from "restfuncs-common";
+import {errorToString, ErrorWithExtendedInfo, isAnyReadableStream} from "restfuncs-common";
 import clone from "clone";
 
 Buffer.alloc(0); // Provoke usage of some stuff that the browser doesn't have. Keep this here !
@@ -67,6 +68,7 @@ export type ClientCallback = ((...args: unknown[]) => unknown) & ClientCallbackP
  */
 export type SocketAssociatedCallbackFunction = ((...args: unknown[]) => unknown) & {socketConnection: ServerSocketConnection};
 export type ClientCallbackProperties = {
+    _type: "ClientCallback"
 
     /**
      * Chosen by the client
@@ -623,37 +625,41 @@ export class ServerSession implements IServerSession {
             const sendResult = (result: unknown, diagnosis_methodName?: string) => {
                 const contextPrefix = diagnosis_methodName ? `${diagnosis_methodName}: ` : ""; // Reads better. I.e. the user doesnt see on first glance that the error came from the getIndex method
 
+                const isStream = isAnyReadableStream(result)
+
                 // Determine contentTypeFromCall: The content type that was explicitly set during the call via res.contentType(...):
                 const contentTypeHeader = res.getHeader("Content-Type");
                 if(typeof contentTypeHeader == "number" || _.isArray(contentTypeHeader)) {
                     throw new Error(`${contextPrefix}Unexpected content type header. Should be a single string`);
                 }
                 const [contentTypeFromCall, contentTypeOptionsFromCall] = parseContentTypeHeader(contentTypeHeader);
-
                 if(contentTypeFromCall == "application/brillout-json") {
+                    !isStream || throwError(new CommunicationError(`Must not return a stream when the Content-type header is set to ${contentTypeFromCall}`));
                     res.send(brilloutJsonStringify(result));
                 }
                 else if(contentTypeFromCall == "application/json") {
+                    !isStream || throwError(new CommunicationError(`Must not return a stream when the Content-type header is set to ${contentTypeFromCall}`));
                     res.json(result);
                 }
                 else if(contentTypeFromCall) { // Other ?
                     if(typeof result === "string") {
                         res.send(result);
                     }
-                    else if(result instanceof Readable) {
-                        if(result.errored) {
-                            throw result.errored;
+                    else if(isStream) {
+                        const rsResult = toHybridReadable(result as any);
+                        if(rsResult.errored) {
+                            throw rsResult.errored;
                         }
-                        result.on("error", (err) => {
+                        rsResult.on("error", (err) => {
                             res.end(this.logAndGetErrorLineForPasteIntoStreams(err, req));
                         })
-                        result.pipe(res);
+                        rsResult.pipe(res);
                     }
                     else if(result instanceof ReadableStream) {
-                        throw new CommunicationError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`)
+                        throw new CommunicationError(`${contextPrefix}ReadableStream not supported. Please use Readable instead`) // TODO: implement isAnyReadableStream proper
                     }
                     else if(result instanceof ReadableStreamDefaultReader) {
-                        throw new CommunicationError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`)
+                        throw new CommunicationError(`${contextPrefix}ReadableStreamDefaultReader not supported. Please use Readable instead`) // TODO: implement isAnyReadableStream proper
                     }
                     else if(result instanceof Buffer) {
                         res.send(result);
@@ -664,7 +670,7 @@ export class ServerSession implements IServerSession {
                     }
                 }
                 else { // Content type was not explicitly set in the call ?
-                    if(result instanceof Readable || result instanceof ReadableStream || result instanceof ReadableStreamDefaultReader || result instanceof Buffer) {
+                    if(isStream || result instanceof Buffer) {
                         throw new CommunicationError(`${contextPrefix}If you return a stream or buffer, you must explicitly set the content type. I.e. via: this.call.res?.contentType(...); `);
                     }
 
@@ -1851,8 +1857,8 @@ export class ServerSession implements IServerSession {
                 return result; // Skip validation of Buffer
             }
         }
-        if(result instanceof Readable) {
-            return result;
+        if(isAnyReadableStream(result)) {
+            return result; // Skip validation for Streams
         }
 
         const shouldTrimResult = this.clazz.getRemoteMethodOptions(remoteMethodName).trimResult !== false;
@@ -2916,7 +2922,7 @@ export function remote(targetOrOptions?: RemoteMethodOptions | ServerSession, me
  * Usually this is done automatically for you, when node reports that the resource has been garbage collected (on the server).
  * So use it only when having heavy memory allocation load on the client and automatic reporting comes too late.
  */
-export function free(resource: (...args: any[]) => any) {
+export function free(resource: (...args: any[]) => any | Readable_fromNodePackage | Readable_fromReadableStreamPackage | ReadableStream | ReadableStreamDefaultReader) { // TODO: list writables
     if(typeof resource === "function") {
         const clientCallback = resource as ClientCallback;
         if(clientCallback.socketConnection === undefined) { //
