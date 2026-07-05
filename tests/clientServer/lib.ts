@@ -167,3 +167,9 @@ export async function expectAsyncFunctionToThrow(f: ((...any) => any) | Promise<
         }
     }).toThrow(expected);
 }
+
+export async function sleep(ms: number) {
+    return new Promise<void>((resolve, reject) => {
+        setTimeout(resolve, ms);
+    })
+}
