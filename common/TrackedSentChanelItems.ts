@@ -72,6 +72,9 @@ export class TrackedSentChannelItems {
      * The placeholder+swapping functions is a preparation for {@link ServerSession#validateMethodArguments}.
      */
     replaceStreamChannelItemsWithDTOs(valueToBeSent: unknown): unknown {
+        if(valueToBeSent === null || typeof valueToBeSent !== "object") {
+            return valueToBeSent;
+        }
         return visitReplace(valueToBeSent, (item, visitChilds, context) => {
             if (isAnyReadableStream(item)) {
                 const me = this;

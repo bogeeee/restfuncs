@@ -54,6 +54,9 @@ export class ReceivedChannelItems extends WeakValueMap<number, object>{
      * @param onDTOReplaced: Called back for every replacement. Params: item = the implementation that was inserted (i.e. a Readble). insertIntoPlace = a function that can beused to insert some other object into that place
      */
     replaceDTOsAndTrackThem(receivedValue: unknown, onDTOReplaced?: (item: object, insertIntoPlace: (newValue: unknown)=>void) => void): unknown {
+        if(receivedValue === null || typeof receivedValue !== "object") {
+            return receivedValue;
+        }
         return visitReplace(receivedValue, (item, visitChilds, context) => {
             const insertIntoPlace = (newValue: unknown) => {
                 //@ts-ignore
