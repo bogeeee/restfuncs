@@ -1,5 +1,5 @@
 // util.test.ts
-import {visitReplace} from './util';
+import {visitReplace} from './util.js';
 
 describe('visitReplace', function() {
     it('should replace certain values and stop recursion', function() {

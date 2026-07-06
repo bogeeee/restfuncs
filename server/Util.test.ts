@@ -2,7 +2,7 @@ import {
     browserMightHaveSecurityIssuseWithCrossOriginRequests,
     shieldTokenAgainstBREACH,
     shieldTokenAgainstBREACH_unwrap
-} from "./Util";
+} from "./Util.js";
 
 jest.setTimeout(60 * 60 * 1000); // Increase timeout to 1h to make debugging possible
 

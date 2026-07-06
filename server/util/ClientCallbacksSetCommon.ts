@@ -6,7 +6,7 @@ import {
     ClientCallback,
     withTrim,
     SocketAssociatedCallbackFunction
-} from "../ServerSession";
+} from "../ServerSession.js";
 import _ from "underscore"
 
 /**

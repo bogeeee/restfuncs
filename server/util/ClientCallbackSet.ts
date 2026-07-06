@@ -1,6 +1,6 @@
-import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
-import {ClientCallback, free} from "../ServerSession";
-import {ServerSocketConnection} from "../ServerSocketConnection";
+import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon.js";
+import {ClientCallback, free} from "../ServerSession.js";
+import {ServerSocketConnection} from "../ServerSocketConnection.js";
 
 /**
  * A Set of ClientCallback functions which automatically forgets them, when their client disconnects.

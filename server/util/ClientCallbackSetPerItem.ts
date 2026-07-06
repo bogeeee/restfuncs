@@ -1,7 +1,7 @@
-import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback, free} from "../ServerSession";
+import {remote, ServerSession, UnknownFunction, isClientCallback, ClientCallback, free} from "../ServerSession.js";
 import _ from "underscore"
-import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon";
-import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection";
+import {ClientCallbacksSetCommon, ClientCallbackSetOptions} from "./ClientCallbacksSetCommon.js";
+import {CloseReason, ServerSocketConnection} from "../ServerSocketConnection.js";
 
 /**
  * Associates client callback functions (usually used as event-listeners) to a certain item.
