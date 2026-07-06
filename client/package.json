@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-client",
-  "version": "2.3.4",
+  "version": "2.4.0",
   "description": "Client for restfuncs-server. Allows you to seamlessly call server methods in RPC style.",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -26,7 +26,7 @@
     "build_mjs__change_file_extension": "find dist/mjs -type f -name \"*.js\" -exec sh -c 'mv \"$0\" \"${0%.js}.mjs\"' {} \\;"
   },
   "dependencies": {
-    "restfuncs-common": "^3.2.3",
+    "restfuncs-common": "^3.3.0",
     "underscore": "^1.13.3",
     "@brillout/json-serializer": "=0.5.18",
     "engine.io-client": "^6.6.3",
