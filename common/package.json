@@ -15,7 +15,8 @@
     ".": {
       "browser": "./dist/mjs/index.mjs",
       "import": "./dist/mjs/index.mjs",
-      "require": "./dist/commonjs/index.js"
+      "require": "./dist/commonjs/index.js",
+      "types": "./dist/commonjs/index.d.ts"
     },
     "./__The_following_is_used_by__server-index_esm.js__": {},
     "./dist/commonjs/index.js": {

@@ -15,7 +15,8 @@
     ".": {
       "browser": "./dist/mjs/index.mjs",
       "import": "./dist/mjs/indexm.mjs",
-      "require": "./dist/commonjs/index.js"
+      "require": "./dist/commonjs/index.js",
+      "types": "./dist/commonjs/index.d.ts"
     }
   },
   "scripts": {
