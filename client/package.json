@@ -13,8 +13,8 @@
   "main": "./dist/commonjs/index.js",
   "exports": {
     ".": {
-      "browser": "./dist/mjs/index.mjs",
-      "import": "./dist/mjs/indexm.mjs",
+      "browser": "./dist/esm/index.mjs",
+      "import": "./dist/esm/index.mjs",
       "require": "./dist/commonjs/index.js",
       "types": "./dist/commonjs/index.d.ts"
     }
