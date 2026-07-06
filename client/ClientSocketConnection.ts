@@ -440,6 +440,8 @@ export class ClientSocketConnection {
                 } else if (message.type === "downCall") {
                     this.handleDownCall(message.payload as Socket_DownCall /* will be validated in method*/);
                 } else if (message.type === "channelItemNotUsedAnymore") {
+                    // TODO: move code to trackedSentChannelItems
+
                     await _testForRaceCondition_breakPoints.offer("client/ClientSocketConnection/handleMessage/channelItemNotUsedAnymore");
                     const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
 

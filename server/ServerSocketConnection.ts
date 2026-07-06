@@ -233,6 +233,8 @@ export class ServerSocketConnection {
             this.setCookieSession(message.payload);
         }
         else if(message.type === "channelItemNotUsedAnymore") {
+            // TODO: move code to trackedSentChannelItems
+
             const payload = message.payload as Socket_ChannelItemNotUsedAnymore;
 
             typeof payload.id === "number" && typeof payload.time === "number"|| throwError("Invalid payload"); // Validity check
@@ -245,7 +247,8 @@ export class ServerSocketConnection {
             }
         }
         else if(message.type === "streamDataRequest") {
-            // TODO: move to trackedSentChannelItems
+            // TODO: move code to trackedSentChannelItems
+
             const payload = message.payload as Socket_StreamDataRequest;
             typeof payload.id === "number" && typeof payload.size === "number" || throwError("Invalid payload"); // Validity check
             const trackedItem = this.trackedSentChannelItems.items.get(payload.id);
