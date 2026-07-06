@@ -39,7 +39,7 @@ export class ReceivedChannelItems extends WeakValueMap<number, object>{
 
     free(item: any) {
         item.id !== undefined && typeof item.id === "number" || throwError(`Value does not seem to be a ${DIAGNOSIS_WHATISACHANNELITEM}`);
-        delete(item.id);
+        this.delete(item.id);
         if(!this.socketConnection.isClosed()) {
             this.socketConnection.sendMessage({
                 type: "channelItemNotUsedAnymore",
