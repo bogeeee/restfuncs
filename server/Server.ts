@@ -14,10 +14,10 @@ import {
     Socket
 } from "engine.io"
 import _ from "underscore";
-import {diagnisis_shortenValue, getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util";
-import {ServerSessionOptions, ServerSession, originIsAllowed} from "./ServerSession";
+import {diagnisis_shortenValue, getAllFunctionNames, getMethodNames, isTypeInfoAvailable} from "./Util.js";
+import {ServerSessionOptions, ServerSession, originIsAllowed} from "./ServerSession.js";
 import session from "express-session";
-import {ServerSocketConnection} from "./ServerSocketConnection";
+import {ServerSocketConnection} from "./ServerSocketConnection.js";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util"
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"

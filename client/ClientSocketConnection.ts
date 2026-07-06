@@ -1,6 +1,6 @@
 import {Socket, SocketOptions} from "engine.io-client";
-import {isNode, DropConcurrentOperationMap, DropConcurrentOperation, throwError} from "./Util";
-import {RestfuncsClient, ServerError} from "./index";
+import {isNode, DropConcurrentOperationMap, DropConcurrentOperation, throwError} from "./Util.js";
+import {RestfuncsClient, ServerError} from "./index.js";
 import {
     _testForRaceCondition_breakPoints,
     ClientCallbackDTO, cloneError,

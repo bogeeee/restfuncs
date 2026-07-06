@@ -1,4 +1,4 @@
-import {WeakValueMap} from "./WeakValueMap";
+import {WeakValueMap} from "./WeakValueMap.js";
 import {
     ChannelItemDTO, Socket_StreamData,
     Socket_StreamDataRequest,
@@ -6,7 +6,7 @@ import {
     toHybridReadable,
     validUnless,
     visitReplace
-} from "./index";
+} from "./index.js";
 import {Readable} from "readable-stream";
 import nacl_util from "tweetnacl-util"
 

@@ -1,5 +1,5 @@
 // A wrapper file for ESM to avoid the 'dual package hazard'. See https://nodejs.org/api/packages.html#approach-1-use-an-es-module-wrapper
-// Despite the dual-package hazard, we could not go the esm-only way, ditching commonjs (might be ok, because in the examples for new projects, only ESM is advertised), because tspc (opposing to tsc) needs to also see a commonjs version of it. Strange.
+// Despite the dual-package hazard, we could not go the esm-only way, ditching commonjs (might be ok, because in the examples for new projects, only ESM is advertised), because: (Could not reproduce!): "tspc (opposed to tsc) needs to also see a commonjs version of it. Strange".
 // Publishing as dual (duplicate code) package also does not work at runtime with node then, after successful compile with tspc: SyntaxError: The requested module 'restfuncs-server' does not provide an export named 'ServerSession'. See the exmple project
 
 // Still we know that the current way can cause problems (when enabling strict=true - not investigated which one of the strict options it really is), cause there is no .d.ts file for **this file**. But in the wild it seems fine somehow and all types are found:)
