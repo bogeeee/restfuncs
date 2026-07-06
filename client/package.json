@@ -13,8 +13,8 @@
   "main": "./dist/commonjs/index.js",
   "exports": {
     ".": {
-      "browser": "./dist/esm/index.mjs",
-      "import": "./dist/esm/index.mjs",
+      "browser": "./dist/esm/index.js",
+      "import": "./dist/esm/index.js",
       "require": "./dist/commonjs/index.js",
       "types": "./dist/commonjs/index.d.ts"
     }
@@ -22,8 +22,7 @@
   "scripts": {
     "dev:fastbuild": "tsc --build",
     "clean": "tsc --build --clean && rimraf dist LICENSE readme.md",
-    "build": "tsc --build --force && tsc -module ES6 --outDir dist/esm && npm run build_esm__change_file_extension",
-    "build_esm__change_file_extension": "find dist/esm -type f -name \"*.js\" -exec sh -c 'mv \"$0\" \"${0%.js}.mjs\"' {} \\;"
+    "build": "tsc --build --force && tsc -module ES6 --outDir dist/esm"
   },
   "dependencies": {
     "restfuncs-common": "^3.3.0",
