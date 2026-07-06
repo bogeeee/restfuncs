@@ -13,8 +13,8 @@
   "main": "./dist/commonjs/index.js",
   "exports": {
     ".": {
-      "browser": "./dist/mjs/index.js",
-      "import": "./dist/mjs/index.js",
+      "browser": "./dist/mjs/index.mjs",
+      "import": "./dist/mjs/index.mjs",
       "require": "./dist/commonjs/index.js"
     },
     "./__The_following_is_used_by__server-index_esm.js__": {},
@@ -25,7 +25,8 @@
   "scripts": {
     "dev:fastbuild": "tsc --build",
     "clean": "tsc --build --clean && rimraf dist LICENSE readme.md",
-    "build": "tsc --build --force && tsc -module ES6 --outDir dist/mjs"
+    "build": "tsc --build --force && tsc -module ES6 --outDir dist/mjs && npm run build_mjs__change_file_extension",
+    "build_mjs__change_file_extension": "find dist/mjs -type f -name \"*.js\" -exec sh -c 'mv \"$0\" \"${0%.js}.mjs\"' {} \\;"
   },
   "dependencies": {
     "readable-stream": "=4.5.x",
