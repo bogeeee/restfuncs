@@ -8,11 +8,11 @@ import {
     readableStreamToHybridStream,
     WelcomeInfo
 } from "restfuncs-common";
-import {ClientSocketConnection} from "./ClientSocketConnection.js";
-import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver, WeakMapSet} from "./Util.js";
+import {ClientSocketConnection} from "./ClientSocketConnection";
+import {isNode, DropConcurrentOperation, DropConcurrentOperationMap, RetryableResolver, WeakMapSet} from "./Util";
 import {visitReplace} from "restfuncs-common";
 
-export {ClientSocketConnection} from "./ClientSocketConnection.js";
+export {ClientSocketConnection} from "./ClientSocketConnection";
 
 const SUPPORTED_SERVER_PROTOCOL_MAXVERSION = 1
 const REQUIRED_SERVER_PROTOCOL_FEATUREVERSION = 1 // we need the brillout-json feature

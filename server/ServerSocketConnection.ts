@@ -4,8 +4,8 @@ import {
     ServerSession,
     CallbackMeta,
     SwappableArgs, SwapPlaceholders_args, UnknownFunction, diag_sourceLocation, DOCS_READMEURL
-} from "./ServerSession.js";
-import {RestfuncsServer, SecurityGroup} from "./Server.js";
+} from "./ServerSession";
+import {RestfuncsServer, SecurityGroup} from "./Server";
 import {Socket} from "engine.io";
 import {
     CookieSession,
@@ -27,9 +27,9 @@ import {
     Socket_DownCallResult, fixErrorForJest, Socket_ChannelItemNotUsedAnymore, Socket_StreamDataRequest
 } from "restfuncs-common";
 import _ from "underscore";
-import {CommunicationError, isCommunicationError} from "./CommunicationError.js";
+import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import {Readable, Writable} from "readable-stream";
-import {cloneAndFixNonSerializeable, createSecureId, diagnisis_shortenValue, throwError, validUnless} from "./Util.js";
+import {cloneAndFixNonSerializeable, createSecureId, diagnisis_shortenValue, throwError, validUnless} from "./Util";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import crypto from "node:crypto";

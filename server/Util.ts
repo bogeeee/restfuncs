@@ -6,7 +6,7 @@ import escapeHtml from "escape-html";
 import crypto from "node:crypto"
 import {Request} from "express";
 import URL from "url";
-import {CommunicationError} from "./CommunicationError.js";
+import {CommunicationError} from "./CommunicationError";
 import {reflect} from "typescript-rtti";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";

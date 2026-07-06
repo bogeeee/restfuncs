@@ -21,14 +21,14 @@ import {
     parseContentTypeHeader,
     shieldTokenAgainstBREACH,
     shieldTokenAgainstBREACH_unwrap, throwError
-} from "./Util.js";
+} from "./Util";
 import escapeHtml from "escape-html";
 import crypto from "node:crypto"
-import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup} from "./Server.js";
+import {getServerInstance, PROTOCOL_VERSION, RestfuncsServer, SecurityGroup} from "./Server";
 import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stringify";
 import type {Readable as Readable_fromNodePackage} from "node:stream";
 import type {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
-import {CommunicationError, isCommunicationError} from "./CommunicationError.js";
+import {CommunicationError, isCommunicationError} from "./CommunicationError";
 import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
@@ -47,7 +47,7 @@ import {
     cloneError,
     ERROR_PROPERTIES, toHybridReadable,
 } from "restfuncs-common";
-import {ServerSocketConnection,} from "./ServerSocketConnection.js";
+import {ServerSocketConnection,} from "./ServerSocketConnection";
 import nacl_util from "tweetnacl-util";
 import nacl from "tweetnacl";
 import typia, {IValidation} from "typia"

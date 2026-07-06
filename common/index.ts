@@ -1,11 +1,11 @@
 import {Readable} from "node:stream"
 
-export * from "./util.js";
-export {WeakValueMap} from "./WeakValueMap.js";
-import {BreakPoints} from "./BreakPoints.js";
-export * from "./hybridstreams.js";
-export * from "./ReceivedChannelItems.js";
-export * from "./TrackedSentChanelItems.js";
+export * from "./util";
+export {WeakValueMap} from "./WeakValueMap";
+import {BreakPoints} from "./BreakPoints";
+export * from "./hybridstreams";
+export * from "./ReceivedChannelItems";
+export * from "./TrackedSentChanelItems";
 
 export const _testForRaceCondition_breakPoints = new BreakPoints();
 

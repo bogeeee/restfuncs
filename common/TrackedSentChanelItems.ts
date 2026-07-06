@@ -6,8 +6,8 @@ import {
     Socket_StreamDataRequest,
     toHybridReadable,
     visitReplace
-} from "./index.js";
-import {isReadable} from "./hybridstreams.js";
+} from "./index";
+import {isReadable} from "./hybridstreams";
 import nacl_util from "tweetnacl-util"
 
 export class TrackedSentChannelItems {
