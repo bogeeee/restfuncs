@@ -2972,8 +2972,10 @@ export type UnknownFunction = (...args: unknown[]) => unknown
  *     }
  * </code></pre>
  */
+// Cache to reuse wrapped functions and avoid creating new instances every call
+const withTrimCache = new WeakMap<object, object>();
+
 export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArguments= true, trimResult= true, useSignatureFrom?: UnknownFunction): CB {
-    // Validity checks:
     if (typeof callbackFn !== "function") {
         throw new Error("Unsupported resource type")
     }
@@ -2981,20 +2983,18 @@ export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArgumen
         throw new Error("The passed argument is not a client callback function.");
     }
 
+    const cached = withTrimCache.get(callbackFn as object);
+    if (cached) return cached as CB;
+
     const clientCallback = callbackFn as any as ClientCallback;
 
-    //@ts-ignore
-    return (...args: unknown[]) => {
+    const wrapped = (...args: unknown[]) => {
         return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
-    }
-}
+    };
 
-/**
- *
- * @param params: pre-computed origin and destination
- * @param errorHints Error messages will be added here
- * @return if origin and destination are allowed by the "allowedOrigins" option
- */
+    withTrimCache.set(callbackFn as object, wrapped as object);
+    return wrapped as CB;
+}
 export function originIsAllowed(params: { origin?: string, destination?: string, allowedOrigins: AllowedOriginsOptions }, errorHints?: string[]): boolean {
     function isSameOrigin() {
         return params.destination !== undefined && params.origin !== undefined && (params.origin === params.destination);
