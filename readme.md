@@ -207,7 +207,7 @@ console.log( await myRemoteSession.myRemoteMethod("Hans") ); // Call your remote
 },
 "dependencies": {
   "restfuncs-server": "^3.0.0",
-  "restfuncs-client": "^2.0.0"
+  "restfuncs-client": "^3.0.0"
 },
 "devDependencies": {
   "typescript": "=5.1.x",
