@@ -5,9 +5,9 @@ import {
     ClientCallbackSetPerItem,
     ServerSession as ServerSession,
     ServerSessionOptions
-} from "restfuncs-server";
-import {remote} from "restfuncs-server";
-import {free} from "restfuncs-server/ServerSession";
+} from "restfuncs-server/index";
+import {remote} from "restfuncs-server/index";
+import {free} from "restfuncs-server/index";
 import {expectAsyncFunctionToThrow, resetGlobalState, runClientServerTests} from "./lib";
 import {_testForRaceCondition_breakPoints} from "restfuncs-common";
 

@@ -9,7 +9,7 @@ import ts, {
 } from 'typescript';
 import {FileTransformRun, TextPatch} from "./transformerUtil";
 import {transformerVersion} from "./index";
-import {visitReplace} from "restfuncs-common";
+import {visitReplace} from "./util";
 
 
 /**

@@ -2,10 +2,10 @@
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig to read more about this file */
     "composite": true,
-    "outDir": "dist/commonjs",
+    "outDir": "dist/esm",
     "declaration": true,
     "target": "ES2017",
-    "module": "CommonJS",
+    "module": "ES6",
     "lib": [
       "es2017",
       "es7",

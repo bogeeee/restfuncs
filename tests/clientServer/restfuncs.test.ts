@@ -1,4 +1,4 @@
-import {ServerSession as ServerSession, ServerSessionOptions, ServerSocketConnection} from "restfuncs-server";
+import {ServerSession as ServerSession, ServerSessionOptions, ServerSocketConnection} from "restfuncs-server/index";
 import express from "express";
 import {ClientSocketConnection, RestfuncsClient, ServerError} from "restfuncs-client/index";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
@@ -6,11 +6,11 @@ import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";
 import {CommunicationError} from "restfuncs-server/CommunicationError";
 import session from "express-session";
-import {restfuncsExpress, ServerOptions} from "restfuncs-server";
+import {restfuncsExpress, ServerOptions} from "restfuncs-server/index";
 import {CookieSession, WelcomeInfo} from "restfuncs-common";
 import nacl from "tweetnacl";
 import nacl_util from "tweetnacl-util";
-import {remote, RemoteMethodOptions} from "restfuncs-server";
+import {remote, RemoteMethodOptions} from "restfuncs-server/index";
 import {
     createServer,
     expectAsyncFunctionToThrow, readStreamToBuffer,

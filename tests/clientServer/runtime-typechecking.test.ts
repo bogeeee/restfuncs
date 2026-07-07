@@ -1,13 +1,13 @@
 import { tags } from "typia";
 import 'reflect-metadata'
-import {ClientCallback, ServerSession} from "restfuncs-server";
+import {ClientCallback, ServerSession} from "restfuncs-server/index";
 import {withTrim} from "restfuncs-server/ServerSession";
 import express from "express";
 import {reflect} from "typescript-rtti";
 import {extendPropsAndFunctions, isTypeInfoAvailable} from "restfuncs-server/Util";
 import {ClientProxy, RestfuncsClient} from "restfuncs-client";
 import {develop_resetGlobals} from "restfuncs-server/Server";
-import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server";
+import {remote, restfuncsExpress, ServerSessionOptions} from "restfuncs-server/index";
 import {ServerPrivateBox, WelcomeInfo} from "restfuncs-common";
 import {runClientServerTests, standardOptions} from "./lib";
 import _ from "underscore";
