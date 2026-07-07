@@ -2954,9 +2954,13 @@ export type UnknownFunction = (...args: unknown[]) => unknown
  * </code></pre>
  *
  * <p>
- *     Note: withTrim creates a new function instance every time. So i.e. you can't hand these to addEventListener(...) + removeEventListener(...) registries then.
- *     TODO: This could be improved for convenience. But is it really worth it ? Star this issue then: https://github.com/bogeeee/restfuncs/issues/8
- *     TODO: In that case, also make the util/EventEmitter class's resource-freeing mechanism aware of these derivatives.
+ *     Note: Since the fix for #8, withTrim caches the wrapper function per (callbackFn, useSignatureFrom) pair
+ *     using a WeakMap, so the same wrapper instance is returned on subsequent calls. This means you CAN now use
+ *     withTrim results with addEventListener / removeEventListener and similar patterns that rely on reference identity.
+ * </p>
+ * <p>
+ *     The WeakMap-based cache ensures that when the original callbackFn is garbage collected, its cached wrappers
+ *     are automatically cleaned up as well.
  * </p>
  * @param callbackFn
  * @param trimArguments
@@ -2972,6 +2976,10 @@ export type UnknownFunction = (...args: unknown[]) => unknown
  *     }
  * </code></pre>
  */
+// WeakMap cache so that withTrim returns the same wrapper function for the same callbackFn + useSignatureFrom,
+// enabling use with addEventListener/removeEventListener and similar patterns that rely on reference identity.
+const withTrimCache = new WeakMap<object, Map<object|undefined, UnknownFunction>>();
+
 export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArguments= true, trimResult= true, useSignatureFrom?: UnknownFunction): CB {
     // Validity checks:
     if (typeof callbackFn !== "function") {
@@ -2983,10 +2991,24 @@ export function withTrim<CB extends UnknownFunction>(callbackFn: CB, trimArgumen
 
     const clientCallback = callbackFn as any as ClientCallback;
 
+    // Cache lookup: return existing wrapper if same callbackFn + useSignatureFrom combination was already called
+    const sigKey = useSignatureFrom as object | undefined;
+    let sigMap = withTrimCache.get(clientCallback);
+    if (sigMap) {
+        const cached = sigMap.get(sigKey);
+        if (cached) return cached as CB;
+    } else {
+        sigMap = new Map();
+        withTrimCache.set(clientCallback, sigMap);
+    }
+
     //@ts-ignore
-    return (...args: unknown[]) => {
+    const wrapped = (...args: unknown[]) => {
         return clientCallback._validateAndCall(args, trimArguments, trimResult, useSignatureFrom);
     }
+
+    sigMap.set(sigKey, wrapped);
+    return wrapped as CB;
 }
 
 /**
