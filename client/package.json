@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-client",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Client for restfuncs-server. Allows you to seamlessly call server methods in RPC style.",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -30,7 +30,7 @@
     "build": "tsc --build --force && tsc -module ES6 --outDir dist/esm"
   },
   "dependencies": {
-    "restfuncs-common": "^3.5.0",
+    "restfuncs-common": "^4.0.0",
     "underscore": "^1.13.3",
     "@brillout/json-serializer": "^0.5.25",
     "engine.io-client": "^6.6.3",

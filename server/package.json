@@ -1,6 +1,6 @@
 {
   "name": "restfuncs-server",
-  "version": "3.7.1",
+  "version": "3.8.0",
   "description": "Serve a REST API for your plain functions and seamlessly RPC-call them from the client (browser).",
   "keywords": ["rpc","rest"],
   "author": "Boris Gingold <bogeee@bogitech.de>",
@@ -43,7 +43,7 @@
     "build": "tsc --build --force && tsc -module ES6 --outDir dist/esm"
   },
   "dependencies": {
-    "restfuncs-common": "^3.5.0",
+    "restfuncs-common": "^4.0.0",
     "express": "^4.17.13",
     "express-session": "^1.17.3",
     "underscore": "^1.13.3",
