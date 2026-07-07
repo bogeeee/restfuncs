@@ -1,6 +1,6 @@
 import {ServerSession as ServerSession, ServerSessionOptions, ServerSocketConnection} from "restfuncs-server";
 import express from "express";
-import {ClientSocketConnection, RestfuncsClient, ServerError} from "restfuncs-client";
+import {ClientSocketConnection, RestfuncsClient, ServerError} from "restfuncs-client/index";
 import {parse as brilloutJsonParse} from "@brillout/json-serializer/parse"
 import {Readable} from "node:stream";
 import {diagnosis_looksLikeJSON, shieldTokenAgainstBREACH_unwrap} from "restfuncs-server/Util";

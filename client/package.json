@@ -10,17 +10,22 @@
     "directory": "client"
   },
   "license": "MIT",
-  "main": "./dist/commonjs/index.js",
+  "type": "module",
+  "main": "./dist/esm/index.js",
   "exports": {
     ".": {
       "browser": "./dist/esm/index.js",
       "import": "./dist/esm/index.js",
-      "require": "./dist/commonjs/index.js",
-      "types": "./dist/commonjs/index.d.ts"
+      "default": "./dist/esm/index.js",
+      "types": "./dist/esm/index.d.ts"
+    },
+    "./__the_following_entries_are_for_development_for_jest_with_commonjs__": {},
+    "./index": {
+      "default": "./dist/commonjs/index.js"
     }
   },
   "scripts": {
-    "dev:fastbuild": "tsc --build",
+    "dev:fastbuild": "tsc --build && tsc -module commonjs --outDir dist/commonjs",
     "clean": "tsc --build --clean && rimraf dist LICENSE readme.md",
     "build": "tsc --build --force && tsc -module ES6 --outDir dist/esm"
   },

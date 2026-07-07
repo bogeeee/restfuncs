@@ -1,9 +1,9 @@
 {
   "compilerOptions": {
     "composite": true,
-    "outDir": "dist/commonjs",
+    "outDir": "dist/esm",
     "target": "ES2017",
-    "module": "CommonJS",
+    "module": "ES6",
     "lib": [
       "dom",
       "dom.iterable",

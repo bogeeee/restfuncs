@@ -1,5 +1,5 @@
 import {RemoteMethodOptions, restfuncsExpress, ServerSession, ServerSessionOptions} from "restfuncs-server";
-import {ClientProxy, RestfuncsClient, develop_resetGlobalState as client_develop_resetGlobalState} from "restfuncs-client";
+import {ClientProxy, RestfuncsClient, develop_resetGlobalState as client_develop_resetGlobalState} from "restfuncs-client/index";
 import {develop_resetGlobals} from "restfuncs-server/Server";
 import {extendPropsAndFunctions} from "restfuncs-server/Util";
 import session from "express-session";
