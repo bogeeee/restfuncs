@@ -29,7 +29,6 @@ import {stringify as brilloutJsonStringify} from "@brillout/json-serializer/stri
 import type {Readable as Readable_fromNodePackage} from "node:stream";
 import type {Readable as Readable_fromReadableStreamPackage} from "readable-stream";
 import {CommunicationError, isCommunicationError} from "./CommunicationError.js";
-import busboy from "busboy";
 import {AsyncLocalStorage} from 'node:async_hooks'
 import {
     CookieSession, CookieSessionState,
@@ -1587,8 +1586,14 @@ export class ServerSession implements IServerSession {
                 convertAndAddParams(parsed.result, parsed.containsStringValuesOnly?"string":"json");
             }
             else if(contentType == "multipart/form-data") {
-                throw new CommunicationError("multipart/form-data file uploads not yet implemented")
-                //let bb = busboy({ headers: req.headers });
+                const boundary = contentTypeAttributes["boundary"];
+                if (!boundary) {
+                    throw new CommunicationError("multipart/form-data: missing boundary in Content-Type");
+                }
+                const parsed = parseMultipartFormData(req.body as Buffer, boundary);
+                for (const [key, value] of Object.entries(parsed)) {
+                    convertAndAddParams([{[key]: value}], "json");
+                }
             }
             else if(contentType == "application/octet-stream") { // Stream ?
                 convertAndAddParams([req.body], null); // Pass it to the Buffer parameter
@@ -3079,4 +3084,67 @@ function checkIfSecurityFieldsAreValid(session: SecurityRelevantSessionFields) {
 
 export function isClientCallback(fn: UnknownFunction) {
     return ((fn as ClientCallback).socketConnection !== undefined);
+}
+
+/**
+ * Simple, auditable multipart/form-data parser using only Node.js Buffer APIs.
+ * No external dependencies — replaces the busboy library for supply-chain safety.
+ * Supports text fields and file uploads (as Buffers).
+ */
+function parseMultipartFormData(body: Buffer, boundary: string): Record<string, string | Buffer> {
+    const result: Record<string, string | Buffer> = {};
+    const boundaryBuffer = Buffer.from(`--${boundary}`);
+    const headerEndBuffer = Buffer.from("\r\n\r\n");
+    const lineEndBuffer = Buffer.from("\r\n");
+
+    let pos = 0;
+    // Skip preamble until first boundary
+    const firstBoundary = body.indexOf(boundaryBuffer, pos);
+    if (firstBoundary === -1) {
+        return result;
+    }
+    pos = firstBoundary + boundaryBuffer.length;
+
+    while (pos < body.length) {
+        // Check for closing boundary (--boundary--)
+        if (body[pos] === 0x2d && body[pos + 1] === 0x2d) {
+            break;
+        }
+
+        // Skip CRLF after boundary
+        if (body[pos] === 0x0d && body[pos + 1] === 0x0a) {
+            pos += 2;
+        }
+
+        // Find end of headers
+        const headerEnd = body.indexOf(headerEndBuffer, pos);
+        if (headerEnd === -1) break;
+
+        const headerText = body.slice(pos, headerEnd).toString("utf8");
+        pos = headerEnd + headerEndBuffer.length;
+
+        // Parse Content-Disposition header to get field name and filename
+        const nameMatch = headerText.match(/name="([^"]*)"/);
+        const filenameMatch = headerText.match(/filename="([^"]*)"/);
+        const fieldName = nameMatch ? nameMatch[1] : "";
+        const filename = filenameMatch ? filenameMatch[1] : null;
+
+        // Find next boundary
+        const nextBoundary = body.indexOf(Buffer.from(`\r\n--${boundary}`), pos);
+        if (nextBoundary === -1) break;
+
+        const content = body.slice(pos, nextBoundary);
+        pos = nextBoundary + 2; // +2 for \r\n before boundary
+        pos += boundaryBuffer.length;
+
+        if (filename !== null) {
+            // File upload — store as Buffer
+            result[fieldName] = content;
+        } else {
+            // Text field
+            result[fieldName] = content.toString("utf8");
+        }
+    }
+
+    return result;
 }
